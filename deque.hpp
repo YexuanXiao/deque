@@ -9,20 +9,59 @@
 #include <stdlib.h>
 #include <variant>
 
+// 返回块的大小，一定是4096的整数倍
+// 只被block_elements调用
+static inline consteval std::size_t calc_block_size(std::size_t pv) noexcept
+{
+    // 块的基本大小
+    auto constexpr base = 4096uz;
+    // 基本大小下，元素最大大小，至少保证16个
+    auto constexpr sieve = base / 16uz;
+
+    if (pv < sieve)
+    {
+        // 在基本大小的1-8倍间找到利用率最高的
+        auto block_sz = 0uz;
+        auto rmd_pre = std::size_t(-1);
+        auto result = 0uz;
+        for (auto i = 0uz; i < 8uz; ++i)
+        {
+            block_sz = base * (i + 1uz);
+            auto rmd_cur = (block_sz * i) % pv;
+            // 越小利用率越高
+            if (rmd_cur < rmd_pre)
+            {
+                rmd_pre = rmd_cur;
+                result = block_sz;
+            }
+        }
+        return result;
+    }
+    else
+    {
+        // 寻找y使得y大于16*元素大小，且y为4096整数倍
+        return (pv * 16uz + base - 1uz) / base * base;
+    }
+}
+
 class deque
 {
 
     using T = int;
+    using block = T *;
 
-    struct block
+    inline static constexpr std::size_t block_elements = calc_block_size(sizeof(T)) / sizeof(T);
+
+    struct block_guard
     {
         T *data{};
-        block(std::monostate &alloc)
+        std::monostate &a;
+        block_guard(std::monostate &alloc) noexcept : a(alloc)
         {
             // todo:
-            // data = new T[block_size(sizeof(T))];
+            // data = new T[block_elements];
         }
-        ~block()
+        ~block_guard()
         {
             // todo:
             // delete []data;
@@ -33,7 +72,7 @@ class deque
 #else
     [[no_unique_address]]
 #endif
-    std::monostate alloc{};
+    std::monostate alloc;
     // 块数组的起始地址
     block *block_alloc_begin{};
     // 块数组的结束地址
@@ -54,43 +93,6 @@ class deque
     T *elem_end_begin{};
     // 有效末尾块的结束分配地址
     T *elem_end_end{};
-
-    // 返回块的大小，一定是4096的整数倍
-    // 只被block_elements调用
-    static consteval std::size_t calc_block_size(std::size_t pv) noexcept
-    {
-        // 块的基本大小
-        auto constexpr base = 4096uz;
-        // 基本大小下，元素最大大小，至少保证16个
-        auto constexpr sieve = base / 16uz;
-
-        if (pv < sieve)
-        {
-            // 在基本大小的1-8倍间找到利用率最高的
-            auto block_sz = base;
-            auto rmd_pre = std::size_t(-1);
-            auto result = 0uz;
-            for (auto i = 0uz; i < 8uz; ++i)
-            {
-                block_sz *= (i + 1uz);
-                auto rmd_cur = (block_sz * i) % pv;
-                // 越小利用率越高
-                if (rmd_cur < rmd_pre)
-                {
-                    rmd_pre = rmd_cur;
-                    result = block_sz;
-                }
-            }
-            return result;
-        }
-        else
-        {
-            // 寻找y使得y大于16*元素大小，且y为4096整数倍
-            return (pv * 16uz + base - 1uz) / base * base;
-        }
-    }
-
-    inline static constexpr std::size_t block_elements = calc_block_size(sizeof(T)) / sizeof(T);
 
   public:
     void swap(deque &other) noexcept
@@ -165,14 +167,24 @@ class deque
     }
 
   private:
-    struct controller
+    struct ctrl_guard
     {
+        std::monostate &a;
         block *block_alloc_begin{};
         block *block_alloc_end{};
         block *block_elem_begin{};
         block *block_elem_end{};
 
         // 替换块数组到deque，back为插入元素的方向
+        //构造时
+        void replace_block(deque &d) noexcept
+        {
+            std::swap(block_alloc_begin, d.block_alloc_begin);
+            d.block_alloc_end = block_alloc_end;
+            d.block_elem_begin = block_elem_begin;
+            d.block_elem_end = block_elem_end;
+        }
+        // 扩容时
         void replace_block(deque &d, std::size_t old_size, bool push_back) noexcept
         {
             // case 1           case 2            case 3           case 4
@@ -194,18 +206,16 @@ class deque
 
             std::ranges::copy(d.block_elem_begin, d.block_elem_end, block_elem_begin);
 
-            std::swap(block_alloc_begin, d.block_alloc_begin);
-            d.block_alloc_end = block_alloc_end;
-            d.block_elem_begin = block_elem_begin;
-            d.block_elem_end = block_elem_end;
+            replace_block(d);
         }
-        controller(std::size_t ctrl_size)
+
+        ctrl_guard(std::monostate &alloc, std::size_t ctrl_size) : a(alloc)
         {
             // todo:
             // block_alloc_begin = new T*[size];
             // block_alloc_end = block_alloc_begin + real_alloc_size;
         }
-        ~controller()
+        ~ctrl_guard()
         {
             // todo:
             if (block_alloc_begin)
@@ -222,7 +232,7 @@ class deque
     {
         new_ctrl_size = (new_ctrl_size + 4 - 1) / 4 * 4;
         auto old_size = block_alloc_end - block_alloc_begin;
-        controller ctrl{std::ranges::max({4uz, new_ctrl_size, old_size * 2uz})}; // may throw
+        ctrl_guard ctrl{alloc, std::ranges::max({4uz, new_ctrl_size, old_size * 2uz})}; // may throw
         ctrl.replace_block(*this, old_size, push_back);
     }
 
@@ -274,7 +284,8 @@ class deque
     deque() noexcept = default;
     deque(deque const &rhs)
     {
-        controller ctrl(rhs.block_elem_end - rhs.block_elem_begin);
+        ctrl_guard ctrl(alloc, rhs.block_elem_end - rhs.block_elem_begin);
+        ctrl.replace_block(*this);
     }
 
     void push_back(T const &v)
