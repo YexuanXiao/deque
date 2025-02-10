@@ -226,41 +226,48 @@ class deque
         ctrl.replace_block(*this, old_size, push_back);
     }
 
-    // 尝试就地移动块，back为true时向前移动
+    // 先就地移动块，back为true时向前移动，否则重新分配块
     // back为插入元素的方向
-    bool inplace_extent_ctrl(std::size_t added_elem_size, bool push_back = true)
+    void extent_ctrl(std::size_t add_elem_size, bool push_back = true)
     {
         // 计算现有头尾是否够用
         auto head_cap = (block_elem_begin - block_alloc_begin) * block_elements;
         auto tail_cap = (block_alloc_end - block_elem_end) * block_elements;
+        auto non_move_cap = 0uz;
+        auto move_cap = 0uz;
+
         if (push_back)
         {
-            // avai为头部+尾部-尾部已用
-            auto avai_size = head_cap + tail_cap - (elem_end - elem_end_begin);
-            if (avai_size >= added_elem_size)
-            {
-                std::ranges::copy(block_elem_begin, block_elem_end, block_alloc_begin);
-                return true;
-            }
-            else
-            {
-                return false;
-            }
+            // non_move_cap为尾部-尾部已用
+            non_move_cap = tail_cap - (elem_end - elem_end_begin);
+            // move_cap为头部+尾部-尾部已用
+            move_cap = head_cap + non_move_cap;
         }
         else
         {
-            // avai为头部-头部已用+尾部
-            auto avai_size = head_cap - (elem_begin - elem_begin_begin) + tail_cap;
-            if (avai_size >= added_elem_size)
-            {
-                std::ranges::copy(block_elem_begin, block_elem_end, block_alloc_end);
-                return true;
-            }
-            else
-            {
-                return false;
-            }
+            // non_move_cap为头部-头部已用
+            non_move_cap = head_cap - (elem_begin - elem_begin_begin);
+            // move_cap为头部-头部已用+尾部
+            move_cap = non_move_cap + tail_cap;
         }
+
+        // 首先如果cap足够，则直接返回
+        if (non_move_cap >= add_elem_size) [[likely]]
+            return;
+
+        // 然后如果经移动后足够则移动
+        if (move_cap >= add_elem_size)
+        {
+            if (push_back)
+                std::ranges::copy(block_elem_begin, block_elem_end, block_alloc_begin);
+            else
+                std::ranges::copy(block_elem_begin, block_elem_end, block_alloc_end);
+            return;
+        }
+
+        // 最后说明容量不够，则重新分配块
+        add_elem_size -= move_cap;
+        alloc_ctrl((add_elem_size + block_elements - 1) / block_elements);
     }
 
   public:
