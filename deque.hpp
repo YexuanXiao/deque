@@ -73,20 +73,24 @@ class deque
     block *block_elem_begin{};
     // 已用块的结束地址
     block *block_elem_end{};
-    // 首个元素地址
-    T *elem_begin{};
-    // 尾后元素地址
-    T *elem_end{};
+    // 首个有效块的起始分配地址
+    T *elem_begin_first{};
     // 首个有效块的首元素地址
     T *elem_begin_begin{};
-    // 首个有效块的结束分配地址
+    // 首个有效块的结束分配以及尾后元素地址
     T *elem_begin_end{};
-    // 有效末尾块的首元素地址
+    // 有效末尾块的起始分配以及起始元素地址
     T *elem_end_begin{};
-    // 有效末尾块的结束分配地址
+    // 有效末尾块的尾后元素地址
     T *elem_end_end{};
+    // 有效末尾块的结束分配地址
+    T *elem_end_last{};
 
   public:
+    ~deque()
+    {
+        //for (auto begin = elem_begin; begin != elem)
+    }
     void swap(deque &other) noexcept
     {
         // todo:
@@ -98,12 +102,12 @@ class deque
         swap(block_alloc_end, other.block_alloc_end);
         swap(block_elem_begin, other.block_elem_begin);
         swap(block_elem_end, other.block_elem_end);
-        swap(elem_begin, other.elem_begin);
-        swap(elem_end, other.elem_end);
+        swap(elem_begin_first, other.elem_begin_first);
         swap(elem_begin_begin, other.elem_begin_begin);
         swap(elem_begin_end, other.elem_begin_end);
         swap(elem_end_begin, other.elem_end_begin);
         swap(elem_end_end, other.elem_end_end);
+        swap(elem_end_last, other.elem_end_last);
     }
 
     friend void swap(deque &lhs, deque &rhs) noexcept
@@ -118,14 +122,14 @@ class deque
 
     auto &front() noexcept
     {
-        assert(elem_begin);
-        return *elem_begin;
+        assert(elem_begin_begin);
+        return *(elem_begin_begin);
     }
 
     auto &back() noexcept
     {
-        assert(elem_end);
-        return *(elem_end - 1uz);
+        assert(elem_end_end);
+        return *(elem_end_end - 1uz);
     }
 
     struct iterator
@@ -133,11 +137,11 @@ class deque
         friend deque;
         block *block_elem_begin{};
         block *block_elem_end{};
-        T *elem_begin{};
-        T *elem_end{};
+        T *curr_block_begin{};
+        T *curr_block_end{};
 
         iterator(block *elem_begin, block *elem_end, T *begin, T *end) noexcept
-            : block_elem_begin(elem_begin), block_elem_end(elem_end), elem_begin(begin), elem_end(end)
+            : block_elem_begin(elem_begin), block_elem_end(elem_end), curr_block_begin(begin), curr_block_end(end)
         {
         }
 
@@ -152,12 +156,12 @@ class deque
 
     auto begin() noexcept
     {
-        return iterator{block_alloc_begin, block_alloc_end, elem_begin, elem_end};
+        return iterator{block_alloc_begin, block_alloc_end, elem_begin_begin, elem_begin_end};
     }
 
     auto end() noexcept
     {
-        return iterator{};
+        return iterator{block_alloc_begin,block_alloc_end,elem_end_begin,elem_end_end};
     }
 
   private:
@@ -259,7 +263,7 @@ class deque
 
         if (push_back)
         {
-            head_or_tail_cap = elem_end - elem_end_begin;
+            head_or_tail_cap = elem_end_end - elem_end_begin;
             // non_move_cap为尾部-尾部已用
             non_move_cap = tail_cap_block - head_or_tail_cap;
             // move_cap为头部+尾部-尾部已用
@@ -267,7 +271,7 @@ class deque
         }
         else
         {
-            head_or_tail_cap = elem_begin - elem_begin_begin;
+            head_or_tail_cap = elem_begin_end - elem_begin_begin;
             // non_move_cap为头部-头部已用
             non_move_cap = head_cap_block - head_or_tail_cap;
             // move_cap为头部-头部已用+尾部
@@ -317,7 +321,7 @@ class deque
         if (push_back)
         {
             // 首先检查已经alloc的是不是足够
-            auto cap = (block_alloc_end - block_elem_end) * block_elements(sizeof(T)) - (elem_end - elem_begin);
+            auto cap = (block_alloc_end - block_elem_end) * block_elements(sizeof(T)) - (elem_end_end - elem_end_begin);
             // cap 不够就扩容block
             if (cap <= add_elem_size)
             {
@@ -332,7 +336,7 @@ class deque
         }
         else
         {
-            auto cap = (block_elem_begin - block_alloc_begin) * block_elements(sizeof(T)) - (elem_end - elem_begin);
+            auto cap = (block_elem_begin - block_alloc_begin) * block_elements(sizeof(T)) - (elem_begin_end - elem_begin_begin);
             if (cap <= add_elem_size)
             {
                 auto block_size = extent_ctrl(add_elem_size, push_back);
@@ -356,19 +360,18 @@ class deque
     template <typename V>
     void emplace_back(V &&v)
     {
-        if (elem_end != elem_end_end)
+        if (elem_end_begin != elem_end_end)
         {
-            std::construct_at(elem_end, std::forward<V>(v));
-            ++elem_end;
+            std::construct_at(++elem_end_begin, std::forward<V>(v));
         }
         else
         {
             extent_block(1uz, true);
             auto begin = *block_alloc_end;
-            std::construct_at(*begin, std::forward<V>(v));
+            std::construct_at(*begin, std::forward<V>(v));// may throw
             elem_end_begin = begin;
-            elem_end_end = begin + block_elements(sizeof(T));
-            elem_end = ++begin;
+            elem_end_last = begin + block_elements(sizeof(T));
+            elem_end_end = ++begin;
         }
     }
 };
