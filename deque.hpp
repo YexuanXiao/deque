@@ -24,7 +24,7 @@ static inline consteval std::size_t calc_block_size(std::size_t pv) noexcept
         auto block_sz = 0uz;
         auto rmd_pre = std::size_t(-1);
         auto result = 0uz;
-        for (auto i = 0uz; i < 8uz; ++i)
+        for (auto i = 0uz; i != 8uz; ++i)
         {
             block_sz = base * (i + 1uz);
             auto rmd_cur = (block_sz * i) % pv;
@@ -116,7 +116,7 @@ class deque
                 std::destroy_at(begin);
             }
         }
-        // 清理块
+        // 清理块数组
         for (auto begin = block_alloc_begin; begin != block_alloc_end; ++begin)
         {
             // todo:
@@ -166,6 +166,27 @@ class deque
         return *(elem_end_end - 1uz);
     }
 
+    auto size() const noexcept
+    {
+        auto elem_block_size = block_elem_end - block_elem_begin;
+        auto result = 0uz;
+
+        if (elem_block_size > 2)
+        {
+            result += (block_alloc_end - block_elem_begin - 2) * block_elements(sizeof(T));
+        }
+        if (elem_block_size > 1)
+        {
+            result += elem_end_end - elem_end_begin;
+        }
+        if (elem_block_size > 0)
+        {
+            result += elem_begin_end - elem_begin_begin;
+        }
+
+        return result;
+    }
+
     struct iterator
     {
         friend deque;
@@ -209,12 +230,13 @@ class deque
 
         // 替换块数组到deque
         // 构造时
-        void replace_ctrl(deque &d) noexcept
+        // 对空deque安全
+        void release()
         {
-            std::swap(block_ctrl_begin, d.block_ctrl_begin);
-            d.block_ctrl_end = block_ctrl_end;
+            block_ctrl_begin = nullptr;
         }
         // 扩容时，back为插入元素的方向
+        // 对空deque安全
         void replace_ctrl(deque &d, bool push_back) noexcept
         {
             // 之前已分配的block数量
@@ -251,6 +273,7 @@ class deque
             std::ranges::swap(block_alloc_begin, d.block_ctrl_begin);
         }
         // 必须是算好的大小
+        // 会对齐到4的倍数，比需要的大
         ctrl_guard(deque &d, std::size_t ctrl_size) : a(d.alloc)
         {
             // todo:
@@ -270,6 +293,7 @@ class deque
     // back 决定块数组优先使用前面还是后面，为true时优先使用前面，即向前移动
     // 该函数只被extent_ctrl调用
     // back为插入元素的方向
+    // 对空deque安全
     void alloc_ctrl(std::size_t new_ctrl_size, bool push_back = true)
     {
         new_ctrl_size = (new_ctrl_size + 4 - 1) / 4 * 4;
@@ -281,6 +305,7 @@ class deque
     // 先就地移动块，back为true时向前移动，否则重新分配块
     // back为插入元素的方向
     // 返回需要分配几个block
+    // 对空deque安全
     std::size_t extent_ctrl(std::size_t add_elem_size, bool push_back = true)
     {
         // 计算现有头尾是否够用
@@ -384,12 +409,16 @@ class deque
             }
         }
     }
+    // void
 
   public:
     deque() noexcept = default;
-    deque(deque const &rhs)
+    // 复制构造采取按结构复制的方法
+    // 不需要经过extent_block的复杂逻辑
+    deque(deque const &other)
     {
-        // todo
+        auto block_size = other.block_alloc_end - other.block_alloc_begin;
+        ctrl_guard ctrl(*this,  (block_size + 4 - 1) / 4 * 4);
     }
 
     template <typename V>
