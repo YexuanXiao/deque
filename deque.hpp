@@ -96,6 +96,8 @@ class deque
         swap(block_ctrl_end, other.block_ctrl_end);
         swap(block_alloc_begin, other.block_alloc_begin);
         swap(block_alloc_end, other.block_alloc_end);
+        swap(block_elem_begin, other.block_elem_begin);
+        swap(block_elem_end, other.block_elem_end);
         swap(elem_begin, other.elem_begin);
         swap(elem_end, other.elem_end);
         swap(elem_begin_begin, other.elem_begin_begin);
@@ -162,23 +164,23 @@ class deque
     struct ctrl_guard
     {
         std::monostate &a;
-        block *block_alloc_begin{}; // A
-        block *block_alloc_end{};   // D
-        block *block_elem_begin{};  // B
-        block *block_elem_end{};    // C
+        block *block_ctrl_begin{};  // A
+        block *block_ctrl_end{};    // D
+        block *block_alloc_begin{}; // B
+        block *block_alloc_end{};   // C
 
         // 替换块数组到deque
         // 构造时
         void replace_ctrl(deque &d) noexcept
         {
-            std::swap(block_alloc_begin, d.block_ctrl_begin);
-            d.block_ctrl_end = block_alloc_end;
-            d.block_alloc_begin = block_elem_begin;
-            d.block_alloc_end = block_elem_end;
+            std::swap(block_ctrl_begin, d.block_ctrl_begin);
+            d.block_ctrl_end = block_ctrl_end;
         }
         // 扩容时，back为插入元素的方向
-        void replace_ctrl(deque &d, std::size_t old_size, bool push_back) noexcept
+        void replace_ctrl(deque &d, bool push_back) noexcept
         {
+            // 之前已分配的block数量
+            auto alloc_block_size = d.block_alloc_end - d.block_alloc_begin;
             // case 1           case 2            case 3           case 4
             // A1 B1 → A2 B2   A1       A2       A1 B1   A2       A1       A2 B2
             // |        |       |        |        |    ↘ |        |     ↗ |
@@ -187,30 +189,31 @@ class deque
             // D1       D2      D1 C1 → C2 D2    D1      C1 D1    C1 D1   D2
             if (push_back) // case 1 4
             {
-                block_elem_begin = block_alloc_begin;
-                block_elem_end = block_alloc_begin + old_size;
+                block_alloc_begin = block_ctrl_begin;
+                block_alloc_end = block_ctrl_begin + alloc_block_size;
             }
             else // case 2 3
             {
-                block_elem_begin = block_alloc_end - old_size;
-                block_elem_end = block_alloc_end;
+                block_alloc_begin = block_ctrl_end - alloc_block_size;
+                block_alloc_end = block_ctrl_end;
             }
 
-            std::ranges::copy(d.block_alloc_begin, d.block_alloc_end, block_elem_begin);
+            std::ranges::copy(d.block_alloc_begin, d.block_alloc_end, block_alloc_begin);
 
             // 此时仅考虑了ctrl和alloc，没考虑elem（实际储存了元素的块）的位置
             // 而elem和alloc的位置是相对的，无关alloc如何移动，因此先记录位置再还原
-            auto elem_offset = d.block_alloc_begin - d.block_elem_begin;
-            auto elem_size = d.block_elem_end - d.block_elem_begin;
-
-            // 交换ctrl和alloc
-            replace_ctrl(d);
-            // 还原elem
-            d.block_elem_begin = d.block_alloc_begin + elem_offset;
-            d.block_elem_end = d.block_elem_begin + elem_size;
+            auto elem_block_offset = d.block_elem_begin - d.block_alloc_begin;
+            auto elem_block_offset2 = d.block_alloc_end - d.block_elem_end;
+            d.block_elem_begin = block_alloc_begin + elem_block_offset;
+            d.block_elem_end = block_alloc_end - elem_block_offset2;
+            // 从guard替换回deque
+            d.block_ctrl_end = block_alloc_end;
+            d.block_alloc_begin = block_alloc_begin;
+            d.block_alloc_end = block_alloc_end;
+            std::ranges::swap(block_alloc_begin, d.block_ctrl_begin);
         }
-
-        ctrl_guard(std::monostate &alloc, std::size_t ctrl_size) : a(alloc)
+        // 必须是算好的大小
+        ctrl_guard(deque &d, std::size_t ctrl_size) : a(d.alloc)
         {
             // todo:
             // block_alloc_begin = new T*[size];
@@ -233,8 +236,8 @@ class deque
     {
         new_ctrl_size = (new_ctrl_size + 4 - 1) / 4 * 4;
         auto old_size = block_ctrl_end - block_ctrl_begin;
-        ctrl_guard ctrl{alloc, std::ranges::max({4uz, new_ctrl_size, old_size * 2uz})}; // may throw
-        ctrl.replace_ctrl(*this, old_size, push_back);
+        ctrl_guard ctrl{*this, std::ranges::max({4uz, new_ctrl_size, old_size * 2uz})}; // may throw
+        ctrl.replace_ctrl(*this, push_back);
     }
 
     // 先就地移动块，back为true时向前移动，否则重新分配块
@@ -319,7 +322,12 @@ class deque
             if (cap <= add_elem_size)
             {
                 auto block_size = extent_ctrl(add_elem_size, push_back);
-                // todo
+                for (auto i = 0uz; i != block_size; ++i)
+                {
+                    // todo
+                    // *block_alloc_end = new T[block_elements(sizeof(T))];
+                    ++block_alloc_end;
+                }
             }
         }
         else
@@ -328,7 +336,12 @@ class deque
             if (cap <= add_elem_size)
             {
                 auto block_size = extent_ctrl(add_elem_size, push_back);
-                // todo
+                for (auto i = 0uz; i != block_size; ++i)
+                {
+                    // todo
+                    // *block_alloc_begin = new T[block_elements(sizeof(T))];
+                    --block_alloc_begin;
+                }
             }
         }
     }
@@ -337,21 +350,25 @@ class deque
     deque() noexcept = default;
     deque(deque const &rhs)
     {
-        ctrl_guard ctrl(alloc, rhs.block_alloc_end - rhs.block_alloc_begin);
-        ctrl.replace_ctrl(*this);
+        // todo
     }
 
-    template <typename T>
-    void emplace_back(T &&v)
+    template <typename V>
+    void emplace_back(V &&v)
     {
         if (elem_end != elem_end_end)
         {
-            std::construct_at(elem_end, std::forward<T>(v));
+            std::construct_at(elem_end, std::forward<V>(v));
             ++elem_end;
         }
         else
         {
-            // todo
+            extent_block(1uz, true);
+            auto begin = *block_alloc_end;
+            std::construct_at(*begin, std::forward<V>(v));
+            elem_end_begin = begin;
+            elem_end_end = begin + block_elements(sizeof(T));
+            elem_end = ++begin;
         }
     }
 };
