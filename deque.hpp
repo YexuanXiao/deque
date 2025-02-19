@@ -89,12 +89,12 @@ class deque
   public:
     ~deque()
     {
-        // 4种情况，0，1，2，3个块有元素
+        // 4种情况，0，1，2，3+个块有元素
         auto elem_block_size = block_elem_end - block_elem_begin;
         // 清理中间的块
         if (elem_block_size > 2)
         {
-            for (auto block_begin = block_elem_begin + 1; block_begin != block_alloc_end - 1)
+            for (auto block_begin = block_elem_begin + 1; block_begin != block_alloc_end - 1; ++block_begin)
             {
                 for (auto begin = block_begin; begin != block_begin + block_elements(sizeof(T)); ++begin)
                 {
@@ -117,7 +117,7 @@ class deque
             }
         }
         // 清理块
-        for(auto begin = block_alloc_begin;begin!=block_alloc_end;++begin)
+        for (auto begin = block_alloc_begin; begin != block_alloc_end; ++begin)
         {
             // todo:
             // delete block;
@@ -170,12 +170,12 @@ class deque
     {
         friend deque;
         block *block_elem_begin{};
-        block *block_elem_end{};
-        T *curr_block_begin{};
-        T *curr_block_end{};
+        T *block_begin{};
+        T *block_curr{};
+        T *block_end{};
 
-        iterator(block *elem_begin, block *elem_end, T *begin, T *end) noexcept
-            : block_elem_begin(elem_begin), block_elem_end(elem_end), curr_block_begin(begin), curr_block_end(end)
+        iterator(block *elem_begin, T *curr, T *begin, T *end) noexcept
+            : block_elem_begin(elem_begin), block_curr(curr), block_begin(begin), block_end(end)
         {
         }
 
@@ -190,12 +190,12 @@ class deque
 
     auto begin() noexcept
     {
-        return iterator{block_alloc_begin, block_alloc_end, elem_begin_begin, elem_begin_end};
+        return iterator{block_elem_begin, elem_begin_begin, elem_begin_begin, elem_begin_end};
     }
 
     auto end() noexcept
     {
-        return iterator{block_alloc_begin, block_alloc_end, elem_end_begin, elem_end_end};
+        return iterator{block_elem_end, elem_end_end, elem_end_begin, elem_end_end};
     }
 
   private:
