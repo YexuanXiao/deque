@@ -89,7 +89,41 @@ class deque
   public:
     ~deque()
     {
-        //for (auto begin = elem_begin; begin != elem)
+        // 4种情况，0，1，2，3个块有元素
+        auto elem_block_size = block_elem_end - block_elem_begin;
+        // 清理中间的块
+        if (elem_block_size > 2)
+        {
+            for (auto block_begin = block_elem_begin + 1; block_begin != block_alloc_end - 1)
+            {
+                for (auto begin = block_begin; begin != block_begin + block_elements(sizeof(T)); ++begin)
+                {
+                    std::destroy_at(begin);
+                }
+            }
+        }
+        if (elem_block_size > 1)
+        {
+            for (auto begin = elem_end_begin; begin != elem_end_end; ++begin)
+            {
+                std::destroy_at(begin);
+            }
+        }
+        if (elem_block_size > 0)
+        {
+            for (auto begin = elem_begin_begin; begin != elem_begin_end; ++begin)
+            {
+                std::destroy_at(begin);
+            }
+        }
+        // 清理块
+        for(auto begin = block_alloc_begin;begin!=block_alloc_end;++begin)
+        {
+            // todo:
+            // delete block;
+        }
+        // todo:
+        // delete block_ctrl_begin;
     }
     void swap(deque &other) noexcept
     {
@@ -161,7 +195,7 @@ class deque
 
     auto end() noexcept
     {
-        return iterator{block_alloc_begin,block_alloc_end,elem_end_begin,elem_end_end};
+        return iterator{block_alloc_begin, block_alloc_end, elem_end_begin, elem_end_end};
     }
 
   private:
@@ -336,7 +370,8 @@ class deque
         }
         else
         {
-            auto cap = (block_elem_begin - block_alloc_begin) * block_elements(sizeof(T)) - (elem_begin_end - elem_begin_begin);
+            auto cap = (block_elem_begin - block_alloc_begin) * block_elements(sizeof(T)) -
+                       (elem_begin_end - elem_begin_begin);
             if (cap <= add_elem_size)
             {
                 auto block_size = extent_ctrl(add_elem_size, push_back);
@@ -368,7 +403,7 @@ class deque
         {
             extent_block(1uz, true);
             auto begin = *block_alloc_end;
-            std::construct_at(*begin, std::forward<V>(v));// may throw
+            std::construct_at(*begin, std::forward<V>(v)); // may throw
             elem_end_begin = begin;
             elem_end_last = begin + block_elements(sizeof(T));
             elem_end_end = ++begin;
