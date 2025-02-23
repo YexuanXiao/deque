@@ -357,17 +357,19 @@ class deque
 
         // 然后按需移动block
         if (push_back & head_block_cap)
+        {
             std::ranges::copy(block_alloc_begin, block_alloc_end, block_ctrl_begin);
+        }
         else if (push_back & tail_block_cap)
+        {
             std::ranges::copy(block_alloc_begin, block_alloc_end, block_ctrl_end);
+        }
         // 最后说明容量不够，则重新分配块
 
-        auto const lack = add_elem_size - move_cap;
-
-        if (lack)
-            alloc_ctrl(lack, push_back);
-
-        // 计算需要分配几个block
+        if (move_cap < add_elem_size)
+        {
+            return alloc_ctrl(add_elem_size - move_cap, push_back);
+        }
 
         return 0uz;
     }
@@ -403,14 +405,18 @@ class deque
             auto const cap = (block_alloc_end - block_elem_end) * block_elements<T>() - (elem_end_end - elem_end_begin);
             // cap 不够就扩容block
             if (cap <= add_elem_size)
+            {
                 extent_block_back(extent_ctrl(add_elem_size, push_back));
+            }
         }
         else
         {
             auto const cap =
                 (block_elem_begin - block_alloc_begin) * block_elements<T>() - (elem_begin_end - elem_begin_begin);
             if (cap <= add_elem_size)
+            {
                 extent_block_front(extent_ctrl(add_elem_size, push_back));
+            }
         }
     }
 
@@ -428,7 +434,9 @@ class deque
         ~construct_guard()
         {
             if (!released)
+            {
                 d.destroy();
+            }
         }
     };
 
@@ -452,7 +460,9 @@ class deque
             elem_begin_begin = elem_begin_first + (other.elem_begin_begin - other.elem_begin_first);
             elem_begin_end = elem_begin_first + block_elements<T>();
             for (auto begin = other.elem_begin_begin; begin != other.elem_begin_end; ++begin, ++elem_begin_end)
+            {
                 std::construct_at(elem_begin_end, *begin);
+            }
         }
         if (block_size > 2uz)
         {
@@ -476,7 +486,9 @@ class deque
             elem_end_end = elem_end_begin;
             elem_end_last = elem_end_begin + block_elements<T>();
             for (auto begin = other.elem_end_begin; begin != other.elem_end_end; ++begin, ++elem_end_end)
+            {
                 std::construct_at(elem_end_end, *begin);
+            }
         }
 
         guard.release();
