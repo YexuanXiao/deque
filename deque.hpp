@@ -7,6 +7,7 @@
 #include <new>
 #include <stdio.h>
 #include <stdlib.h>
+#include <type_traits>
 #include <variant>
 
 // 返回块的大小，一定是4096的整数倍
@@ -91,6 +92,25 @@ class deque
     T *elem_end_end{};
     // 有效末尾块的结束分配地址
     T *elem_end_last{};
+    /*
+ctrl_begin→ □
+             □
+alloc_begin→■ → □□□□□□□□□□□□□□□□□□□□□□□□□□
+             ■ → □□□□□□□□□□□□□□□□□□□□□□□□□□
+elem_begin →■ → □□□□□□□□□■■■■■■■■■■■■■■■■■■
+                 ↑          ↑                   ↑
+            first      begin                end
+             ■ → ■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+             ■ → ■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+elem_end   →■ → ■■■■■■■■■■■■■□□□□□□□□□□□□□□
+                 ↑              ↑               ↑
+             begin           end            last
+             ■ → □□□□□□□□□□□□□□□□□□□□□□□□□□
+             ■ → □□□□□□□□□□□□□□□□□□□□□□□□□□
+alloc_end  →□
+             □
+ctrl_end   →
+    */
 
     void destroy() noexcept
     {
@@ -104,7 +124,7 @@ class deque
             }
         }
         // 清理中间的块
-        if (elem_block_size > 2uz)
+        if (elem_block_size > 2z)
         {
             auto const target_end = block_alloc_end - 1uz;
             for (auto block_begin = block_elem_begin + 1uz; block_begin != target_end; ++block_begin)
@@ -115,7 +135,7 @@ class deque
                 }
             }
         }
-        if (elem_block_size > 1uz)
+        if (elem_block_size > 1z)
         {
             for (auto begin = elem_end_begin; begin != elem_end_end; ++begin)
             {
@@ -187,11 +207,11 @@ class deque
         {
             result += elem_begin_end - elem_begin_begin;
         }
-        if (elem_block_size > 2uz)
+        if (elem_block_size > 2z)
         {
             result += (block_alloc_end - block_elem_begin - 2uz) * block_elements<T>();
         }
-        if (elem_block_size > 1uz)
+        if (elem_block_size > 1z)
         {
             result += elem_end_end - elem_end_begin;
         }
@@ -450,9 +470,9 @@ class deque
         auto const block_size = other.block_elem_end - other.block_elem_begin;
         // todo: alloc propagate
         // alloc = other.alloc;
-        ctrl_alloc const ctrl(alloc, ceil_n(block_size, 4uz));// may throw
+        ctrl_alloc const ctrl(alloc, ceil_n(block_size, 4uz)); // may throw
         ctrl.replace_ctrl(*this);
-        extent_block_back(block_size);// may throw
+        extent_block_back(block_size); // may throw
         if (block_size)
         {
             elem_begin_first = *block_elem_end;
@@ -461,10 +481,10 @@ class deque
             elem_begin_end = elem_begin_first + block_elements<T>();
             for (auto begin = other.elem_begin_begin; begin != other.elem_begin_end; ++begin, ++elem_begin_end)
             {
-                std::construct_at(elem_begin_end, *begin);// may throw
+                std::construct_at(elem_begin_end, *begin); // may throw
             }
         }
-        if (block_size > 2uz)
+        if (block_size > 2z)
         {
             auto const target_block_end = other.block_elem_end - 1uz;
             for (auto target_block_begin = other.block_elem_begin + 1uz; target_block_begin != target_block_end;
@@ -477,11 +497,11 @@ class deque
                 for (auto begin = *target_block_begin, end = begin + block_elements<T>(); begin != end;
                      ++begin, ++elem_end_end)
                 {
-                    std::construct_at(elem_end_end, *begin);// may throw
+                    std::construct_at(elem_end_end, *begin); // may throw
                 }
             }
         }
-        if (block_size > 1uz)
+        if (block_size > 1z)
         {
             elem_end_begin = *block_elem_end;
             ++block_elem_end;
@@ -489,26 +509,26 @@ class deque
             elem_end_last = elem_end_begin + block_elements<T>();
             for (auto begin = other.elem_end_begin; begin != other.elem_end_end; ++begin, ++elem_end_end)
             {
-                std::construct_at(elem_end_end, *begin);// may throw
+                std::construct_at(elem_end_end, *begin); // may throw
             }
         }
 
         guard.release();
     }
 
-    template <typename V>
-    void emplace_back(V &&v)
+    template <typename... V>
+    void emplace_back(V &&...v)
     {
         if (elem_end_end != elem_end_last)
         {
-            std::construct_at(elem_end_end, std::forward<V>(v));// may throw
+            std::construct_at(elem_end_end, std::forward<V>(v)...); // may throw
             ++elem_end_end;
         }
         else
         {
             extent_block(1uz, true);
             auto begin = *block_elem_end;
-            std::construct_at(*begin, std::forward<V>(v)); // may throw
+            std::construct_at(begin, std::forward<V>(v)...); // may throw
             elem_end_begin = begin;
             elem_end_last = begin + block_elements<T>();
             elem_end_end = ++begin;
