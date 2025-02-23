@@ -11,7 +11,7 @@
 
 // 返回块的大小，一定是4096的整数倍
 // 只被block_elements调用
-static inline consteval std::size_t calc_block_size(std::size_t pv) noexcept
+static inline consteval std::size_t calc_block_size(std::size_t const pv) noexcept
 {
     // 块的基本大小
     auto constexpr base = 4096uz;
@@ -50,7 +50,7 @@ static inline consteval std::size_t block_elements() noexcept
     return calc_block_size(sizeof(T)) / sizeof(T);
 }
 
-static inline constexpr std::size_t ceil_n(std::size_t num, std::size_t n) noexcept
+static inline constexpr std::size_t ceil_n(std::size_t const num, std::size_t const n) noexcept
 {
     return (num + n - 1uz) / n * n;
 }
@@ -450,9 +450,9 @@ class deque
         auto const block_size = other.block_elem_end - other.block_elem_begin;
         // todo: alloc propagate
         // alloc = other.alloc;
-        ctrl_alloc const ctrl(alloc, ceil_n(block_size, 4uz));
+        ctrl_alloc const ctrl(alloc, ceil_n(block_size, 4uz));// may throw
         ctrl.replace_ctrl(*this);
-        extent_block_back(block_size);
+        extent_block_back(block_size);// may throw
         if (block_size)
         {
             elem_begin_first = *block_elem_end;
@@ -461,12 +461,12 @@ class deque
             elem_begin_end = elem_begin_first + block_elements<T>();
             for (auto begin = other.elem_begin_begin; begin != other.elem_begin_end; ++begin, ++elem_begin_end)
             {
-                std::construct_at(elem_begin_end, *begin);
+                std::construct_at(elem_begin_end, *begin);// may throw
             }
         }
         if (block_size > 2uz)
         {
-            auto const target_block_end = other.block_elem_end - 1;
+            auto const target_block_end = other.block_elem_end - 1uz;
             for (auto target_block_begin = other.block_elem_begin + 1uz; target_block_begin != target_block_end;
                  ++target_block_begin)
             {
@@ -476,7 +476,9 @@ class deque
                 elem_end_last = elem_end_begin + block_elements<T>();
                 for (auto begin = *target_block_begin, end = begin + block_elements<T>(); begin != end;
                      ++begin, ++elem_end_end)
-                    std::construct_at(elem_end_end, *begin);
+                {
+                    std::construct_at(elem_end_end, *begin);// may throw
+                }
             }
         }
         if (block_size > 1uz)
@@ -487,7 +489,7 @@ class deque
             elem_end_last = elem_end_begin + block_elements<T>();
             for (auto begin = other.elem_end_begin; begin != other.elem_end_end; ++begin, ++elem_end_end)
             {
-                std::construct_at(elem_end_end, *begin);
+                std::construct_at(elem_end_end, *begin);// may throw
             }
         }
 
@@ -499,7 +501,7 @@ class deque
     {
         if (elem_end_end != elem_end_last)
         {
-            std::construct_at(elem_end_end, std::forward<V>(v));
+            std::construct_at(elem_end_end, std::forward<V>(v));// may throw
             ++elem_end_end;
         }
         else
