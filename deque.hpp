@@ -112,6 +112,7 @@ alloc_end  →□
 ctrl_end   →
     */
 
+    // 空deque安全
     void destroy() noexcept
     {
         // 4种情况，0，1，2，3+个块有元素
@@ -126,10 +127,13 @@ ctrl_end   →
         // 清理中间的块
         if (elem_block_size > 2z)
         {
-            auto const target_end = block_alloc_end - 1uz;
-            for (auto block_begin = block_elem_begin + 1uz; block_begin != target_end; ++block_begin)
+            auto block_begin = block_elem_begin + 1uz;
+            auto const block_end = block_elem_end - 1uz;
+            for (; block_begin != block_end; ++block_begin)
             {
-                for (auto begin = block_begin; begin != block_begin + block_elements<T>(); ++begin)
+                auto begin = *block_begin;
+                auto const end = begin + block_elements<T>();
+                for (; begin != end; ++begin)
                 {
                     std::destroy_at(begin);
                 }
@@ -198,6 +202,7 @@ ctrl_end   →
         return *(elem_end_end - 1uz);
     }
 
+    // 空deque安全
     auto size() const noexcept
     {
         auto const elem_block_size = block_elem_end - block_elem_begin;
@@ -209,7 +214,7 @@ ctrl_end   →
         }
         if (elem_block_size > 2z)
         {
-            result += (block_alloc_end - block_elem_begin - 2uz) * block_elements<T>();
+            result += (block_elem_end - block_elem_begin - 2z) * block_elements<T>();
         }
         if (elem_block_size > 1z)
         {
@@ -274,7 +279,8 @@ ctrl_end   →
         }
         // 扩容时，back为插入元素的方向
         // 对空deque安全
-        void replace_ctrl(deque &d, bool const push_back) const noexcept
+        template <bool back>
+        void replace_ctrl_cond(deque &d) const noexcept
         {
             block *block_alloc_begin{}; // B
             block *block_alloc_end{};   // C
@@ -286,7 +292,7 @@ ctrl_end   →
             // C1    → C2      B1    → B2       C1      B2       B1       C2
             // |        |       |        |        |    ↘ |        |     ↗ |
             // D1       D2      D1 C1 → C2 D2    D1      C1 D1    C1 D1   D2
-            if (push_back) // case 1 4
+            if constexpr (back) // case 1 4
             {
                 block_alloc_begin = block_ctrl_begin;
                 block_alloc_end = block_ctrl_begin + alloc_block_size;
@@ -319,83 +325,9 @@ ctrl_end   →
             // block_alloc_end = block_alloc_begin + real_alloc_size;
         }
     };
-
-    // base: 4 ratio: 2
-    // back 决定块数组优先使用前面还是后面，为true时优先使用前面，即向前移动
-    // 该函数只被extent_ctrl调用
-    // back为插入元素的方向
-    // 对空deque安全
-    // 返回需要分配的block数量
-    std::size_t alloc_ctrl(std::size_t const add_elem_size, bool const push_back)
-    {
-        auto result = ceil_n(add_elem_size, block_elements<T>());
-        auto const old_size = block_ctrl_end - block_ctrl_begin;
-        auto const new_size = old_size + result;
-        ctrl_alloc ctrl{alloc, ceil_n(new_size, 4uz)}; // may throw
-        ctrl.replace_ctrl(*this, push_back);
-        return result;
-    }
-
-    // 先就地移动块，back为true时向前移动，否则重新分配块
-    // back为插入元素的方向
-    // 返回需要分配几个block
-    // 对空deque安全
-    std::size_t extent_ctrl(std::size_t const add_elem_size, bool const push_back)
-    {
-        // 计算现有头尾是否够用
-        // 头部块的cap
-        auto const head_block_cap = (block_alloc_begin - block_ctrl_begin) * block_elements<T>();
-        // 尾部块的cap
-        auto const tail_block_cap = (block_ctrl_end - block_alloc_end) * block_elements<T>();
-        // 不移动块时cap
-        auto non_move_cap = 0uz;
-        // 移动块时cap
-        auto move_cap = 0uz;
-        // 头块或尾块的cap，取决于插入方向
-        auto head_or_tail_used = 0uz;
-
-        if (push_back)
-        {
-            head_or_tail_used = elem_end_end - elem_end_begin;
-            // non_move_cap为尾部-尾部已用
-            non_move_cap = tail_block_cap - head_or_tail_used;
-            // move_cap为头部+尾部-尾部已用
-            move_cap = head_block_cap + non_move_cap;
-        }
-        else
-        {
-            head_or_tail_used = elem_begin_end - elem_begin_begin;
-            // non_move_cap为头部-头部已用
-            non_move_cap = head_block_cap - head_or_tail_used;
-            // move_cap为头部-头部已用+尾部
-            move_cap = non_move_cap + tail_block_cap;
-        }
-
-        // 首先如果cap足够，则不需要分配新block
-        if (non_move_cap >= add_elem_size) [[likely]]
-            return 0uz;
-
-        // 然后按需移动block
-        if (push_back & head_block_cap)
-        {
-            std::ranges::copy(block_alloc_begin, block_alloc_end, block_ctrl_begin);
-        }
-        else if (push_back & tail_block_cap)
-        {
-            std::ranges::copy(block_alloc_begin, block_alloc_end, block_ctrl_end);
-        }
-        // 最后说明容量不够，则重新分配块
-
-        if (move_cap < add_elem_size)
-        {
-            return alloc_ctrl(add_elem_size - move_cap, push_back);
-        }
-
-        return 0uz;
-    }
     // 向前分配新block，需要block_size小于等于(block_alloc_begin - block_ctrl_begin)
     // 且不block_alloc_X不是空指针
-    void extent_block_front(std::size_t const block_size)
+    void extent_block_front_uncond(std::size_t const block_size)
     {
         for (auto i = 0uz; i != block_size; ++i)
         {
@@ -406,7 +338,7 @@ ctrl_end   →
     }
     // 向后分配新block，需要block_size小于等于(block_ctrl_end - block_alloc_end)
     // 且不block_alloc_X不是空指针
-    void extent_block_back(std::size_t const block_size)
+    void extent_block_back_uncond(std::size_t const block_size)
     {
         for (auto i = 0uz; i != block_size; ++i)
         {
@@ -415,29 +347,86 @@ ctrl_end   →
             ++block_alloc_end;
         }
     }
-    // 根据增加的元素数量扩展block和ctrl
-    // 无前提条件
-    void extent_block(std::size_t const add_elem_size, bool const push_back)
+    // 先就地移动块，back为true时向前移动，否则重新分配块
+    // 返回需要分配几个block
+    // 对空deque安全
+    void extent_block_back(std::size_t const add_elem_size)
     {
-        if (push_back)
+        // 计算现有头尾是否够用
+        // 头部块的cap
+        auto const head_block_alloc_cap = (block_elem_begin - block_alloc_begin) * block_elements<T>();
+        // 尾部块的cap
+        auto const tail_block_alloc_cap = (block_alloc_end - block_elem_end) * block_elements<T>();
+        // 尾块的已使用大小
+        auto const head_or_tail_used = elem_end_end - elem_end_begin;
+        // non_move_cap为尾部-尾部已用，不移动块时cap
+        auto const non_move_cap = tail_block_alloc_cap - head_or_tail_used;
+        // 首先如果cap足够，则不需要分配新block
+        if (non_move_cap >= add_elem_size)
         {
-            // 首先检查已经alloc的是不是足够
-            auto const cap = (block_alloc_end - block_elem_end) * block_elements<T>() - (elem_end_end - elem_end_begin);
-            // cap 不够就扩容block
-            if (cap <= add_elem_size)
-            {
-                extent_block_back(extent_ctrl(add_elem_size, push_back));
-            }
+            return;
         }
-        else
+        // move_cap为头部+尾部-尾部已用，移动已分配块的cap
+        auto const move_cap = head_block_alloc_cap + non_move_cap;
+        // 如果move_cap够则移动
+        if (move_cap >= add_elem_size)
         {
-            auto const cap =
-                (block_elem_begin - block_alloc_begin) * block_elements<T>() - (elem_begin_end - elem_begin_begin);
-            if (cap <= add_elem_size)
-            {
-                extent_block_front(extent_ctrl(add_elem_size, push_back));
-            }
+            std::ranges::copy(block_elem_begin, block_elem_end, block_alloc_begin);
+            return;
         }
+        // 计算需要分配多少块数组，无论接下来是什么逻辑都直接返回它
+        auto const add_block_size = (add_elem_size - move_cap + block_elements<T>() - 1uz) / block_elements<T>();
+        // 获得目前控制块容许容量
+        auto const ctrl_cap =
+            ((block_alloc_begin - block_ctrl_begin) + (block_ctrl_end - block_alloc_end)) * block_elements<T>() +
+            move_cap;
+        if (ctrl_cap < add_elem_size)
+        {
+            // 否则扩展控制块
+            auto const new_ctrl_size = block_ctrl_end - block_ctrl_begin + add_block_size;
+            ctrl_alloc ctrl{alloc, ceil_n(new_ctrl_size, 4uz)}; // may throw
+            ctrl.replace_ctrl_cond<true>(*this);
+        }
+        extent_block_back_uncond(add_block_size);
+    }
+    void extent_block_front(std::size_t const add_elem_size)
+    {
+        // 计算现有头尾是否够用
+        // 头部块的cap
+        auto const head_block_alloc_cap = (block_elem_begin - block_alloc_begin) * block_elements<T>();
+        // 尾部块的cap
+        auto const tail_block_alloc_cap = (block_alloc_end - block_elem_end) * block_elements<T>();
+        // 头块的已使用大小
+        auto const head_used = elem_begin_end - elem_begin_begin;
+        // non_move_cap为头部-头部已用，不移动块时cap
+        auto const non_move_cap = head_block_alloc_cap - head_used;
+        // 首先如果cap足够，则不需要分配新block
+        if (non_move_cap >= add_elem_size)
+        {
+            return;
+        }
+        // move_cap为头部-头部已用+尾部，移动已分配块的cap
+        auto const move_cap = non_move_cap + tail_block_alloc_cap;
+        // 如果move_cap够则移动
+        if (move_cap >= add_elem_size)
+        {
+            std::ranges::copy(block_elem_begin, block_elem_end, block_alloc_end);
+            return;
+        }
+        // 计算需要分配多少块数组，无论接下来是什么逻辑都直接返回它
+        auto const add_block_size = (add_elem_size - move_cap + block_elements<T>() - 1uz) / block_elements<T>();
+        // 获得目前控制块容许容量
+        auto const ctrl_cap =
+            ((block_alloc_begin - block_ctrl_begin) + (block_ctrl_end - block_alloc_end)) * block_elements<T>() +
+            move_cap;
+        if (ctrl_cap < add_elem_size)
+        {
+            // 否则扩展控制块
+            auto const new_ctrl_size = block_ctrl_end - block_ctrl_begin + add_block_size;
+            ctrl_alloc ctrl{alloc, ceil_n(new_ctrl_size, 4uz)}; // may throw
+            ctrl.replace_ctrl_cond<false>(*this);
+        }
+        extent_block_front_uncond(add_block_size);
     }
 
     struct construct_guard
@@ -472,7 +461,7 @@ ctrl_end   →
         // alloc = other.alloc;
         ctrl_alloc const ctrl(alloc, ceil_n(block_size, 4uz)); // may throw
         ctrl.replace_ctrl(*this);
-        extent_block_back(block_size); // may throw
+        extent_block_back_uncond(block_size); // may throw
         if (block_size)
         {
             elem_begin_first = *block_elem_end;
@@ -526,7 +515,7 @@ ctrl_end   →
         }
         else
         {
-            extent_block(1uz, true);
+            extent_block_back(1uz);
             auto begin = *block_elem_end;
             std::construct_at(begin, std::forward<V>(v)...); // may throw
             elem_end_begin = begin;
