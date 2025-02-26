@@ -10,21 +10,24 @@
 #include <type_traits>
 #include <variant>
 
-// 返回块的大小，一定是4096的整数倍
-// 只被block_elements调用
-static inline consteval std::size_t calc_block_size(std::size_t const pv) noexcept
+// 返回每个块的元素数量
+// 块的大小，一定是4096的整数倍
+template <typename T>
+consteval std::size_t block_elements() noexcept
 {
+    auto constexpr pv = sizeof(T);
     // 块的基本大小
     auto constexpr base = 4096uz;
     // 基本大小下，元素最大大小，至少保证16个
     auto constexpr sieve = base / 16uz;
+
+    auto result = 0uz;
 
     if (pv < sieve)
     {
         // 在基本大小的1-8倍间找到利用率最高的
         auto block_sz = 0uz;
         auto rmd_pre = std::size_t(-1);
-        auto result = 0uz;
         for (auto i = 0uz; i != 8uz; ++i)
         {
             block_sz = base * (i + 1uz);
@@ -36,24 +39,14 @@ static inline consteval std::size_t calc_block_size(std::size_t const pv) noexce
                 result = block_sz;
             }
         }
-        return result;
     }
     else
     {
         // 寻找y使得y大于16*元素大小，且y为4096整数倍
-        return (pv * 16uz + base - 1uz) / base * base;
+        result = (pv * 16uz + base - 1uz) / base * base;
     }
-}
 
-template <typename T>
-static inline consteval std::size_t block_elements() noexcept
-{
-    return calc_block_size(sizeof(T)) / sizeof(T);
-}
-
-static inline constexpr std::size_t ceil_n(std::size_t const num, std::size_t const n) noexcept
-{
-    return (num + n - 1uz) / n * n;
+    return result / pv;
 }
 
 class deque
@@ -111,6 +104,11 @@ alloc_end  →□
              □
 ctrl_end   →
     */
+
+    static inline constexpr std::size_t ceil_n(std::size_t const num, std::size_t const n) noexcept
+    {
+        return (num + n - 1uz) / n * n;
+    }
 
     // 空deque安全
     void destroy() noexcept
