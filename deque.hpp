@@ -255,6 +255,81 @@ ctrl_end   →
     }
 
   private:
+    // case 1           case 2            case 3           case 4
+    // A1 B1 → A2 B2   A1       A2       A1 B1   A2       A1       A2 B2
+    // |        |       |        |        |    ↘ |        |     ↗ |
+    // C1    → C2      B1    → B2       C1      B2       B1       C2
+    // |        |       |        |        |    ↘ |        |     ↗ |
+    // D1       D2      D1 C1 → C2 D2    D1      C1 D1    C1 D1   D2
+    // case 1 4: back
+    // case 2 3: front
+    // 对齐控制块
+    // 对齐alloc和ctrl的begin，用于push_back
+    void align_alloc_as_ctrl_back() noexcept
+    {
+        std::ranges::copy(block_alloc_begin, block_alloc_end, block_ctrl_begin);
+        auto const block_size = block_alloc_end - block_alloc_begin;
+        block_alloc_begin = block_ctrl_begin;
+        block_alloc_end = block_ctrl_begin + block_size;
+    }
+    // 对齐控制块
+    // 对齐alloc和ctrl的end，用于push_front
+    void align_alloc_as_ctrl_front() noexcept
+    {
+        std::ranges::copy_backward(block_alloc_begin, block_alloc_end, block_ctrl_end);
+        auto const block_size = block_alloc_end - block_alloc_begin;
+        block_alloc_end = block_ctrl_end;
+        block_alloc_begin = block_ctrl_end - block_size;
+    }
+    // 对齐控制块
+    // 对齐elem和alloc的begin，用于push_back
+    void align_elem_as_alloc_back() noexcept
+    {
+        std::ranges::rotate(block_alloc_begin, block_elem_begin, block_elem_end);
+        auto const block_size = block_elem_end - block_elem_begin;
+        block_elem_begin = block_alloc_begin;
+        block_elem_end = block_alloc_begin + block_size;
+    }
+    // 对齐控制块
+    // 对齐elem和alloc的end，用于push_front
+    void align_elem_as_alloc_front() noexcept
+    {
+        std::ranges::rotate(block_elem_begin, block_elem_end, block_alloc_end);
+        auto const block_size = block_elem_end - block_elem_begin;
+        block_elem_end = block_alloc_end;
+        block_elem_begin = block_alloc_end - block_size;
+    }
+
+    // ctrl_begin 可以是自己或者新ctrl的
+    void align_elem_alloc_as_ctrl_back(block *ctrl_begin) noexcept
+    {
+        auto const alloc_block_size = block_alloc_end - block_alloc_begin;
+        auto const elem_block_size = block_elem_end - block_elem_begin;
+        auto const alloc_elem_offset_front = block_elem_begin - block_alloc_begin;
+        // 将elem_begin和alloc_begin都对齐到ctrl_begin
+        std::ranges::copy(block_elem_begin, block_elem_end, block_ctrl_begin);
+        std::ranges::copy(block_alloc_begin, block_elem_begin, block_ctrl_begin + elem_block_size);
+        std::ranges::copy(block_elem_end, block_alloc_end,
+                          block_ctrl_begin + elem_block_size + alloc_elem_offset_front);
+        block_alloc_begin = ctrl_begin;
+        block_alloc_end = ctrl_begin + alloc_block_size;
+        block_elem_begin = ctrl_begin;
+        block_elem_end = ctrl_begin + elem_block_size;
+    }
+    void align_elem_alloc_as_ctrl_front(block *ctrl_end) noexcept
+    {
+        auto const alloc_block_size = block_alloc_end - block_alloc_begin;
+        auto const elem_block_size = block_elem_end - block_elem_begin;
+        auto const alloc_elem_offset_front = block_elem_begin - block_alloc_begin;
+        std::ranges::copy_backward(block_elem_begin, block_elem_end, block_ctrl_end);
+        std::ranges::copy_backward(block_alloc_begin, block_elem_begin, block_ctrl_end - elem_block_size);
+        std::ranges::copy_backward(block_elem_end, block_alloc_end,
+                                   block_ctrl_end - elem_block_size - alloc_elem_offset_front);
+        block_alloc_end = ctrl_end;
+        block_alloc_begin = ctrl_end - alloc_block_size;
+        block_elem_end = ctrl_end;
+        block_elem_begin = ctrl_end - elem_block_size;
+    }
     // 负责分配块数组
     // 构造和扩容时都可以使用
     struct ctrl_alloc
@@ -277,50 +352,34 @@ ctrl_end   →
         }
         // 扩容时，back为插入元素的方向
         // 对空deque安全
-        template <bool back>
-        void replace_ctrl_cond(deque &d) const noexcept
+        void replace_ctrl_back(deque &d) const noexcept
         {
-            block *block_alloc_begin{}; // B
-            block *block_alloc_end{};   // C
-            // 之前已分配的block数量
-            auto const alloc_block_size = d.block_alloc_end - d.block_alloc_begin;
-            // case 1           case 2            case 3           case 4
-            // A1 B1 → A2 B2   A1       A2       A1 B1   A2       A1       A2 B2
-            // |        |       |        |        |    ↘ |        |     ↗ |
-            // C1    → C2      B1    → B2       C1      B2       B1       C2
-            // |        |       |        |        |    ↘ |        |     ↗ |
-            // D1       D2      D1 C1 → C2 D2    D1      C1 D1    C1 D1   D2
-            if constexpr (back) // case 1 4
-            {
-                block_alloc_begin = block_ctrl_begin;
-                block_alloc_end = block_ctrl_begin + alloc_block_size;
-            }
-            else // case 2 3
-            {
-                block_alloc_begin = block_ctrl_end - alloc_block_size;
-                block_alloc_end = block_ctrl_end;
-            }
 
-            std::ranges::copy(d.block_alloc_begin, d.block_alloc_end, block_alloc_begin);
+            d.align_elem_alloc_as_ctrl_back(block_ctrl_begin);
 
-            // 此时仅考虑了ctrl和alloc，没考虑elem（实际储存了元素的块）的位置
-            // 而elem和alloc的位置是相对的，无关alloc如何移动，因此先记录位置再还原
-            auto const elem_block_offset = d.block_elem_begin - d.block_alloc_begin;
-            auto const elem_block_offset2 = d.block_alloc_end - d.block_elem_end;
-            d.block_elem_begin = block_alloc_begin + elem_block_offset;
-            d.block_elem_end = block_alloc_end - elem_block_offset2;
+            // todo:
+            // delete d.block_ctrl_begin;
+            // 注意顺序
             // 从guard替换回deque
             d.block_ctrl_begin = block_ctrl_begin;
             d.block_ctrl_end = block_ctrl_end;
-            d.block_alloc_begin = block_alloc_begin;
-            d.block_alloc_end = block_alloc_end;
+        }
+        void replace_ctrl_front(deque &d) const noexcept
+        {
+            d.align_elem_alloc_as_ctrl_front(block_ctrl_begin);
+            // todo:
+            // delete d.block_ctrl_begin;
+            // 注意顺序
+            // 从guard替换回deque
+            d.block_ctrl_begin = block_ctrl_begin;
+            d.block_ctrl_end = block_ctrl_end;
         }
         // 必须是算好的大小
         ctrl_alloc(std::monostate &alloc, std::size_t const ctrl_size) : a(alloc)
         {
             // todo:
             // block_alloc_begin = new T*[size];
-            // block_alloc_end = block_alloc_begin + real_alloc_size;
+            // block_alloc_end = block_alloc_begin + ctrl_size;
         }
     };
     // 向前分配新block，需要block_size小于等于(block_alloc_begin - block_ctrl_begin)
@@ -369,21 +428,26 @@ ctrl_end   →
         // 如果move_cap够则移动
         if (move_cap >= add_elem_size)
         {
-            std::ranges::copy(block_elem_begin, block_elem_end, block_alloc_begin);
+            align_elem_as_alloc_back();
             return;
         }
-        // 计算需要分配多少块数组，无论接下来是什么逻辑都直接返回它
+        // 计算需要分配多少块数组，无论接下来是什么逻辑都直接使用它
         auto const add_block_size = (add_elem_size - move_cap + block_elements<T>() - 1uz) / block_elements<T>();
         // 获得目前控制块容许容量
         auto const ctrl_cap =
             ((block_alloc_begin - block_ctrl_begin) + (block_ctrl_end - block_alloc_end)) * block_elements<T>() +
             move_cap;
-        if (ctrl_cap < add_elem_size)
+        // 如果容许容量足够，那么移动alloc
+        if (ctrl_cap >= add_elem_size)
+        {
+            align_elem_alloc_as_ctrl_back(block_ctrl_begin);
+        }
+        else
         {
             // 否则扩展控制块
             auto const new_ctrl_size = block_ctrl_end - block_ctrl_begin + add_block_size;
             ctrl_alloc ctrl{alloc, ceil_n(new_ctrl_size, 4uz)}; // may throw
-            ctrl.replace_ctrl_cond<true>(*this);
+            ctrl.replace_ctrl_back(*this);
         }
         extent_block_back_uncond(add_block_size);
     }
@@ -411,18 +475,23 @@ ctrl_end   →
             std::ranges::copy(block_elem_begin, block_elem_end, block_alloc_end);
             return;
         }
-        // 计算需要分配多少块数组，无论接下来是什么逻辑都直接返回它
+        // 计算需要分配多少块数组，无论接下来是什么逻辑都直接使用它
         auto const add_block_size = (add_elem_size - move_cap + block_elements<T>() - 1uz) / block_elements<T>();
         // 获得目前控制块容许容量
         auto const ctrl_cap =
             ((block_alloc_begin - block_ctrl_begin) + (block_ctrl_end - block_alloc_end)) * block_elements<T>() +
             move_cap;
-        if (ctrl_cap < add_elem_size)
+
+        if (ctrl_cap >= add_elem_size)
+        {
+            align_elem_alloc_as_ctrl_front(block_ctrl_begin);
+        }
+        else
         {
             // 否则扩展控制块
             auto const new_ctrl_size = block_ctrl_end - block_ctrl_begin + add_block_size;
             ctrl_alloc ctrl{alloc, ceil_n(new_ctrl_size, 4uz)}; // may throw
-            ctrl.replace_ctrl_cond<false>(*this);
+            ctrl.replace_ctrl_front(*this);
         }
         extent_block_front_uncond(add_block_size);
     }
@@ -465,7 +534,7 @@ ctrl_end   →
             elem_begin_first = *block_elem_end;
             ++block_elem_end;
             elem_begin_begin = elem_begin_first + (other.elem_begin_begin - other.elem_begin_first);
-            elem_begin_end = elem_begin_first + block_elements<T>();
+            elem_begin_end = elem_begin_begin;
             for (auto begin = other.elem_begin_begin; begin != other.elem_begin_end; ++begin, ++elem_begin_end)
             {
                 std::construct_at(elem_begin_end, *begin); // may throw
