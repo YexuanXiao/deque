@@ -621,7 +621,9 @@ ctrl_end   →
         guard.release();
     }
 
-    deque(std::size_t count)
+  private:
+    template <typename... Ts>
+    constexpr void init_n(std::size_t count, Ts const &...t)
     {
         construct_guard guard(*this);
         auto const quot = count / block_elements<T>();
@@ -638,16 +640,30 @@ ctrl_end   →
             elem_end_begin = elem_begin_begin;
             elem_end_end = elem_begin_begin + block_elements<T>();
             elem_end_last = elem_end_end;
-            uninitialized_default_construct_ref(elem_begin_end, elem_begin_end + block_elements<T>());
+            if constexpr (sizeof...(Ts) == 0uz)
+            {
+                uninitialized_default_construct_ref(elem_begin_end, elem_begin_end + block_elements<T>());
+            }
+            else
+            {
+                uninitialized_copy_value_ref(elem_begin_end, elem_begin_end + block_elements<T>(), t...);
+            }
         }
-        for (auto i = 0uz; i != quot - 1; ++i)
+        for (auto i = 0uz; i != quot - 1uz; ++i)
         {
             elem_end_begin = *block_elem_end;
             ++block_elem_end;
             elem_end_end = elem_end_begin;
             // 由于回滚完全不在乎last，因此此处不用设置
             // elem_end_last = elem_end_begin + block_elements<T>();
-            uninitialized_default_construct_ref(elem_end_end, elem_end_end + block_elements<T>());
+            if constexpr (sizeof...(Ts) == 0uz)
+            {
+                uninitialized_default_construct_ref(elem_end_end, elem_end_end + block_elements<T>());
+            }
+            else
+            {
+                uninitialized_copy_value_ref(elem_end_end, elem_end_end + block_elements<T>(), t...);
+            }
         }
         if (quot > 2uz)
         {
@@ -655,48 +671,26 @@ ctrl_end   →
             ++block_elem_end;
             elem_end_end = elem_end_begin;
             elem_end_last = elem_end_begin + block_elements<T>();
-            uninitialized_default_construct_ref(elem_end_end, elem_end_end + rem);
+            if constexpr (sizeof...(Ts) == 0uz)
+            {
+                uninitialized_default_construct_ref(elem_end_end, elem_end_end + rem);
+            }
+            else
+            {
+                uninitialized_copy_value_ref(elem_end_end, elem_end_end + rem, t...);
+            }
         }
         guard.release();
     }
-    // 几乎完全等于count版本，但是使用指定值初始化
+
+  public:
+    deque(std::size_t count)
+    {
+        init_n(count);
+    }
     deque(std::size_t count, T const &t)
     {
-        construct_guard guard(*this);
-        auto const quot = count / block_elements<T>();
-        auto const rem = count % block_elements<T>();
-        auto const block_size = quot + 1uz;
-        construct_block(block_size);
-        // 由于析构优先考虑elem_begin，因此必须独立构造elem_begin
-        if (quot)
-        {
-            elem_begin_begin = *block_elem_end;
-            ++block_elem_end;
-            elem_begin_end = elem_begin_begin;
-            elem_begin_first = elem_begin_begin;
-            elem_end_begin = elem_begin_begin;
-            elem_end_end = elem_begin_begin + block_elements<T>();
-            elem_end_last = elem_end_end;
-            uninitialized_copy_value_ref(elem_begin_end, elem_begin_end + block_elements<T>(), t);
-        }
-        for (auto i = 0uz; i != quot - 1; ++i)
-        {
-            elem_end_begin = *block_elem_end;
-            ++block_elem_end;
-            elem_end_end = elem_end_begin;
-            // 由于回滚完全不在乎last，因此此处不用设置
-            // elem_end_last = elem_end_begin + block_elements<T>();
-            uninitialized_copy_value_ref(elem_end_end, elem_end_end + block_elements<T>(), t);
-        }
-        if (quot > 2uz)
-        {
-            elem_end_begin = *block_elem_end;
-            ++block_elem_end;
-            elem_end_end = elem_end_begin;
-            elem_end_last = elem_end_begin + block_elements<T>();
-            uninitialized_copy_value_ref(elem_end_end, elem_end_end + rem, t);
-        }
-        guard.release();
+        init_n(count, t);
     }
 
     template <typename... V>
@@ -708,7 +702,7 @@ ctrl_end   →
             std::construct_at(begin, std::forward<V>(v)...); // may throw
             ++elem_end_end;
             // 修正elem_begin
-            if ((block_elem_end - block_elem_begin) == 1)
+            if ((block_elem_end - block_elem_begin) == 1z)
             {
                 ++elem_begin_end;
             }
@@ -721,14 +715,14 @@ ctrl_end   →
             std::construct_at(begin, std::forward<V>(v)...); // may throw
             elem_end_begin = begin;
             elem_end_last = begin + block_elements<T>();
-            elem_end_end = begin + 1;
+            elem_end_end = begin + 1uz;
             ++block_elem_end;
             // 修正elem_begin
-            if ((block_elem_end - block_elem_begin) == 1)
+            if ((block_elem_end - block_elem_begin) == 1z)
             {
                 elem_begin_first = begin;
                 elem_begin_begin = begin;
-                elem_begin_end = begin + 1;
+                elem_begin_end = begin + 1uz;
             }
             return *begin;
         }
