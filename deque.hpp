@@ -105,13 +105,13 @@ alloc_end  →□
 ctrl_end   →
     */
 
-    static inline constexpr std::size_t ceil_n(std::size_t const num, std::size_t const n) noexcept
+    static constexpr std::size_t ceil_n(std::size_t const num, std::size_t const n) noexcept
     {
         return (num + n - 1uz) / n * n;
     }
 
     // 空deque安全
-    void destroy() noexcept
+    constexpr void destroy() noexcept
     {
         // 4种情况，0，1，2，3+个块有元素
         auto const elem_block_size = block_elem_end - block_elem_begin;
@@ -155,11 +155,12 @@ ctrl_end   →
     }
 
   public:
-    ~deque()
+    constexpr ~deque()
     {
         destroy();
     }
-    void swap(deque &other) noexcept
+    
+    constexpr void swap(deque &other) noexcept
     {
         // todo:
         // std::swap(alloc, other.alloc);
@@ -178,30 +179,30 @@ ctrl_end   →
         swap(elem_end_last, other.elem_end_last);
     }
 
-    friend void swap(deque &lhs, deque &rhs) noexcept
+    friend constexpr void swap(deque &lhs, deque &rhs) noexcept
     {
         lhs.swap(rhs);
     }
 
-    deque(deque &&rhs) noexcept
+    constexpr deque(deque &&rhs) noexcept
     {
         rhs.swap(*this);
     }
 
-    auto &front() noexcept
+    constexpr auto &front() noexcept
     {
         assert(elem_begin_begin);
         return *(elem_begin_begin);
     }
 
-    auto &back() noexcept
+    constexpr auto &back() noexcept
     {
         assert(elem_end_end);
         return *(elem_end_end - 1uz);
     }
 
     // 空deque安全
-    auto size() const noexcept
+    constexpr auto size() const noexcept
     {
         auto const elem_block_size = block_elem_end - block_elem_begin;
         auto result = 0uz;
@@ -230,13 +231,13 @@ ctrl_end   →
         T *block_curr{};
         T *block_end{};
 
-        iterator(block *elem_begin, T *curr, T *begin, T *end) noexcept
+        constexpr iterator(block *elem_begin, T *curr, T *begin, T *end) noexcept
             : block_elem_begin(elem_begin), block_curr(curr), block_begin(begin), block_end(end)
         {
         }
 
       public:
-        iterator() noexcept
+        constexpr iterator() noexcept
         {
         }
     };
@@ -244,12 +245,12 @@ ctrl_end   →
     // todo:
     // using const_iterator = std::basic_const_iterator<iterator>;
 
-    auto begin() noexcept
+    constexpr auto begin() noexcept
     {
         return iterator{block_elem_begin, elem_begin_begin, elem_begin_begin, elem_begin_end};
     }
 
-    auto end() noexcept
+    constexpr auto end() noexcept
     {
         return iterator{block_elem_end, elem_end_end, elem_end_begin, elem_end_end};
     }
@@ -265,7 +266,7 @@ ctrl_end   →
     // case 2 3: front
     // 对齐控制块
     // 对齐alloc和ctrl的begin，用于push_back
-    void align_alloc_as_ctrl_back() noexcept
+    constexpr void align_alloc_as_ctrl_back() noexcept
     {
         std::ranges::copy(block_alloc_begin, block_alloc_end, block_ctrl_begin);
         auto const block_size = block_alloc_end - block_alloc_begin;
@@ -274,7 +275,7 @@ ctrl_end   →
     }
     // 对齐控制块
     // 对齐alloc和ctrl的end，用于push_front
-    void align_alloc_as_ctrl_front() noexcept
+    constexpr void align_alloc_as_ctrl_front() noexcept
     {
         std::ranges::copy_backward(block_alloc_begin, block_alloc_end, block_ctrl_end);
         auto const block_size = block_alloc_end - block_alloc_begin;
@@ -283,7 +284,7 @@ ctrl_end   →
     }
     // 对齐控制块
     // 对齐elem和alloc的begin，用于push_back
-    void align_elem_as_alloc_back() noexcept
+    constexpr void align_elem_as_alloc_back() noexcept
     {
         std::ranges::rotate(block_alloc_begin, block_elem_begin, block_elem_end);
         auto const block_size = block_elem_end - block_elem_begin;
@@ -292,7 +293,7 @@ ctrl_end   →
     }
     // 对齐控制块
     // 对齐elem和alloc的end，用于push_front
-    void align_elem_as_alloc_front() noexcept
+    constexpr void align_elem_as_alloc_front() noexcept
     {
         std::ranges::rotate(block_elem_begin, block_elem_end, block_alloc_end);
         auto const block_size = block_elem_end - block_elem_begin;
@@ -301,7 +302,7 @@ ctrl_end   →
     }
 
     // ctrl_begin 可以是自己或者新ctrl的
-    void align_elem_alloc_as_ctrl_back(block *ctrl_begin) noexcept
+    constexpr void align_elem_alloc_as_ctrl_back(block *ctrl_begin) noexcept
     {
         auto const alloc_block_size = block_alloc_end - block_alloc_begin;
         auto const elem_block_size = block_elem_end - block_elem_begin;
@@ -316,7 +317,7 @@ ctrl_end   →
         block_elem_begin = ctrl_begin;
         block_elem_end = ctrl_begin + elem_block_size;
     }
-    void align_elem_alloc_as_ctrl_front(block *ctrl_end) noexcept
+    constexpr void align_elem_alloc_as_ctrl_front(block *ctrl_end) noexcept
     {
         auto const alloc_block_size = block_alloc_end - block_alloc_begin;
         auto const elem_block_size = block_elem_end - block_elem_begin;
@@ -341,7 +342,7 @@ ctrl_end   →
         // 替换块数组到deque
         // 构造时
         // 对空deque安全
-        void replace_ctrl(deque &d) const noexcept
+        constexpr void replace_ctrl(deque &d) const noexcept
         {
             d.block_ctrl_begin = block_ctrl_begin;
             d.block_ctrl_end = block_ctrl_end;
@@ -352,7 +353,7 @@ ctrl_end   →
         }
         // 扩容时，back为插入元素的方向
         // 对空deque安全
-        void replace_ctrl_back(deque &d) const noexcept
+        constexpr void replace_ctrl_back(deque &d) const noexcept
         {
 
             d.align_elem_alloc_as_ctrl_back(block_ctrl_begin);
@@ -364,7 +365,7 @@ ctrl_end   →
             d.block_ctrl_begin = block_ctrl_begin;
             d.block_ctrl_end = block_ctrl_end;
         }
-        void replace_ctrl_front(deque &d) const noexcept
+        constexpr void replace_ctrl_front(deque &d) const noexcept
         {
             d.align_elem_alloc_as_ctrl_front(block_ctrl_begin);
             // todo:
@@ -375,7 +376,7 @@ ctrl_end   →
             d.block_ctrl_end = block_ctrl_end;
         }
         // 必须是算好的大小
-        ctrl_alloc(std::monostate &alloc, std::size_t const ctrl_size) : a(alloc)
+        constexpr ctrl_alloc(std::monostate &alloc, std::size_t const ctrl_size) : a(alloc)
         {
             // todo:
             // block_alloc_begin = new T*[size];
@@ -384,7 +385,7 @@ ctrl_end   →
     };
     // 向前分配新block，需要block_size小于等于(block_alloc_begin - block_ctrl_begin)
     // 且不block_alloc_X不是空指针
-    void extent_block_front_uncond(std::size_t const block_size)
+    constexpr void extent_block_front_uncond(std::size_t const block_size)
     {
         for (auto i = 0uz; i != block_size; ++i)
         {
@@ -395,7 +396,7 @@ ctrl_end   →
     }
     // 向后分配新block，需要block_size小于等于(block_ctrl_end - block_alloc_end)
     // 且不block_alloc_X不是空指针
-    void extent_block_back_uncond(std::size_t const block_size)
+    constexpr void extent_block_back_uncond(std::size_t const block_size)
     {
         for (auto i = 0uz; i != block_size; ++i)
         {
@@ -407,7 +408,7 @@ ctrl_end   →
     // 先就地移动块，back为true时向前移动，否则重新分配块
     // 返回需要分配几个block
     // 对空deque安全
-    void extent_block_back(std::size_t const add_elem_size)
+    constexpr void extent_block_back(std::size_t const add_elem_size)
     {
         // 计算现有头尾是否够用
         // 头部块的cap
@@ -451,7 +452,7 @@ ctrl_end   →
         }
         extent_block_back_uncond(add_block_size);
     }
-    void extent_block_front(std::size_t const add_elem_size)
+    constexpr void extent_block_front(std::size_t const add_elem_size)
     {
         // 计算现有头尾是否够用
         // 头部块的cap
@@ -500,14 +501,14 @@ ctrl_end   →
     {
         deque &d;
         bool released{};
-        construct_guard(deque &c) noexcept : d(c)
+        constexpr construct_guard(deque &c) noexcept : d(c)
         {
         }
-        void release() noexcept
+        constexpr void release() noexcept
         {
             released = true;
         }
-        ~construct_guard()
+        constexpr ~construct_guard()
         {
             if (!released)
             {
@@ -517,10 +518,10 @@ ctrl_end   →
     };
 
   public:
-    deque() noexcept = default;
+    constexpr deque() noexcept = default;
     // 复制构造采取按结构复制的方法
     // 不需要经过extent_block的复杂逻辑
-    deque(deque const &other)
+    constexpr deque(deque const &other)
     {
         construct_guard guard(*this);
         auto const block_size = other.block_elem_end - other.block_elem_begin;
@@ -573,7 +574,7 @@ ctrl_end   →
     }
 
     template <typename... V>
-    void emplace_back(V &&...v)
+    constexpr void emplace_back(V &&...v)
     {
         if (elem_end_end != elem_end_last)
         {
