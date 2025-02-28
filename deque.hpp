@@ -306,7 +306,8 @@ ctrl_end   →
         block_elem_begin = block_alloc_end - block_size;
     }
 
-    // ctrl_begin 可以是自己或者新ctrl的
+    // ctrl_begin可以是自己或者新ctrl的
+    // 对齐控制块所有指针
     constexpr void align_elem_alloc_as_ctrl_back(block *ctrl_begin) noexcept
     {
         auto const alloc_block_size = block_alloc_end - block_alloc_begin;
@@ -322,6 +323,8 @@ ctrl_end   →
         block_elem_begin = ctrl_begin;
         block_elem_end = ctrl_begin + elem_block_size;
     }
+    // ctrl_begin可以是自己或者新ctrl的
+    // 对齐控制块所有指针
     constexpr void align_elem_alloc_as_ctrl_front(block *ctrl_end) noexcept
     {
         auto const alloc_block_size = block_alloc_end - block_alloc_begin;
@@ -410,8 +413,7 @@ ctrl_end   →
             ++block_alloc_end;
         }
     }
-    // 先就地移动块，back为true时向前移动，否则重新分配块
-    // 返回需要分配几个block
+    // 向back扩展block
     // 对空deque安全
     constexpr void extent_block_back(std::size_t const add_elem_size)
     {
@@ -457,6 +459,7 @@ ctrl_end   →
         }
         extent_block_back_uncond(add_block_size);
     }
+    // 从front扩展block，空deque安全
     constexpr void extent_block_front(std::size_t const add_elem_size)
     {
         // 计算现有头尾是否够用
@@ -504,8 +507,11 @@ ctrl_end   →
 
     struct construct_guard
     {
+      private:
         deque &d;
         bool released{};
+
+      public:
         constexpr construct_guard(deque &c) noexcept : d(c)
         {
         }
@@ -622,8 +628,9 @@ ctrl_end   →
     }
 
   private:
+    // 使用count和count和T进行构造，完全代替两个对应的构造函数
     template <typename... Ts>
-    constexpr void init_n(std::size_t count, Ts const &...t)
+    constexpr void construct_n(std::size_t count, Ts const &...t)
     {
         construct_guard guard(*this);
         auto const quot = count / block_elements<T>();
@@ -686,11 +693,11 @@ ctrl_end   →
   public:
     deque(std::size_t count)
     {
-        init_n(count);
+        construct_n(count);
     }
     deque(std::size_t count, T const &t)
     {
-        init_n(count, t);
+        construct_n(count, t);
     }
 
     template <typename... V>
