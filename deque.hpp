@@ -211,7 +211,6 @@ ctrl_end   →
     {
         auto const elem_block_size = block_elem_end - block_elem_begin;
         auto result = 0uz;
-
         if (elem_block_size)
         {
             result += elem_begin_end - elem_begin_begin;
@@ -224,7 +223,6 @@ ctrl_end   →
         {
             result += elem_end_end - elem_end_begin;
         }
-
         return result;
     }
 
@@ -278,6 +276,7 @@ ctrl_end   →
         block_alloc_begin = block_ctrl_begin;
         block_alloc_end = block_ctrl_begin + block_size;
     }
+
     // 对齐控制块
     // 对齐alloc和ctrl的end，用于push_front
     constexpr void align_alloc_as_ctrl_front() noexcept
@@ -287,6 +286,7 @@ ctrl_end   →
         block_alloc_end = block_ctrl_end;
         block_alloc_begin = block_ctrl_end - block_size;
     }
+
     // 对齐控制块
     // 对齐elem和alloc的begin，用于push_back
     constexpr void align_elem_as_alloc_back() noexcept
@@ -296,6 +296,7 @@ ctrl_end   →
         block_elem_begin = block_alloc_begin;
         block_elem_end = block_alloc_begin + block_size;
     }
+
     // 对齐控制块
     // 对齐elem和alloc的end，用于push_front
     constexpr void align_elem_as_alloc_front() noexcept
@@ -323,6 +324,7 @@ ctrl_end   →
         block_elem_begin = ctrl_begin;
         block_elem_end = ctrl_begin + elem_block_size;
     }
+
     // ctrl_begin可以是自己或者新ctrl的
     // 对齐控制块所有指针
     constexpr void align_elem_alloc_as_ctrl_front(block *ctrl_end) noexcept
@@ -339,6 +341,7 @@ ctrl_end   →
         block_elem_end = ctrl_end;
         block_elem_begin = ctrl_end - elem_block_size;
     }
+
     // 负责分配块数组
     // 构造和扩容时都可以使用
     struct ctrl_alloc
@@ -359,6 +362,7 @@ ctrl_end   →
             d.block_elem_begin = block_ctrl_begin;
             d.block_elem_end = block_ctrl_begin;
         }
+
         // 扩容时，back为插入元素的方向
         // 对空deque安全
         constexpr void replace_ctrl_back(deque &d) const noexcept
@@ -373,6 +377,7 @@ ctrl_end   →
             d.block_ctrl_begin = block_ctrl_begin;
             d.block_ctrl_end = block_ctrl_end;
         }
+
         constexpr void replace_ctrl_front(deque &d) const noexcept
         {
             d.align_elem_alloc_as_ctrl_front(block_ctrl_begin);
@@ -383,6 +388,7 @@ ctrl_end   →
             d.block_ctrl_begin = block_ctrl_begin;
             d.block_ctrl_end = block_ctrl_end;
         }
+
         // 必须是算好的大小
         constexpr ctrl_alloc(std::monostate &alloc, std::size_t const ctrl_size) : a(alloc)
         {
@@ -391,6 +397,7 @@ ctrl_end   →
             // block_alloc_end = block_alloc_begin + ctrl_size;
         }
     };
+
     // 向前分配新block，需要block_size小于等于(block_alloc_begin - block_ctrl_begin)
     // 且不block_alloc_X不是空指针
     constexpr void extent_block_front_uncond(std::size_t const block_size)
@@ -402,6 +409,7 @@ ctrl_end   →
             --block_alloc_begin;
         }
     }
+
     // 向后分配新block，需要block_size小于等于(block_ctrl_end - block_alloc_end)
     // 且不block_alloc_X不是空指针
     constexpr void extent_block_back_uncond(std::size_t const block_size)
@@ -413,6 +421,7 @@ ctrl_end   →
             ++block_alloc_end;
         }
     }
+
     // 向back扩展block
     // 对空deque安全
     constexpr void extent_block_back(std::size_t const add_elem_size)
@@ -459,6 +468,7 @@ ctrl_end   →
         }
         extent_block_back_uncond(add_block_size);
     }
+
     // 从front扩展block，空deque安全
     constexpr void extent_block_front(std::size_t const add_elem_size)
     {
@@ -502,6 +512,7 @@ ctrl_end   →
             ctrl_alloc ctrl{alloc, ceil_n(new_ctrl_size, 4uz)}; // may throw
             ctrl.replace_ctrl_front(*this);
         }
+        // 必须最后执行
         extent_block_front_uncond(add_block_size);
     }
 
@@ -515,10 +526,12 @@ ctrl_end   →
         constexpr construct_guard(deque &c) noexcept : d(c)
         {
         }
+
         constexpr void release() noexcept
         {
             released = true;
         }
+
         constexpr ~construct_guard()
         {
             if (!released)
@@ -528,6 +541,7 @@ ctrl_end   →
         }
     };
 
+    // 回滚依赖析构函数
     static constexpr void uninitialized_copy_ref(T const *begin, T const *end, T *&dest)
     {
         for (; begin != end; ++begin, ++dest)
@@ -535,6 +549,7 @@ ctrl_end   →
             std::construct_at(dest, *begin);
         }
     }
+    // 回滚依赖析构函数
     static constexpr void uninitialized_default_construct_ref(T *&begin, T const *end)
     {
         for (; begin != end; ++begin)
@@ -542,7 +557,8 @@ ctrl_end   →
             new (begin) T{};
         }
     }
-    static constexpr void uninitialized_copy_value_ref(T *&begin, T const *end, T const &t)
+    // 回滚依赖析构函数
+    static constexpr void uninitialized_value_construct_ref(T *&begin, T const *end, T const &t)
     {
         for (; begin != end; ++begin)
         {
@@ -561,6 +577,7 @@ ctrl_end   →
 
   public:
     constexpr deque() noexcept = default;
+
     // 复制构造采取按结构复制的方法
     // 不需要经过extent_block的复杂逻辑
     constexpr deque(deque const &other)
@@ -623,7 +640,6 @@ ctrl_end   →
             elem_end_last = elem_end_begin + block_elements<T>();
             uninitialized_copy_ref(other.elem_end_begin, other.elem_end_end, elem_end_end);
         }
-
         guard.release();
     }
 
@@ -653,7 +669,7 @@ ctrl_end   →
             }
             else
             {
-                uninitialized_copy_value_ref(elem_begin_end, elem_begin_end + block_elements<T>(), t...);
+                uninitialized_value_construct_ref(elem_begin_end, elem_begin_end + block_elements<T>(), t...);
             }
         }
         for (auto i = 0uz; i != quot - 1uz; ++i)
@@ -669,7 +685,7 @@ ctrl_end   →
             }
             else
             {
-                uninitialized_copy_value_ref(elem_end_end, elem_end_end + block_elements<T>(), t...);
+                uninitialized_value_construct_ref(elem_end_end, elem_end_end + block_elements<T>(), t...);
             }
         }
         if (quot > 2uz)
@@ -684,17 +700,19 @@ ctrl_end   →
             }
             else
             {
-                uninitialized_copy_value_ref(elem_end_end, elem_end_end + rem, t...);
+                uninitialized_value_construct_ref(elem_end_end, elem_end_end + rem, t...);
             }
         }
         guard.release();
     }
 
   public:
+
     deque(std::size_t count)
     {
         construct_n(count);
     }
+
     deque(std::size_t count, T const &t)
     {
         construct_n(count, t);
