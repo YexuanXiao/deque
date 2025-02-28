@@ -110,6 +110,11 @@ ctrl_end   →
         return (num + n - 1uz) / n * n;
     }
 
+    constexpr bool empty() noexcept
+    {
+        return elem_begin_begin != elem_begin_end;
+    }
+
     // 空deque安全
     constexpr void destroy() noexcept
     {
@@ -159,7 +164,7 @@ ctrl_end   →
     {
         destroy();
     }
-    
+
     constexpr void swap(deque &other) noexcept
     {
         // todo:
@@ -523,19 +528,41 @@ ctrl_end   →
     // 不需要经过extent_block的复杂逻辑
     constexpr deque(deque const &other)
     {
-        construct_guard guard(*this);
-        auto const block_size = other.block_elem_end - other.block_elem_begin;
         // todo: alloc propagate
         // alloc = other.alloc;
+        construct_guard guard(*this);
+        auto const block_size = other.block_elem_end - other.block_elem_begin;
         ctrl_alloc const ctrl(alloc, ceil_n(block_size, 4uz)); // may throw
         ctrl.replace_ctrl(*this);
         extent_block_back_uncond(block_size); // may throw
         if (block_size)
         {
-            elem_begin_first = *block_elem_end;
+            // 此时最为特殊，因为只有一个有效快时，可以从头部生长也可以从尾部生长
+            // 当从头部生长时，elem_first_end==*block_elem_begin+block_elements<T>();
+            // 当从尾部生长时，elem_end_begin==*block_elem_begin
+            // 析构永远按头部的begin和end进行
+            auto const elem_size = other.elem_begin_end - other.elem_begin_end;
+            if (other.elem_end_begin == *other.block_elem_begin)
+            {
+                // 按从尾部生长
+                elem_end_begin = *block_elem_begin;
+                elem_end_end = elem_end_begin + elem_size;
+                elem_end_last = elem_end_begin + block_elements<T>();
+                elem_begin_begin = elem_end_begin;
+                // 复制永远按头部进行复制，和析构一致
+                elem_begin_end = elem_begin_begin;
+                elem_begin_first = elem_end_begin;
+            }
+            else
+            {
+                elem_begin_first = *block_elem_begin;
+                elem_begin_begin = elem_begin_first + block_elements<T>() - elem_size;
+                elem_begin_end = elem_begin_begin;
+                elem_end_begin = elem_begin_begin;
+                elem_end_end = elem_begin_begin + elem_size;
+                elem_end_last = elem_end_end;
+            }
             ++block_elem_end;
-            elem_begin_begin = elem_begin_first + (other.elem_begin_begin - other.elem_begin_first);
-            elem_begin_end = elem_begin_begin;
             for (auto begin = other.elem_begin_begin; begin != other.elem_begin_end; ++begin, ++elem_begin_end)
             {
                 std::construct_at(elem_begin_end, *begin); // may throw
@@ -544,8 +571,9 @@ ctrl_end   →
         if (block_size > 2z)
         {
             auto const target_block_end = other.block_elem_end - 1uz;
-            for (auto target_block_begin = other.block_elem_begin + 1uz; target_block_begin != target_block_end;
-                 ++target_block_begin)
+            auto target_block_begin = other.block_elem_begin + 1uz;
+            [[assume(target_block_begin != target_block_end)]];
+            for (; target_block_begin != target_block_end; ++target_block_begin) [[likely]]
             {
                 elem_end_begin = *block_elem_end;
                 ++block_elem_end;
@@ -574,12 +602,19 @@ ctrl_end   →
     }
 
     template <typename... V>
-    constexpr void emplace_back(V &&...v)
+    constexpr T &emplace_back(V &&...v)
     {
         if (elem_end_end != elem_end_last)
         {
-            std::construct_at(elem_end_end, std::forward<V>(v)...); // may throw
+            auto begin = elem_end_end;
+            std::construct_at(begin, std::forward<V>(v)...); // may throw
             ++elem_end_end;
+            // 修正elem_begin
+            if ((block_elem_end - block_elem_begin) == 1)
+            {
+                ++elem_begin_end;
+            }
+            return *begin;
         }
         else
         {
@@ -588,8 +623,26 @@ ctrl_end   →
             std::construct_at(begin, std::forward<V>(v)...); // may throw
             elem_end_begin = begin;
             elem_end_last = begin + block_elements<T>();
-            elem_end_end = ++begin;
+            elem_end_end = begin + 1;
             ++block_elem_end;
+            // 修正elem_begin
+            if ((block_elem_end - block_elem_begin) == 1)
+            {
+                elem_begin_first = begin;
+                elem_begin_begin = begin;
+                elem_begin_end = begin + 1;
+            }
+            return *begin;
         }
+    }
+
+    constexpr void push_back(T const &t)
+    {
+        emplace_back(t);
+    }
+
+    constexpr void push_back(T &&t) noexcept
+    {
+        emplace_back(std::move(t));
     }
 };
