@@ -522,6 +522,37 @@ ctrl_end   →
         }
     };
 
+    static constexpr void uninitialized_copy_ref(T const *begin, T const *end, T *&dest)
+    {
+        for (; begin != end; ++begin, ++dest)
+        {
+            std::construct_at(dest, *begin);
+        }
+    }
+    static constexpr void uninitialized_default_construct_ref(T *&begin, T const *end)
+    {
+        for (; begin != end; ++begin)
+        {
+            new (begin) T{};
+        }
+    }
+    static constexpr void uninitialized_copy_value_ref(T *&begin, T const *end, T const &t)
+    {
+        for (; begin != end; ++begin)
+        {
+            new (begin) T{t};
+        }
+    }
+
+    // 构造函数的辅助函数
+    // 需要注意异常安全
+    void construct_block(std::size_t block_size)
+    {
+        ctrl_alloc const ctrl(alloc, ceil_n(block_size, 4uz)); // may throw
+        ctrl.replace_ctrl(*this);
+        extent_block_back_uncond(block_size); // may throw
+    }
+
   public:
     constexpr deque() noexcept = default;
     // 复制构造采取按结构复制的方法
@@ -532,9 +563,7 @@ ctrl_end   →
         // alloc = other.alloc;
         construct_guard guard(*this);
         auto const block_size = other.block_elem_end - other.block_elem_begin;
-        ctrl_alloc const ctrl(alloc, ceil_n(block_size, 4uz)); // may throw
-        ctrl.replace_ctrl(*this);
-        extent_block_back_uncond(block_size); // may throw
+        construct_block(block_size);
         if (block_size)
         {
             // 此时最为特殊，因为只有一个有效快时，可以从头部生长也可以从尾部生长
@@ -563,27 +592,21 @@ ctrl_end   →
                 elem_end_last = elem_end_end;
             }
             ++block_elem_end;
-            for (auto begin = other.elem_begin_begin; begin != other.elem_begin_end; ++begin, ++elem_begin_end)
-            {
-                std::construct_at(elem_begin_end, *begin); // may throw
-            }
+            uninitialized_copy_ref(other.elem_begin_begin, other.elem_begin_end, elem_begin_end);
         }
         if (block_size > 2z)
         {
             auto const target_block_end = other.block_elem_end - 1uz;
             auto target_block_begin = other.block_elem_begin + 1uz;
-            [[assume(target_block_begin != target_block_end)]];
             for (; target_block_begin != target_block_end; ++target_block_begin) [[likely]]
             {
                 elem_end_begin = *block_elem_end;
                 ++block_elem_end;
                 elem_end_end = elem_end_begin;
-                elem_end_last = elem_end_begin + block_elements<T>();
-                for (auto begin = *target_block_begin, end = begin + block_elements<T>(); begin != end;
-                     ++begin, ++elem_end_end)
-                {
-                    std::construct_at(elem_end_end, *begin); // may throw
-                }
+                // 由于回滚完全不在乎last，因此此处不用设置
+                // elem_end_last = elem_end_begin + block_elements<T>();
+                auto begin = *target_block_begin;
+                uninitialized_copy_ref(begin, begin + block_elements<T>(), elem_end_end);
             }
         }
         if (block_size > 1z)
@@ -592,12 +615,87 @@ ctrl_end   →
             ++block_elem_end;
             elem_end_end = elem_end_begin;
             elem_end_last = elem_end_begin + block_elements<T>();
-            for (auto begin = other.elem_end_begin; begin != other.elem_end_end; ++begin, ++elem_end_end)
-            {
-                std::construct_at(elem_end_end, *begin); // may throw
-            }
+            uninitialized_copy_ref(other.elem_end_begin, other.elem_end_end, elem_end_end);
         }
 
+        guard.release();
+    }
+
+    deque(std::size_t count)
+    {
+        construct_guard guard(*this);
+        auto const quot = count / block_elements<T>();
+        auto const rem = count % block_elements<T>();
+        auto const block_size = quot + 1uz;
+        construct_block(block_size);
+        // 由于析构优先考虑elem_begin，因此必须独立构造elem_begin
+        if (quot)
+        {
+            elem_begin_begin = *block_elem_end;
+            ++block_elem_end;
+            elem_begin_end = elem_begin_begin;
+            elem_begin_first = elem_begin_begin;
+            elem_end_begin = elem_begin_begin;
+            elem_end_end = elem_begin_begin + block_elements<T>();
+            elem_end_last = elem_end_end;
+            uninitialized_default_construct_ref(elem_begin_end, elem_begin_end + block_elements<T>());
+        }
+        for (auto i = 0uz; i != quot - 1; ++i)
+        {
+            elem_end_begin = *block_elem_end;
+            ++block_elem_end;
+            elem_end_end = elem_end_begin;
+            // 由于回滚完全不在乎last，因此此处不用设置
+            // elem_end_last = elem_end_begin + block_elements<T>();
+            uninitialized_default_construct_ref(elem_end_end, elem_end_end + block_elements<T>());
+        }
+        if (quot > 2uz)
+        {
+            elem_end_begin = *block_elem_end;
+            ++block_elem_end;
+            elem_end_end = elem_end_begin;
+            elem_end_last = elem_end_begin + block_elements<T>();
+            uninitialized_default_construct_ref(elem_end_end, elem_end_end + rem);
+        }
+        guard.release();
+    }
+    // 几乎完全等于count版本，但是使用指定值初始化
+    deque(std::size_t count, T const &t)
+    {
+        construct_guard guard(*this);
+        auto const quot = count / block_elements<T>();
+        auto const rem = count % block_elements<T>();
+        auto const block_size = quot + 1uz;
+        construct_block(block_size);
+        // 由于析构优先考虑elem_begin，因此必须独立构造elem_begin
+        if (quot)
+        {
+            elem_begin_begin = *block_elem_end;
+            ++block_elem_end;
+            elem_begin_end = elem_begin_begin;
+            elem_begin_first = elem_begin_begin;
+            elem_end_begin = elem_begin_begin;
+            elem_end_end = elem_begin_begin + block_elements<T>();
+            elem_end_last = elem_end_end;
+            uninitialized_copy_value_ref(elem_begin_end, elem_begin_end + block_elements<T>(), t);
+        }
+        for (auto i = 0uz; i != quot - 1; ++i)
+        {
+            elem_end_begin = *block_elem_end;
+            ++block_elem_end;
+            elem_end_end = elem_end_begin;
+            // 由于回滚完全不在乎last，因此此处不用设置
+            // elem_end_last = elem_end_begin + block_elements<T>();
+            uninitialized_copy_value_ref(elem_end_end, elem_end_end + block_elements<T>(), t);
+        }
+        if (quot > 2uz)
+        {
+            elem_end_begin = *block_elem_end;
+            ++block_elem_end;
+            elem_end_end = elem_end_begin;
+            elem_end_last = elem_end_begin + block_elements<T>();
+            uninitialized_copy_value_ref(elem_end_end, elem_end_end + rem, t);
+        }
         guard.release();
     }
 
