@@ -594,9 +594,9 @@ ctrl_end   →
             // 当从尾部生长时，elem_end_begin==*block_elem_begin
             // 析构永远按头部的begin和end进行
             auto const elem_size = other.elem_begin_end - other.elem_begin_end;
-            if (other.elem_end_begin == *other.block_elem_begin)
+            // 按从前到后生长，也就是只有一个block有效且block后半有空闲
+            if (other.elem_end_begin == elem_begin_first)
             {
-                // 按从尾部生长
                 elem_end_begin = *block_elem_begin;
                 elem_end_end = elem_end_begin + elem_size;
                 elem_end_last = elem_end_begin + block_elements<T>();
@@ -607,6 +607,7 @@ ctrl_end   →
             }
             else
             {
+                // 否则按第一个block是后到前生长
                 elem_begin_first = *block_elem_begin;
                 elem_begin_begin = elem_begin_first + block_elements<T>() - elem_size;
                 elem_begin_end = elem_begin_begin;
