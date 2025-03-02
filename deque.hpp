@@ -5,6 +5,7 @@
 #include <iterator>
 #include <memory>
 #include <new>
+#include <ranges>
 #include <stdio.h>
 #include <stdlib.h>
 #include <type_traits>
@@ -541,31 +542,6 @@ ctrl_end   →
         }
     };
 
-    // 回滚依赖析构函数
-    static constexpr void uninitialized_copy_ref(T const *begin, T const *end, T *&dest)
-    {
-        for (; begin != end; ++begin, ++dest)
-        {
-            std::construct_at(dest, *begin);
-        }
-    }
-    // 回滚依赖析构函数
-    static constexpr void uninitialized_default_construct_ref(T *&begin, T const *end)
-    {
-        for (; begin != end; ++begin)
-        {
-            new (begin) T{};
-        }
-    }
-    // 回滚依赖析构函数
-    static constexpr void uninitialized_value_construct_ref(T *&begin, T const *end, T const &t)
-    {
-        for (; begin != end; ++begin)
-        {
-            new (begin) T{t};
-        }
-    }
-
     // 构造函数的辅助函数
     // 需要注意异常安全
     void construct_block(std::size_t block_size)
@@ -595,7 +571,7 @@ ctrl_end   →
             // 析构永远按头部的begin和end进行
             auto const elem_size = other.elem_begin_end - other.elem_begin_end;
             // 按从前到后生长，也就是只有一个block有效且block后半有空闲
-            if (other.elem_end_begin == elem_begin_first)
+            if (other.elem_end_begin == other.elem_begin_first)
             {
                 elem_end_begin = *block_elem_begin;
                 elem_end_end = elem_end_begin + elem_size;
@@ -616,7 +592,9 @@ ctrl_end   →
                 elem_end_last = elem_end_end;
             }
             ++block_elem_end;
-            uninitialized_copy_ref(other.elem_begin_begin, other.elem_begin_end, elem_begin_end);
+            std::ranges::uninitialized_copy(other.elem_begin_begin, other.elem_begin_end, elem_begin_end,
+                                            std::unreachable_sentinel);
+            elem_begin_end += elem_size;
         }
         if (block_size > 2z)
         {
@@ -630,7 +608,9 @@ ctrl_end   →
                 // 由于回滚完全不在乎last，因此此处不用设置
                 // elem_end_last = elem_end_begin + block_elements<T>();
                 auto begin = *target_block_begin;
-                uninitialized_copy_ref(begin, begin + block_elements<T>(), elem_end_end);
+                std::ranges::uninitialized_copy(begin, begin + block_elements<T>(), elem_end_end,
+                                                std::unreachable_sentinel);
+                elem_end_end += block_elements<T>();
             }
         }
         if (block_size > 1z)
@@ -639,7 +619,9 @@ ctrl_end   →
             ++block_elem_end;
             elem_end_end = elem_end_begin;
             elem_end_last = elem_end_begin + block_elements<T>();
-            uninitialized_copy_ref(other.elem_end_begin, other.elem_end_end, elem_end_end);
+            std::ranges::uninitialized_copy(other.elem_end_begin, other.elem_end_end, elem_end_end,
+                                            std::unreachable_sentinel);
+            elem_end_end += (other.elem_end_end - other.elem_end_begin);
         }
         guard.release();
     }
@@ -664,14 +646,16 @@ ctrl_end   →
             elem_end_begin = elem_begin_begin;
             elem_end_end = elem_begin_begin + block_elements<T>();
             elem_end_last = elem_end_end;
+            auto const end = elem_begin_begin + block_elements<T>();
             if constexpr (sizeof...(Ts) == 0uz)
             {
-                uninitialized_default_construct_ref(elem_begin_end, elem_begin_end + block_elements<T>());
+                std::ranges::uninitialized_default_construct(elem_begin_begin, end);
             }
             else
             {
-                uninitialized_value_construct_ref(elem_begin_end, elem_begin_end + block_elements<T>(), t...);
+                std::ranges::uninitialized_fill(elem_begin_begin, end, t...);
             }
+            elem_begin_end = end;
         }
         for (auto i = 0uz; i != quot - 1uz; ++i)
         {
@@ -680,35 +664,38 @@ ctrl_end   →
             elem_end_end = elem_end_begin;
             // 由于回滚完全不在乎last，因此此处不用设置
             // elem_end_last = elem_end_begin + block_elements<T>();
+            auto const end = elem_begin_begin + block_elements<T>();
             if constexpr (sizeof...(Ts) == 0uz)
             {
-                uninitialized_default_construct_ref(elem_end_end, elem_end_end + block_elements<T>());
+                std::ranges::uninitialized_default_construct(elem_begin_begin, end);
             }
             else
             {
-                uninitialized_value_construct_ref(elem_end_end, elem_end_end + block_elements<T>(), t...);
+                std::ranges::uninitialized_fill(elem_begin_begin, end, t...);
             }
+            elem_begin_end = end;
         }
-        if (quot > 2uz)
+        if (rem)
         {
             elem_end_begin = *block_elem_end;
             ++block_elem_end;
             elem_end_end = elem_end_begin;
             elem_end_last = elem_end_begin + block_elements<T>();
+            auto const end = elem_begin_begin + rem;
             if constexpr (sizeof...(Ts) == 0uz)
             {
-                uninitialized_default_construct_ref(elem_end_end, elem_end_end + rem);
+                std::ranges::uninitialized_default_construct(elem_begin_begin, end);
             }
             else
             {
-                uninitialized_value_construct_ref(elem_end_end, elem_end_end + rem, t...);
+                std::ranges::uninitialized_fill(elem_begin_begin, end, t...);
             }
+            elem_begin_end = end;
         }
         guard.release();
     }
 
   public:
-
     deque(std::size_t count)
     {
         construct_n(count);
