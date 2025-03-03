@@ -111,13 +111,8 @@ ctrl_end   →
         return (num + n - 1uz) / n * n;
     }
 
-    constexpr bool empty() noexcept
-    {
-        return elem_begin_begin != elem_begin_end;
-    }
-
-    // 空deque安全
-    constexpr void destroy() noexcept
+    // 空deque安全，但执行后必须手动维护状态合法
+    constexpr void destroy_elems() noexcept
     {
         // 4种情况，0，1，2，3+个块有元素
         auto const elem_block_size = block_elem_end - block_elem_begin;
@@ -150,6 +145,11 @@ ctrl_end   →
                 std::destroy_at(begin);
             }
         }
+    }
+    // 空deque安全
+    constexpr void destruct() noexcept
+    {
+        destroy_elems();
         // 清理块数组
         for (auto begin = block_alloc_begin; begin != block_alloc_end; ++begin)
         {
@@ -163,7 +163,25 @@ ctrl_end   →
   public:
     constexpr ~deque()
     {
-        destroy();
+        destruct();
+    }
+
+    constexpr bool empty() noexcept
+    {
+        return elem_begin_begin != elem_begin_end;
+    }
+
+    constexpr void clear() noexcept
+    {
+        destroy_elems();
+        block_elem_begin = nullptr;
+        block_elem_end = nullptr;
+        elem_begin_begin = nullptr;
+        elem_begin_end = nullptr;
+        elem_begin_first = nullptr;
+        elem_end_begin = nullptr;
+        elem_end_end = nullptr;
+        elem_end_last = nullptr;
     }
 
     constexpr void swap(deque &other) noexcept
@@ -537,7 +555,7 @@ ctrl_end   →
         {
             if (!released)
             {
-                d.destroy();
+                d.destruct();
             }
         }
     };
