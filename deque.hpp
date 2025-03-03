@@ -210,6 +210,7 @@ ctrl_end   →
 
     constexpr deque(deque &&rhs) noexcept
     {
+        // todo: alloc propagrate
         rhs.swap(*this);
     }
 
@@ -569,18 +570,9 @@ ctrl_end   →
         extent_block_back_uncond(block_size); // may throw
     }
 
-  public:
-    constexpr deque() noexcept = default;
-
-    // 复制构造采取按结构复制的方法
-    // 不需要经过extent_block的复杂逻辑
-    constexpr deque(deque const &other)
+    // 构造函数和复制的辅助函数，要求block_alloc必须足够大
+    void copy(deque const &other, std::size_t block_size)
     {
-        // todo: alloc propagate
-        // alloc = other.alloc;
-        construct_guard guard(*this);
-        auto const block_size = other.block_elem_end - other.block_elem_begin;
-        construct_block(block_size);
         if (block_size)
         {
             // 此时最为特殊，因为只有一个有效快时，可以从头部生长也可以从尾部生长
@@ -641,18 +633,33 @@ ctrl_end   →
                                             std::unreachable_sentinel);
             elem_end_end += (other.elem_end_end - other.elem_end_begin);
         }
+    }
+
+  public:
+    constexpr deque() noexcept = default;
+
+    // 复制构造采取按结构复制的方法
+    // 不需要经过extent_block的复杂逻辑
+    constexpr deque(deque const &other)
+    {
+        // todo: alloc propagate
+        // alloc = other.alloc;
+        construct_guard guard(*this);
+        auto const block_size = other.block_elem_end - other.block_elem_begin;
+        construct_block(block_size);
+        copy(other, block_size);
         guard.release();
     }
 
   private:
-    // 使用count和count和T进行构造，完全代替两个对应的构造函数
+    // 使用count、count和T、或者随机访问迭代器进行构造，完全代替对应的构造函数
     template <typename... Ts>
-    constexpr void construct_n(std::size_t count, Ts const &...t)
+    constexpr void construct_n(std::size_t count, Ts &&...t)
     {
-        construct_guard guard(*this);
         auto const quot = count / block_elements<T>();
         auto const rem = count % block_elements<T>();
         auto const block_size = quot + 1uz;
+        construct_guard guard(*this);
         construct_block(block_size);
         // 由于析构优先考虑elem_begin，因此必须独立构造elem_begin
         if (quot)
@@ -669,9 +676,27 @@ ctrl_end   →
             {
                 std::ranges::uninitialized_default_construct(elem_begin_begin, end);
             }
-            else
+            else if constexpr (sizeof...(Ts) == 1uz)
             {
                 std::ranges::uninitialized_fill(elem_begin_begin, end, t...);
+            }
+            else if constexpr (sizeof...(Ts) == 2uz)
+            {
+#if defined(__cpp_pack_indexing)
+                auto &begin = t...[0uz];
+                auto &end = t...[1uz];
+#else
+                auto x = std::tuple<Ts &...>(t...);
+                auto &begin = std::get<0uz>(x);
+                auto &end = std::get<1uz>(x);
+#endif
+                std::ranges::uninitialized_copy(std::counted_iterator(begin, block_elements<T>()),
+                                                std::default_sentinel, elem_begin_begin, std::unreachable_sentinel);
+                begin += block_elements<T>();
+            }
+            else
+            {
+                static_assert(false);
             }
             elem_begin_end = end;
         }
@@ -687,9 +712,27 @@ ctrl_end   →
             {
                 std::ranges::uninitialized_default_construct(elem_begin_begin, end);
             }
-            else
+            else if constexpr (sizeof...(Ts) == 1uz)
             {
                 std::ranges::uninitialized_fill(elem_begin_begin, end, t...);
+            }
+            else if constexpr (sizeof...(Ts) == 2uz)
+            {
+#if defined(__cpp_pack_indexing)
+                auto &begin = t...[0uz];
+                auto &end = t...[1uz];
+#else
+                auto x = std::tuple<Ts &...>(t...);
+                auto &begin = std::get<0uz>(x);
+                auto &end = std::get<1uz>(x);
+#endif
+                std::ranges::uninitialized_copy(std::counted_iterator(begin, block_elements<T>()),
+                                                std::default_sentinel, elem_begin_begin, std::unreachable_sentinel);
+                begin += block_elements<T>();
+            }
+            else
+            {
+                static_assert(false);
             }
             elem_begin_end = end;
         }
@@ -704,9 +747,25 @@ ctrl_end   →
             {
                 std::ranges::uninitialized_default_construct(elem_begin_begin, end);
             }
-            else
+            else if constexpr (sizeof...(Ts) == 1uz)
             {
                 std::ranges::uninitialized_fill(elem_begin_begin, end, t...);
+            }
+            else if constexpr (sizeof...(Ts) == 2uz)
+            {
+#if defined(__cpp_pack_indexing)
+                auto &begin = t...[0uz];
+                auto &end = t...[1uz];
+#else
+                auto x = std::tuple<Ts &...>(t...);
+                auto &begin = std::get<0uz>(x);
+                auto &end = std::get<1uz>(x);
+#endif
+                std::ranges::uninitialized_copy(begin, end, elem_begin_begin, std::unreachable_sentinel);
+            }
+            else
+            {
+                static_assert(false);
             }
             elem_begin_end = end;
         }
@@ -757,6 +816,27 @@ ctrl_end   →
             }
             return *begin;
         }
+    }
+
+    template <typename U, typename V>
+        requires std::input_iterator<U> && std::sentinel_for<V, U>
+    constexpr deque(U begin, V end)
+    {
+        if constexpr (std::random_access_iterator<U>)
+        {
+            construct_n(end - begin, begin, end);
+        }
+        else
+        {
+            for (; begin != end; ++begin)
+            {
+                emplace_back(*begin);
+            }
+        }
+    }
+    template <typename R>
+    deque(std::from_range_t, R &&rg) : deque(rg.begin(), rg.end())
+    {
     }
 
     constexpr void push_back(T const &t)
