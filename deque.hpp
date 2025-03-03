@@ -483,7 +483,7 @@ ctrl_end   →
         {
             // 否则扩展控制块
             auto const new_ctrl_size = block_ctrl_end - block_ctrl_begin + add_block_size;
-            ctrl_alloc ctrl{alloc, ceil_n(new_ctrl_size, 4uz)}; // may throw
+            ctrl_alloc const ctrl{alloc, ceil_n(new_ctrl_size, 4uz)}; // may throw
             ctrl.replace_ctrl_back(*this);
         }
         extent_block_back_uncond(add_block_size);
@@ -529,7 +529,7 @@ ctrl_end   →
         {
             // 否则扩展控制块
             auto const new_ctrl_size = block_ctrl_end - block_ctrl_begin + add_block_size;
-            ctrl_alloc ctrl{alloc, ceil_n(new_ctrl_size, 4uz)}; // may throw
+            ctrl_alloc const ctrl{alloc, ceil_n(new_ctrl_size, 4uz)}; // may throw
             ctrl.replace_ctrl_front(*this);
         }
         // 必须最后执行
@@ -828,10 +828,12 @@ ctrl_end   →
         }
         else
         {
+            construct_guard guard{*this};
             for (; begin != end; ++begin)
             {
                 emplace_back(*begin);
             }
+            guard.release();
         }
     }
     template <typename R>
