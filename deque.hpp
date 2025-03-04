@@ -565,7 +565,7 @@ ctrl_end   →
     // 构造函数的辅助函数
     // 需要注意异常安全
     // 调用后可直接填充元素
-    void construct_block(std::size_t block_size)
+    constexpr void construct_block(std::size_t block_size)
     {
         ctrl_alloc const ctrl(alloc, block_size); // may throw
         ctrl.replace_ctrl(*this);
@@ -575,7 +575,7 @@ ctrl_end   →
     // 复制赋值的辅助函数
     // 参数是最小block大小
     // 调用后可直接填充元素
-    void extent_block(std::size_t new_block_size)
+    constexpr void extent_block(std::size_t new_block_size)
     {
         auto const old_alloc_size = block_alloc_end - block_alloc_begin;
         if (old_alloc_size > new_block_size)
@@ -596,7 +596,7 @@ ctrl_end   →
     }
 
     // 构造函数和复制赋值的辅助函数，要求block_alloc必须足够大
-    void copy(deque const &other, std::size_t block_size)
+    constexpr void copy(deque const &other, std::size_t block_size)
     {
         if (block_size)
         {
@@ -793,7 +793,7 @@ ctrl_end   →
     }
 
   public:
-    deque(std::size_t count)
+    constexpr deque(std::size_t count)
     {
         auto const quot = count / block_elements<T>();
         auto const rem = count % block_elements<T>();
@@ -803,7 +803,7 @@ ctrl_end   →
         guard.release();
     }
 
-    deque(std::size_t count, T const &t)
+    constexpr deque(std::size_t count, T const &t)
     {
         auto const quot = count / block_elements<T>();
         auto const rem = count % block_elements<T>();
@@ -874,11 +874,11 @@ ctrl_end   →
     }
 
     template <typename R>
-    deque(std::from_range_t, R &&rg) : deque(std::ranges::begin(rg), std::ranges::end(rg))
+    constexpr deque(std::from_range_t, R &&rg) : deque(std::ranges::begin(rg), std::ranges::end(rg))
     {
     }
 
-    deque(std::initializer_list<T> init)
+    constexpr deque(std::initializer_list<T> init)
     {
         auto const count = init.size();
         auto const quot = count / block_elements<T>();
@@ -899,7 +899,7 @@ ctrl_end   →
         emplace_back(std::move(t));
     }
 
-    deque &operator=(const deque &other)
+    constexpr deque &operator=(const deque &other)
     {
         destroy_elems();
         auto const block_size = other.block_elem_end - other.block_alloc_begin;
@@ -908,7 +908,7 @@ ctrl_end   →
         return *this;
     }
 
-    deque &operator=(std::initializer_list<T> ilist)
+    constexpr deque &operator=(std::initializer_list<T> ilist)
     {
         destroy_elems();
         auto const count = ilist.size();
@@ -919,13 +919,13 @@ ctrl_end   →
         return *this;
     }
 
-    deque &operator=(deque &&other)
+    constexpr deque &operator=(deque &&other)
     {
         other.swap(*this);
         return *this;
     }
 
-    void assign(std::size_t count, const T &value)
+    constexpr void assign(std::size_t count, const T &value)
     {
         destroy_elems();
         auto const quot = count / block_elements<T>();
@@ -935,7 +935,7 @@ ctrl_end   →
     }
 
     template <typename U, typename V>
-    void assign(U begin, V end)
+    constexpr void assign(U begin, V end)
         requires std::input_iterator<U> && std::sentinel_for<V, U>
     {
         destroy_elems();
@@ -956,7 +956,7 @@ ctrl_end   →
         }
     }
 
-    void assign(std::initializer_list<T> ilist)
+    constexpr void assign(std::initializer_list<T> ilist)
     {
         auto const count = ilist.size();
         auto const quot = count / block_elements<T>();
@@ -966,13 +966,13 @@ ctrl_end   →
     }
 
     template <typename R>
-    void assign_range(R &&rg)
+    constexpr void assign_range(R &&rg)
     {
         assign(std::ranges::begin(rg), std::ranges::end(rg));
     }
 
   private:
-    T &at_impl(std::size_t pos) const noexcept
+    constexpr T &at_impl(std::size_t pos) const noexcept
     {
         auto const head_size = elem_begin_end - elem_begin_begin;
         if (head_size <= pos)
@@ -999,12 +999,22 @@ ctrl_end   →
     }
 
   public:
-    T &at(std::size_t pos) noexcept
+    constexpr T &at(std::size_t pos) noexcept
     {
         return at_impl(pos);
     }
 
-    T const &at(std::size_t pos) const noexcept
+    constexpr T const &at(std::size_t pos) const noexcept
+    {
+        return at_impl(pos);
+    }
+
+    constexpr T &operator[](std::size_t pos) noexcept
+    {
+        return at_impl(pos);
+    }
+
+    constexpr T const &operator[](std::size_t pos) const noexcept
     {
         return at_impl(pos);
     }
