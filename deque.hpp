@@ -409,9 +409,10 @@ ctrl_end   →
             d.block_ctrl_end = block_ctrl_end;
         }
 
-        // 必须是算好的大小
+        // 参数是新大小
         constexpr ctrl_alloc(std::monostate &alloc, std::size_t const ctrl_size) : a(alloc)
         {
+            // ceil_n(ctrl_size, 4uz);
             // todo:
             // block_alloc_begin = new T*[size];
             // block_alloc_end = block_alloc_begin + ctrl_size;
@@ -444,7 +445,7 @@ ctrl_end   →
 
     // 向back扩展block
     // 对空deque安全
-    constexpr void extent_block_back(std::size_t const add_elem_size)
+    constexpr void reserve_back(std::size_t const add_elem_size)
     {
         // 计算现有头尾是否够用
         // 头部块的cap
@@ -483,14 +484,14 @@ ctrl_end   →
         {
             // 否则扩展控制块
             auto const new_ctrl_size = block_ctrl_end - block_ctrl_begin + add_block_size;
-            ctrl_alloc const ctrl{alloc, ceil_n(new_ctrl_size, 4uz)}; // may throw
+            ctrl_alloc const ctrl{alloc, 4uz}; // may throw
             ctrl.replace_ctrl_back(*this);
         }
         extent_block_back_uncond(add_block_size);
     }
 
     // 从front扩展block，空deque安全
-    constexpr void extent_block_front(std::size_t const add_elem_size)
+    constexpr void reserve_front(std::size_t const add_elem_size)
     {
         // 计算现有头尾是否够用
         // 头部块的cap
@@ -529,7 +530,7 @@ ctrl_end   →
         {
             // 否则扩展控制块
             auto const new_ctrl_size = block_ctrl_end - block_ctrl_begin + add_block_size;
-            ctrl_alloc const ctrl{alloc, ceil_n(new_ctrl_size, 4uz)}; // may throw
+            ctrl_alloc const ctrl{alloc, new_ctrl_size}; // may throw
             ctrl.replace_ctrl_front(*this);
         }
         // 必须最后执行
@@ -563,14 +564,38 @@ ctrl_end   →
 
     // 构造函数的辅助函数
     // 需要注意异常安全
+    // 调用后可直接填充元素
     void construct_block(std::size_t block_size)
     {
-        ctrl_alloc const ctrl(alloc, ceil_n(block_size, 4uz)); // may throw
+        ctrl_alloc const ctrl(alloc, block_size); // may throw
         ctrl.replace_ctrl(*this);
         extent_block_back_uncond(block_size); // may throw
     }
 
-    // 构造函数和复制的辅助函数，要求block_alloc必须足够大
+    // 复制赋值的辅助函数
+    // 参数是最小block大小
+    // 调用后可直接填充元素
+    void extent_block(std::size_t new_block_size)
+    {
+        auto const old_alloc_size = block_alloc_end - block_alloc_begin;
+        if (old_alloc_size > new_block_size)
+        {
+            return;
+        }
+        auto const old_ctrl_size = block_ctrl_end - block_ctrl_begin;
+        if (old_ctrl_size < new_block_size)
+        {
+            ctrl_alloc const ctrl(alloc, new_block_size); // may throw
+            ctrl.replace_ctrl_back(*this);
+        }
+        else
+        {
+            align_alloc_as_ctrl_back();
+        }
+        extent_block_back_uncond(new_block_size - old_alloc_size); // may throw
+    }
+
+    // 构造函数和复制赋值的辅助函数，要求block_alloc必须足够大
     void copy(deque const &other, std::size_t block_size)
     {
         if (block_size)
@@ -652,15 +677,11 @@ ctrl_end   →
     }
 
   private:
-    // 使用count、count和T、或者随机访问迭代器进行构造，完全代替对应的构造函数
+    // 使用count、count和T、或者随机访问迭代器进行构造，用于对应的构造函数
+    // 注意异常安全
     template <typename... Ts>
-    constexpr void construct_n(std::size_t count, Ts &&...t)
+    constexpr void construct_n(std::size_t block_size, std::size_t quot, std::size_t rem, Ts &&...t)
     {
-        auto const quot = count / block_elements<T>();
-        auto const rem = count % block_elements<T>();
-        auto const block_size = quot + 1uz;
-        construct_guard guard(*this);
-        construct_block(block_size);
         // 由于析构优先考虑elem_begin，因此必须独立构造elem_begin
         if (quot)
         {
@@ -769,18 +790,27 @@ ctrl_end   →
             }
             elem_begin_end = end;
         }
-        guard.release();
     }
 
   public:
     deque(std::size_t count)
     {
-        construct_n(count);
+        auto const quot = count / block_elements<T>();
+        auto const rem = count % block_elements<T>();
+        construct_guard guard(*this);
+        construct_block(quot + 1uz);
+        construct_n(quot + 1uz, quot, rem);
+        guard.release();
     }
 
     deque(std::size_t count, T const &t)
     {
-        construct_n(count, t);
+        auto const quot = count / block_elements<T>();
+        auto const rem = count % block_elements<T>();
+        construct_guard guard(*this);
+        construct_block(quot + 1uz);
+        construct_n(quot + 1uz, quot, rem, t);
+        guard.release();
     }
 
     template <typename... V>
@@ -800,7 +830,7 @@ ctrl_end   →
         }
         else
         {
-            extent_block_back(1uz);
+            reserve_back(1uz);
             auto begin = *block_elem_end;
             std::construct_at(begin, std::forward<V>(v)...); // may throw
             elem_end_begin = begin;
@@ -824,7 +854,13 @@ ctrl_end   →
     {
         if constexpr (std::random_access_iterator<U>)
         {
-            construct_n(end - begin, begin, end);
+            auto const count = end - begin;
+            auto const quot = count / block_elements<T>();
+            auto const rem = count % block_elements<T>();
+            construct_guard guard(*this);
+            construct_block(quot + 1uz);
+            construct_n(quot + 1uz, quot, rem, begin, end);
+            guard.release();
         }
         else
         {
@@ -836,9 +872,21 @@ ctrl_end   →
             guard.release();
         }
     }
+
     template <typename R>
-    deque(std::from_range_t, R &&rg) : deque(rg.begin(), rg.end())
+    deque(std::from_range_t, R &&rg) : deque(std::ranges::begin(rg), std::ranges::end(rg))
     {
+    }
+
+    deque(std::initializer_list<T> init)
+    {
+        auto const count = init.size();
+        auto const quot = count / block_elements<T>();
+        auto const rem = count % block_elements<T>();
+        construct_guard guard(*this);
+        construct_block(quot + 1uz);
+        construct_n(quot + 1uz, quot, rem, init.begin(), init.end());
+        guard.release();
     }
 
     constexpr void push_back(T const &t)
@@ -849,5 +897,115 @@ ctrl_end   →
     constexpr void push_back(T &&t) noexcept
     {
         emplace_back(std::move(t));
+    }
+
+    deque &operator=(const deque &other)
+    {
+        destroy_elems();
+        auto const block_size = other.block_elem_end - other.block_alloc_begin;
+        extent_block(block_size);
+        copy(other, block_size);
+        return *this;
+    }
+
+    deque &operator=(std::initializer_list<T> ilist)
+    {
+        destroy_elems();
+        auto const count = ilist.size();
+        auto const quot = count / block_elements<T>();
+        auto const rem = count % block_elements<T>();
+        extent_block(quot + 1uz);
+        construct_n(quot + 1uz, quot, rem, ilist.begin(), ilist.end());
+        return *this;
+    }
+
+    deque &operator=(deque &&other)
+    {
+        other.swap(*this);
+        return *this;
+    }
+
+    void assign(std::size_t count, const T &value)
+    {
+        destroy_elems();
+        auto const quot = count / block_elements<T>();
+        auto const rem = count % block_elements<T>();
+        extent_block(quot + 1uz);
+        construct_n(quot + 1uz, quot, rem, value);
+    }
+
+    template <typename U, typename V>
+    void assign(U begin, V end)
+        requires std::input_iterator<U> && std::sentinel_for<V, U>
+    {
+        destroy_elems();
+        if constexpr (std::random_access_iterator<U>)
+        {
+            auto const count = end - begin;
+            auto const quot = count / block_elements<T>();
+            auto const rem = count % block_elements<T>();
+            extent_block(quot + 1uz);
+            construct_n(quot + 1uz, quot, rem, begin, end);
+        }
+        else
+        {
+            for (; begin != end; ++begin)
+            {
+                emplace_back(*begin);
+            }
+        }
+    }
+
+    void assign(std::initializer_list<T> ilist)
+    {
+        auto const count = ilist.size();
+        auto const quot = count / block_elements<T>();
+        auto const rem = count % block_elements<T>();
+        extent_block(quot + 1uz);
+        construct_n(quot + 1uz, quot, rem, ilist.begin(), ilist.end());
+    }
+
+    template <typename R>
+    void assign_range(R &&rg)
+    {
+        assign(std::ranges::begin(rg), std::ranges::end(rg));
+    }
+
+  private:
+    T &at_impl(std::size_t pos) const noexcept
+    {
+        auto const head_size = elem_begin_end - elem_begin_begin;
+        if (head_size <= pos)
+        {
+            return *(elem_begin_begin + pos);
+        }
+        else
+        {
+            auto const new_pos = pos - head_size;
+            auto const quot = new_pos / block_elements<T>();
+            auto const rem = new_pos / block_elements<T>();
+            auto const elem_block_size = block_elem_end - block_elem_begin;
+            if (quot + 2uz < elem_block_size)
+            {
+                std::terminate();
+            }
+            auto const tail_size = elem_end_end - elem_end_begin;
+            if (rem > tail_size)
+            {
+                std::terminate();
+            }
+            return *(*(block_elem_begin + quot + 2uz) + rem);
+        }
+    }
+
+  public:
+    T &at(std::size_t pos) noexcept
+    {
+        return at_impl(pos);
+    }
+
+    T const &at(std::size_t pos) const noexcept
+    {
+        return at_impl(pos);
     }
 };
