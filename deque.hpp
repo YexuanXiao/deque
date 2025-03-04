@@ -3,6 +3,7 @@
 #include <concepts>
 #include <deque>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <new>
 #include <ranges>
@@ -118,31 +119,27 @@ ctrl_end   →
         auto const elem_block_size = block_elem_end - block_elem_begin;
         if (elem_block_size)
         {
-            for (auto begin = elem_begin_begin; begin != elem_begin_end; ++begin)
+            for (auto &i : std::ranges::subrange{elem_begin_begin, elem_begin_end})
             {
-                std::destroy_at(begin);
+                std::destroy_at(&i);
             }
         }
         // 清理中间的块
         if (elem_block_size > 2z)
         {
-            auto block_begin = block_elem_begin + 1uz;
-            auto const block_end = block_elem_end - 1uz;
-            for (; block_begin != block_end; ++block_begin)
+            for (auto block_begin : std::ranges::subrange{block_elem_begin + 1uz, block_elem_end - 1uz})
             {
-                auto begin = *block_begin;
-                auto const end = begin + block_elements<T>();
-                for (; begin != end; ++begin)
+                for (auto &i : std::ranges::subrange{block_begin, block_begin + block_elements<T>()})
                 {
-                    std::destroy_at(begin);
+                    std::destroy_at(&i);
                 }
             }
         }
         if (elem_block_size > 1z)
         {
-            for (auto begin = elem_end_begin; begin != elem_end_end; ++begin)
+            for (auto &i : std::ranges::subrange{elem_end_begin, elem_end_end})
             {
-                std::destroy_at(begin);
+                std::destroy_at(&i);
             }
         }
     }
@@ -151,10 +148,10 @@ ctrl_end   →
     {
         destroy_elems();
         // 清理块数组
-        for (auto begin = block_alloc_begin; begin != block_alloc_end; ++begin)
+        for (auto i : std::ranges::subrange{block_alloc_begin, block_alloc_end})
         {
             // todo:
-            // delete block;
+            // delete i;
         }
         // todo:
         // delete block_ctrl_begin;
@@ -633,16 +630,14 @@ ctrl_end   →
         }
         if (block_size > 2z)
         {
-            auto const target_block_end = other.block_elem_end - 1uz;
-            auto target_block_begin = other.block_elem_begin + 1uz;
-            for (; target_block_begin != target_block_end; ++target_block_begin) [[likely]]
+            for (auto block_begin : std::ranges::subrange{other.block_elem_end - 1uz, other.block_elem_begin + 1uz})
             {
                 elem_end_begin = *block_elem_end;
                 ++block_elem_end;
                 elem_end_end = elem_end_begin;
                 // 由于回滚完全不在乎last，因此此处不用设置
                 // elem_end_last = elem_end_begin + block_elements<T>();
-                auto begin = *target_block_begin;
+                auto begin = block_begin;
                 std::ranges::uninitialized_copy(begin, begin + block_elements<T>(), elem_end_end,
                                                 std::unreachable_sentinel);
                 elem_end_end += block_elements<T>();
@@ -1017,5 +1012,22 @@ ctrl_end   →
     constexpr T const &operator[](std::size_t pos) const noexcept
     {
         return at_impl(pos);
+    }
+
+    // 不会失败且不移动元素
+    void shrink_to_fit() noexcept
+    {
+        for (auto i : std::ranges::subrange{block_alloc_begin, block_elem_begin})
+        {
+            // todo:
+            // delete i;
+        }
+        block_alloc_begin = block_elem_begin;
+        for (auto i : std::ranges::subrange{block_elem_end, block_alloc_end})
+        {
+            // todo:
+            // delete begin;
+        }
+        block_alloc_end = block_elem_end;
     }
 };
