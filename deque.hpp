@@ -157,6 +157,19 @@ ctrl_end   →
         // delete block_ctrl_begin;
     }
 
+    constexpr void elem_begin(T *begin, T *end, T *first) noexcept
+    {
+        elem_begin_begin = begin;
+        elem_begin_end = end;
+        elem_begin_first = first;
+    }
+    constexpr void elem_end(T *begin, T *end, T *last) noexcept
+    {
+        elem_end_begin = begin;
+        elem_end_end = end;
+        elem_end_last = last;
+    }
+
   public:
     constexpr ~deque()
     {
@@ -173,12 +186,8 @@ ctrl_end   →
         destroy_elems();
         block_elem_begin = nullptr;
         block_elem_end = nullptr;
-        elem_begin_begin = nullptr;
-        elem_begin_end = nullptr;
-        elem_begin_first = nullptr;
-        elem_end_begin = nullptr;
-        elem_end_end = nullptr;
-        elem_end_last = nullptr;
+        elem_begin(nullptr, nullptr, nullptr);
+        elem_end(nullptr, nullptr, nullptr);
     }
 
     constexpr void swap(deque &other) noexcept
@@ -241,6 +250,11 @@ ctrl_end   →
             result += elem_end_end - elem_end_begin;
         }
         return result;
+    }
+
+    constexpr auto max_size() const noexcept
+    {
+        return std::size_t(-1) / 2;
     }
 
     struct iterator
@@ -598,30 +612,23 @@ ctrl_end   →
         if (block_size)
         {
             // 此时最为特殊，因为只有一个有效快时，可以从头部生长也可以从尾部生长
-            // 当从头部生长时，elem_first_end==*block_elem_begin+block_elements<T>();
-            // 当从尾部生长时，elem_end_begin==*block_elem_begin
-            // 析构永远按头部的begin和end进行
+            // 析构永远按头部的begin和end进行，因此复制时elem_begin的end迭代器不动，成功后在动
             auto const elem_size = other.elem_begin_end - other.elem_begin_end;
             // 按从前到后生长，也就是只有一个block有效且block后半有空闲
             if (other.elem_end_begin == other.elem_begin_first)
             {
-                elem_end_begin = *block_elem_begin;
-                elem_end_end = elem_end_begin + elem_size;
-                elem_end_last = elem_end_begin + block_elements<T>();
-                elem_begin_begin = elem_end_begin;
-                // 复制永远按头部进行复制，和析构一致
-                elem_begin_end = elem_begin_begin;
-                elem_begin_first = elem_end_begin;
+                auto begin = *block_elem_begin;
+                elem_end(begin, begin + elem_size, begin + block_elements<T>());
+                elem_begin(begin, begin, begin);
             }
             else
             {
                 // 否则按第一个block是后到前生长
-                elem_begin_first = *block_elem_begin;
-                elem_begin_begin = elem_begin_first + block_elements<T>() - elem_size;
-                elem_begin_end = elem_begin_begin;
-                elem_end_begin = elem_begin_begin;
-                elem_end_end = elem_begin_begin + elem_size;
-                elem_end_last = elem_end_end;
+                auto first = *block_elem_begin;
+                auto last = elem_begin_first + block_elements<T>();
+                auto end = last - elem_size;
+                elem_begin(first, first, first);
+                elem_end(first, end, last);
             }
             ++block_elem_end;
             std::ranges::uninitialized_copy(other.elem_begin_begin, other.elem_begin_end, elem_begin_end,
@@ -632,23 +639,23 @@ ctrl_end   →
         {
             for (auto block_begin : std::ranges::subrange{other.block_elem_end - 1uz, other.block_elem_begin + 1uz})
             {
-                elem_end_begin = *block_elem_end;
+                auto const begin = *block_elem_end;
                 ++block_elem_end;
+                elem_end_begin = begin;
                 elem_end_end = elem_end_begin;
                 // 由于回滚完全不在乎last，因此此处不用设置
                 // elem_end_last = elem_end_begin + block_elements<T>();
-                auto begin = block_begin;
-                std::ranges::uninitialized_copy(begin, begin + block_elements<T>(), elem_end_end,
+                auto const src_begin = block_begin;
+                std::ranges::uninitialized_copy(src_begin, src_begin + block_elements<T>(), elem_end_end,
                                                 std::unreachable_sentinel);
                 elem_end_end += block_elements<T>();
             }
         }
         if (block_size > 1z)
         {
-            elem_end_begin = *block_elem_end;
+            auto const begin = *block_elem_end;
             ++block_elem_end;
-            elem_end_end = elem_end_begin;
-            elem_end_last = elem_end_begin + block_elements<T>();
+            elem_end(begin, begin, begin + block_elements<T>());
             std::ranges::uninitialized_copy(other.elem_end_begin, other.elem_end_end, elem_end_end,
                                             std::unreachable_sentinel);
             elem_end_end += (other.elem_end_end - other.elem_end_begin);
@@ -680,35 +687,32 @@ ctrl_end   →
         // 由于析构优先考虑elem_begin，因此必须独立构造elem_begin
         if (quot)
         {
-            elem_begin_begin = *block_elem_end;
+            auto const begin = *block_elem_end;
+            auto const end = begin + block_elements<T>();
             ++block_elem_end;
-            elem_begin_end = elem_begin_begin;
-            elem_begin_first = elem_begin_begin;
-            elem_end_begin = elem_begin_begin;
-            elem_end_end = elem_begin_begin + block_elements<T>();
-            elem_end_last = elem_end_end;
-            auto const end = elem_begin_begin + block_elements<T>();
+            elem_begin(begin, begin, begin);
+            elem_end(begin, end, end);
             if constexpr (sizeof...(Ts) == 0uz)
             {
-                std::ranges::uninitialized_default_construct(elem_begin_begin, end);
+                std::ranges::uninitialized_default_construct(begin, end);
             }
             else if constexpr (sizeof...(Ts) == 1uz)
             {
-                std::ranges::uninitialized_fill(elem_begin_begin, end, t...);
+                std::ranges::uninitialized_fill(begin, end, t...);
             }
             else if constexpr (sizeof...(Ts) == 2uz)
             {
 #if defined(__cpp_pack_indexing)
-                auto &begin = t...[0uz];
-                auto &end = t...[1uz];
+                auto &src_begin = t...[0uz];
+                auto &src_end = t...[1uz];
 #else
                 auto x = std::tuple<Ts &...>(t...);
                 auto &begin = std::get<0uz>(x);
                 auto &end = std::get<1uz>(x);
 #endif
-                std::ranges::uninitialized_copy(std::counted_iterator(begin, block_elements<T>()),
-                                                std::default_sentinel, elem_begin_begin, std::unreachable_sentinel);
-                begin += block_elements<T>();
+                std::ranges::uninitialized_copy(std::counted_iterator(src_begin, block_elements<T>()),
+                                                std::default_sentinel, begin, std::unreachable_sentinel);
+                src_begin += block_elements<T>();
             }
             else
             {
@@ -718,12 +722,13 @@ ctrl_end   →
         }
         for (auto i = 0uz; i != quot - 1uz; ++i)
         {
-            elem_end_begin = *block_elem_end;
+            auto const begin = *block_elem_end;
+            auto const end = elem_begin_begin + block_elements<T>();
             ++block_elem_end;
-            elem_end_end = elem_end_begin;
+            elem_end_begin = begin;
+            elem_end_end = begin;
             // 由于回滚完全不在乎last，因此此处不用设置
             // elem_end_last = elem_end_begin + block_elements<T>();
-            auto const end = elem_begin_begin + block_elements<T>();
             if constexpr (sizeof...(Ts) == 0uz)
             {
                 std::ranges::uninitialized_default_construct(elem_begin_begin, end);
@@ -735,16 +740,16 @@ ctrl_end   →
             else if constexpr (sizeof...(Ts) == 2uz)
             {
 #if defined(__cpp_pack_indexing)
-                auto &begin = t...[0uz];
-                auto &end = t...[1uz];
+                auto &src_begin = t...[0uz];
+                auto &src_end = t...[1uz];
 #else
                 auto x = std::tuple<Ts &...>(t...);
                 auto &begin = std::get<0uz>(x);
                 auto &end = std::get<1uz>(x);
 #endif
-                std::ranges::uninitialized_copy(std::counted_iterator(begin, block_elements<T>()),
+                std::ranges::uninitialized_copy(std::counted_iterator(src_begin, block_elements<T>()),
                                                 std::default_sentinel, elem_begin_begin, std::unreachable_sentinel);
-                begin += block_elements<T>();
+                src_begin += block_elements<T>();
             }
             else
             {
@@ -754,36 +759,35 @@ ctrl_end   →
         }
         if (rem)
         {
-            elem_end_begin = *block_elem_end;
+            auto const begin = *block_elem_end;
+            auto const end = begin + rem;
             ++block_elem_end;
-            elem_end_end = elem_end_begin;
-            elem_end_last = elem_end_begin + block_elements<T>();
-            auto const end = elem_begin_begin + rem;
+            elem_end(begin, begin, begin + block_elements<T>());
             if constexpr (sizeof...(Ts) == 0uz)
             {
-                std::ranges::uninitialized_default_construct(elem_begin_begin, end);
+                std::ranges::uninitialized_default_construct(begin, end);
             }
             else if constexpr (sizeof...(Ts) == 1uz)
             {
-                std::ranges::uninitialized_fill(elem_begin_begin, end, t...);
+                std::ranges::uninitialized_fill(begin, end, t...);
             }
             else if constexpr (sizeof...(Ts) == 2uz)
             {
 #if defined(__cpp_pack_indexing)
-                auto &begin = t...[0uz];
-                auto &end = t...[1uz];
+                auto &src_begin = t...[0uz];
+                auto &src_end = t...[1uz];
 #else
                 auto x = std::tuple<Ts &...>(t...);
-                auto &begin = std::get<0uz>(x);
-                auto &end = std::get<1uz>(x);
+                auto &src_begin = std::get<0uz>(x);
+                auto &src_end = std::get<1uz>(x);
 #endif
-                std::ranges::uninitialized_copy(begin, end, elem_begin_begin, std::unreachable_sentinel);
+                std::ranges::uninitialized_copy(src_begin, src_end, begin, std::unreachable_sentinel);
             }
             else
             {
                 static_assert(false);
             }
-            elem_begin_end = end;
+            elem_end_end = end;
         }
     }
 
@@ -813,11 +817,11 @@ ctrl_end   →
     {
         if (elem_end_end != elem_end_last)
         {
-            auto begin = elem_end_end;
+            auto const begin = elem_end_end;
             std::construct_at(begin, std::forward<V>(v)...); // may throw
             ++elem_end_end;
             // 修正elem_begin
-            if ((block_elem_end - block_elem_begin) == 1z)
+            if (block_elem_end - block_elem_begin == 1z)
             {
                 ++elem_begin_end;
             }
@@ -826,18 +830,14 @@ ctrl_end   →
         else
         {
             reserve_back(1uz);
-            auto begin = *block_elem_end;
+            auto const begin = *block_elem_end;
             std::construct_at(begin, std::forward<V>(v)...); // may throw
-            elem_end_begin = begin;
-            elem_end_last = begin + block_elements<T>();
-            elem_end_end = begin + 1uz;
+            elem_end(begin, begin + 1uz, begin + block_elements<T>());
             ++block_elem_end;
             // 修正elem_begin
-            if ((block_elem_end - block_elem_begin) == 1z)
+            if (block_elem_end - block_elem_begin == 1z)
             {
-                elem_begin_first = begin;
-                elem_begin_begin = begin;
-                elem_begin_end = begin + 1uz;
+                elem_begin(begin, begin + 1uz, begin);
             }
             return *begin;
         }
@@ -1015,7 +1015,7 @@ ctrl_end   →
     }
 
     // 不会失败且不移动元素
-    void shrink_to_fit() noexcept
+    constexpr void shrink_to_fit() noexcept
     {
         for (auto i : std::ranges::subrange{block_alloc_begin, block_elem_begin})
         {
@@ -1029,5 +1029,97 @@ ctrl_end   →
             // delete begin;
         }
         block_alloc_end = block_elem_end;
+    }
+
+    constexpr void pop_back() noexcept
+    {
+        assert(block_elem_end != block_elem_begin);
+        if (elem_end_begin != elem_end_end)
+        {
+            std::destroy_at(elem_end_end);
+            --elem_end_end;
+            if (block_elem_end - block_elem_begin == 1z)
+            {
+                --elem_begin_end;
+            }
+        }
+        else
+        {
+            --block_elem_end;
+            auto const begin = *(block_elem_end - 1uz);
+            auto const last = elem_end_begin + block_elements<T>();
+            elem_end(begin, last, last);
+            std::destroy_at(elem_end_end);
+            --elem_end_end;
+            if (block_elem_end - block_elem_begin == 1z)
+            {
+                elem_begin(elem_end_begin, elem_end_end, elem_end_begin);
+            }
+        }
+    }
+
+    template <class... V>
+    constexpr T &emplace_front(V &&...v)
+    {
+        if (elem_begin_begin != elem_begin_first)
+        {
+            auto const begin = elem_begin_begin;
+            std::construct_at(begin - 1uz, std::forward<V>(v)...); // may throw
+            if (block_elem_end - block_elem_begin == 1z)
+            {
+                --elem_end_begin;
+            }
+            return *(begin - 1uz);
+        }
+        else
+        {
+            reserve_front(1uz);
+            auto const first = *(--block_elem_begin);
+            auto const end = first + block_elements<T>();
+            std::construct_at(end - 1uz, std::forward<V>(v)...); // may throw
+            elem_begin(end - 1uz, end, first);
+            --block_elem_begin;
+            // 修正elem_begin
+            if (block_elem_end - block_elem_begin == 1z)
+            {
+                elem_end(end - 1uz, end, end);
+            }
+            return *(end - 1uz);
+        }
+    }
+
+    constexpr void push_front(const T &value)
+    {
+        emplace_front(value);
+    }
+
+    constexpr void push_front(T &&value)
+    {
+        emplace_front(std::move(value));
+    }
+
+    constexpr void pop_front() noexcept
+    {
+        assert(block_elem_end != block_elem_begin);
+        if (elem_begin_begin != elem_begin_end)
+        {
+            std::destroy_at(elem_begin_begin);
+            ++elem_begin_begin;
+            if (block_elem_end - block_elem_begin == 1z)
+            {
+                ++elem_end_begin;
+            }
+        }
+        else
+        {
+            auto const begin = *(++block_elem_begin);
+            std::destroy_at(begin);
+            elem_begin(begin + 1uz, begin + block_elements<T>(), begin + block_elements<T>());
+
+            if (block_elem_end - block_elem_begin == 1z)
+            {
+                elem_end(elem_begin_begin, elem_begin_end, elem_begin_end);
+            }
+        }
     }
 };
