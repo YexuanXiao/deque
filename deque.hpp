@@ -220,18 +220,6 @@ ctrl_end   →
         rhs.swap(*this);
     }
 
-    constexpr auto &front() noexcept
-    {
-        assert(elem_begin_begin);
-        return *(elem_begin_begin);
-    }
-
-    constexpr auto &back() noexcept
-    {
-        assert(elem_end_end);
-        return *(elem_end_end - 1uz);
-    }
-
     // 空deque安全
     constexpr auto size() const noexcept
     {
@@ -1031,33 +1019,6 @@ ctrl_end   →
         block_alloc_end = block_elem_end;
     }
 
-    constexpr void pop_back() noexcept
-    {
-        assert(block_elem_end != block_elem_begin);
-        if (elem_end_begin != elem_end_end)
-        {
-            std::destroy_at(elem_end_end);
-            --elem_end_end;
-            if (block_elem_end - block_elem_begin == 1z)
-            {
-                --elem_begin_end;
-            }
-        }
-        else
-        {
-            --block_elem_end;
-            auto const begin = *(block_elem_end - 1uz);
-            auto const last = elem_end_begin + block_elements<T>();
-            elem_end(begin, last, last);
-            std::destroy_at(elem_end_end);
-            --elem_end_end;
-            if (block_elem_end - block_elem_begin == 1z)
-            {
-                elem_begin(elem_end_begin, elem_end_end, elem_end_begin);
-            }
-        }
-    }
-
     template <class... V>
     constexpr T &emplace_front(V &&...v)
     {
@@ -1093,9 +1054,47 @@ ctrl_end   →
         emplace_front(value);
     }
 
-    constexpr void push_front(T &&value)
+    constexpr void push_front(T &&value) noexcept
     {
         emplace_front(std::move(value));
+    }
+
+    constexpr void pop_back() noexcept
+    {
+        assert(block_elem_end != block_elem_begin);
+        if (elem_end_begin != elem_end_end)
+        {
+            std::destroy_at(elem_end_end);
+            --elem_end_end;
+            if (elem_end_end == elem_end_begin)
+            {
+                --block_elem_end;
+                auto const begin = *(block_elem_end - 1uz);
+                auto const last = elem_end_begin + block_elements<T>();
+                elem_end(begin, last, last);
+                if (block_elem_end - block_elem_begin == 1z)
+                {
+                    elem_begin(begin, last, begin);
+                }
+                return;
+            }
+            if (block_elem_end - block_elem_begin == 1z)
+            {
+                --elem_begin_end;
+            }
+        }
+        else
+        {
+            --block_elem_end;
+            auto const begin = *(block_elem_end - 1uz);
+            auto const last = elem_end_begin + block_elements<T>();
+            elem_end(begin, last - 1uz, last);
+            std::destroy_at(last - 1uz);
+            if (block_elem_end - block_elem_begin == 1z)
+            {
+                elem_begin(begin, last - 1uz, begin);
+            }
+        }
     }
 
     constexpr void pop_front() noexcept
@@ -1105,6 +1104,18 @@ ctrl_end   →
         {
             std::destroy_at(elem_begin_begin);
             ++elem_begin_begin;
+            if (elem_end_end == elem_end_begin)
+            {
+                ++block_elem_begin;
+                auto const begin = *(block_elem_begin);
+                auto const last = elem_end_begin + block_elements<T>();
+                elem_begin(begin, last, begin);
+                if (block_elem_end - block_elem_begin == 1z)
+                {
+                    elem_end(begin, last, last);
+                }
+                return;
+            }
             if (block_elem_end - block_elem_begin == 1z)
             {
                 ++elem_end_begin;
@@ -1112,14 +1123,39 @@ ctrl_end   →
         }
         else
         {
-            auto const begin = *(++block_elem_begin);
+            ++block_elem_begin;
+            auto const begin = *(block_elem_begin);
+            auto const end = begin + block_elements<T>();
             std::destroy_at(begin);
-            elem_begin(begin + 1uz, begin + block_elements<T>(), begin + block_elements<T>());
-
+            elem_begin(begin + 1uz, end, begin);
             if (block_elem_end - block_elem_begin == 1z)
             {
-                elem_end(elem_begin_begin, elem_begin_end, elem_begin_end);
+                elem_end(begin + 1uz, end, end);
             }
         }
+    }
+
+    constexpr auto &front() noexcept
+    {
+        assert(elem_begin_begin);
+        return *(elem_begin_begin);
+    }
+
+    constexpr auto &back() noexcept
+    {
+        assert(elem_end_end);
+        return *(elem_end_end - 1uz);
+    }
+
+    constexpr auto const &front() const noexcept
+    {
+        assert(elem_begin_begin);
+        return *(elem_begin_begin);
+    }
+
+    constexpr auto const &back() const noexcept
+    {
+        assert(elem_end_end);
+        return *(elem_end_end - 1uz);
     }
 };
