@@ -176,7 +176,7 @@ ctrl_end   →
         destruct();
     }
 
-    constexpr bool empty() noexcept
+    constexpr bool empty() const noexcept
     {
         return elem_begin_begin != elem_begin_end;
     }
@@ -667,6 +667,10 @@ ctrl_end   →
     }
 
   private:
+#if defined(__clang__) // make clang happy
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc++26-extensions"
+#endif
     // 使用count、count和T、或者随机访问迭代器进行构造，用于对应的构造函数
     // 注意异常安全
     template <typename... Ts>
@@ -778,6 +782,9 @@ ctrl_end   →
             elem_end_end = end;
         }
     }
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
   public:
     constexpr deque(std::size_t count)
@@ -967,17 +974,10 @@ ctrl_end   →
             auto const new_pos = pos - head_size;
             auto const quot = new_pos / block_elements<T>();
             auto const rem = new_pos / block_elements<T>();
-            auto const elem_block_size = block_elem_end - block_elem_begin;
-            if (quot + 2uz < elem_block_size)
-            {
-                std::terminate();
-            }
-            auto const tail_size = elem_end_end - elem_end_begin;
-            if (rem > tail_size)
-            {
-                std::terminate();
-            }
-            return *(*(block_elem_begin + quot + 2uz) + rem);
+            auto target_block = block_elem_begin + quot + 2uz;
+            assert(target_block < block_elem_end);
+            assert((target_block + 1uz == block_elem_end) ? (rem <= block_elem_end - block_elem_begin) : true);
+            return *(*target_block + rem);
         }
     }
 
@@ -1061,7 +1061,7 @@ ctrl_end   →
 
     constexpr void pop_back() noexcept
     {
-        assert(block_elem_end != block_elem_begin);
+        assert(not empty());
         if (elem_end_begin != elem_end_end)
         {
             std::destroy_at(elem_end_end);
@@ -1099,7 +1099,7 @@ ctrl_end   →
 
     constexpr void pop_front() noexcept
     {
-        assert(block_elem_end != block_elem_begin);
+        assert(not empty());
         if (elem_begin_begin != elem_begin_end)
         {
             std::destroy_at(elem_begin_begin);
@@ -1137,25 +1137,25 @@ ctrl_end   →
 
     constexpr auto &front() noexcept
     {
-        assert(elem_begin_begin);
+        assert(not empty());
         return *(elem_begin_begin);
     }
 
     constexpr auto &back() noexcept
     {
-        assert(elem_end_end);
+        assert(not empty());
         return *(elem_end_end - 1uz);
     }
 
     constexpr auto const &front() const noexcept
     {
-        assert(elem_begin_begin);
+        assert(not empty());
         return *(elem_begin_begin);
     }
 
     constexpr auto const &back() const noexcept
     {
-        assert(elem_end_end);
+        assert(not empty());
         return *(elem_end_end - 1uz);
     }
 };
