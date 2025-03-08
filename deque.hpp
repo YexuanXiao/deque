@@ -445,20 +445,8 @@ ctrl_end   →
 
         constexpr std::ptrdiff_t operator-(deque_iterator const &other) const noexcept
         {
-            if (block_elem_begin < other.block_elem_begin)
-            {
-                return (other.block_elem_begin - block_elem_begin) * block_elements<T>() + (elem_curr - elem_begin) -
-                       (other.elem_curr - other.elem_begin);
-            }
-            else if (block_elem_begin > other.block_elem_begin)
-            {
-                return (block_elem_begin - other.block_elem_begin) * block_elements<T>() + (elem_curr - elem_begin) -
-                       (other.elem_curr - other.elem_begin);
-            }
-            else
-            {
-                return elem_curr - other.elem_curr;
-            }
+            return (block_elem_begin - other.block_elem_begin) * block_elements<T>() + (elem_curr - elem_begin) -
+                   (other.elem_curr - other.elem_begin);
         }
 
         constexpr deque_iterator &operator+=(std::ptrdiff_t pos) noexcept
