@@ -246,7 +246,7 @@ ctrl_end   →
         return std::size_t(-1) / 2;
     }
 
-    struct iterator
+    class iterator
     {
         friend deque;
         block *block_elem_begin{};
@@ -500,17 +500,67 @@ ctrl_end   →
         }
     };
 
-    // todo:
-    // using const_iterator = std::basic_const_iterator<iterator>;
+    using const_iterator = std::basic_const_iterator<iterator>;
 
-    constexpr auto begin() noexcept
+    constexpr iterator begin() noexcept
     {
         return iterator{block_elem_begin, elem_begin_begin, elem_begin_begin, elem_begin_end};
     }
 
-    constexpr auto end() noexcept
+    constexpr iterator end() noexcept
+    {
+        // todo: 需要仔细验证空deque是否能够正确迭代
+        return iterator{block_elem_end, elem_end_end, elem_end_begin, elem_end_end};
+    }
+
+    constexpr const_iterator begin() const noexcept
+    {
+        return iterator{block_elem_begin, elem_begin_begin, elem_begin_begin, elem_begin_end};
+    }
+
+    constexpr const_iterator end() const noexcept
     {
         return iterator{block_elem_end, elem_end_end, elem_end_begin, elem_end_end};
+    }
+
+    constexpr const_iterator cbegin() const noexcept
+    {
+        return begin();
+    }
+
+    constexpr const_iterator cend() const noexcept
+    {
+        return end();
+    }
+
+    constexpr std::reverse_iterator<iterator> rbegin() noexcept
+    {
+        return std::reverse_iterator{end()};
+    }
+
+    constexpr std::reverse_iterator<iterator> rend() noexcept
+    {
+        return std::reverse_iterator{begin()};
+    }
+
+    constexpr std::reverse_iterator<const_iterator> rbegin() const noexcept
+    {
+        return std::reverse_iterator{end()};
+    }
+
+    constexpr std::reverse_iterator<const_iterator> rend() const noexcept
+    {
+        return std::reverse_iterator{begin()};
+    }
+
+    constexpr std::reverse_iterator<const_iterator> rcbegin() const noexcept
+    {
+        return std::reverse_iterator{end()};
+    }
+
+    constexpr std::reverse_iterator<const_iterator> rcend() const noexcept
+    {
+        return std::reverse_iterator{begin()};
     }
 
   private:
@@ -1406,4 +1456,5 @@ ctrl_end   →
         assert(not empty());
         return *(elem_end_end - 1uz);
     }
+
 };
