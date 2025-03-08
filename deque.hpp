@@ -249,19 +249,17 @@ ctrl_end   →
     {
         friend deque;
         block *block_elem_begin{};
-        T *block_begin{};
-        T *block_curr{};
-        T *block_end{};
+        T *elem_begin{};
+        T *elem_curr{};
+        T *elem_end{};
 
         constexpr iterator(block *elem_begin, T *curr, T *begin, T *end) noexcept
-            : block_elem_begin(elem_begin), block_curr(curr), block_begin(begin), block_end(end)
+            : block_elem_begin(elem_begin), elem_curr(curr), elem_begin(begin), elem_end(end)
         {
         }
 
       public:
-        constexpr iterator() noexcept
-        {
-        }
+        constexpr iterator() noexcept = default;
     };
 
     // todo:
@@ -286,80 +284,6 @@ ctrl_end   →
     // D1       D2      D1 C1 → C2 D2    D1      C1 D1    C1 D1   D2
     // case 1 4: back
     // case 2 3: front
-    // 对齐控制块
-    // 对齐alloc和ctrl的begin，用于push_back
-    constexpr void align_alloc_as_ctrl_back() noexcept
-    {
-        std::ranges::copy(block_alloc_begin, block_alloc_end, block_ctrl_begin);
-        auto const block_size = block_alloc_end - block_alloc_begin;
-        block_alloc_begin = block_ctrl_begin;
-        block_alloc_end = block_ctrl_begin + block_size;
-    }
-
-    // 对齐控制块
-    // 对齐alloc和ctrl的end，用于push_front
-    constexpr void align_alloc_as_ctrl_front() noexcept
-    {
-        std::ranges::copy_backward(block_alloc_begin, block_alloc_end, block_ctrl_end);
-        auto const block_size = block_alloc_end - block_alloc_begin;
-        block_alloc_end = block_ctrl_end;
-        block_alloc_begin = block_ctrl_end - block_size;
-    }
-
-    // 对齐控制块
-    // 对齐elem和alloc的begin，用于push_back
-    constexpr void align_elem_as_alloc_back() noexcept
-    {
-        std::ranges::rotate(block_alloc_begin, block_elem_begin, block_elem_end);
-        auto const block_size = block_elem_end - block_elem_begin;
-        block_elem_begin = block_alloc_begin;
-        block_elem_end = block_alloc_begin + block_size;
-    }
-
-    // 对齐控制块
-    // 对齐elem和alloc的end，用于push_front
-    constexpr void align_elem_as_alloc_front() noexcept
-    {
-        std::ranges::rotate(block_elem_begin, block_elem_end, block_alloc_end);
-        auto const block_size = block_elem_end - block_elem_begin;
-        block_elem_end = block_alloc_end;
-        block_elem_begin = block_alloc_end - block_size;
-    }
-
-    // ctrl_begin可以是自己或者新ctrl的
-    // 对齐控制块所有指针
-    constexpr void align_elem_alloc_as_ctrl_back(block *ctrl_begin) noexcept
-    {
-        auto const alloc_block_size = block_alloc_end - block_alloc_begin;
-        auto const elem_block_size = block_elem_end - block_elem_begin;
-        auto const alloc_elem_offset_front = block_elem_begin - block_alloc_begin;
-        // 将elem_begin和alloc_begin都对齐到ctrl_begin
-        std::ranges::copy(block_elem_begin, block_elem_end, block_ctrl_begin);
-        std::ranges::copy(block_alloc_begin, block_elem_begin, block_ctrl_begin + elem_block_size);
-        std::ranges::copy(block_elem_end, block_alloc_end,
-                          block_ctrl_begin + elem_block_size + alloc_elem_offset_front);
-        block_alloc_begin = ctrl_begin;
-        block_alloc_end = ctrl_begin + alloc_block_size;
-        block_elem_begin = ctrl_begin;
-        block_elem_end = ctrl_begin + elem_block_size;
-    }
-
-    // ctrl_begin可以是自己或者新ctrl的
-    // 对齐控制块所有指针
-    constexpr void align_elem_alloc_as_ctrl_front(block *ctrl_end) noexcept
-    {
-        auto const alloc_block_size = block_alloc_end - block_alloc_begin;
-        auto const elem_block_size = block_elem_end - block_elem_begin;
-        auto const alloc_elem_offset_front = block_elem_begin - block_alloc_begin;
-        std::ranges::copy_backward(block_elem_begin, block_elem_end, block_ctrl_end);
-        std::ranges::copy_backward(block_alloc_begin, block_elem_begin, block_ctrl_end - elem_block_size);
-        std::ranges::copy_backward(block_elem_end, block_alloc_end,
-                                   block_ctrl_end - elem_block_size - alloc_elem_offset_front);
-        block_alloc_end = ctrl_end;
-        block_alloc_begin = ctrl_end - alloc_block_size;
-        block_elem_end = ctrl_end;
-        block_elem_begin = ctrl_end - elem_block_size;
-    }
 
     // 负责分配块数组
     // 构造和扩容时都可以使用
@@ -411,12 +335,96 @@ ctrl_end   →
         // 参数是新大小
         constexpr ctrl_alloc(std::monostate &alloc, std::size_t const ctrl_size) : a(alloc)
         {
-            // ceil_n(ctrl_size, 4uz);
+            // 永远多分配一个，使得block_ctrl_end可以解引用以及*block_ctrl_end/*block_elem_end合法
+            // 并始终保证*block_elem_end为0
+            // ceil_n(ctrl_size + 1uz, 4uz);
             // todo:
             // block_alloc_begin = new T*[size];
             // block_alloc_end = block_alloc_begin + ctrl_size;
         }
     };
+
+    // 参见ctrl_alloc注释
+    constexpr void set_block_elem_end(block *end) noexcept
+    {
+        block_elem_end = end;
+        *block_elem_end = nullptr;
+    }
+
+    // 对齐控制块
+    // 对齐alloc和ctrl的begin，用于push_back
+    constexpr void align_alloc_as_ctrl_back() noexcept
+    {
+        std::ranges::copy(block_alloc_begin, block_alloc_end, block_ctrl_begin);
+        auto const block_size = block_alloc_end - block_alloc_begin;
+        block_alloc_begin = block_ctrl_begin;
+        block_alloc_end = block_ctrl_begin + block_size;
+    }
+
+    // 对齐控制块
+    // 对齐alloc和ctrl的end，用于push_front
+    constexpr void align_alloc_as_ctrl_front() noexcept
+    {
+        std::ranges::copy_backward(block_alloc_begin, block_alloc_end, block_ctrl_end);
+        auto const block_size = block_alloc_end - block_alloc_begin;
+        block_alloc_end = block_ctrl_end;
+        block_alloc_begin = block_ctrl_end - block_size;
+    }
+
+    // 对齐控制块
+    // 对齐elem和alloc的begin，用于push_back
+    constexpr void align_elem_as_alloc_back() noexcept
+    {
+        std::ranges::rotate(block_alloc_begin, block_elem_begin, block_elem_end);
+        auto const block_size = block_elem_end - block_elem_begin;
+        block_elem_begin = block_alloc_begin;
+        set_block_elem_end(block_alloc_begin + block_size);
+    }
+
+    // 对齐控制块
+    // 对齐elem和alloc的end，用于push_front
+    constexpr void align_elem_as_alloc_front() noexcept
+    {
+        std::ranges::rotate(block_elem_begin, block_elem_end, block_alloc_end);
+        auto const block_size = block_elem_end - block_elem_begin;
+        set_block_elem_end(block_alloc_end);
+        block_elem_begin = block_alloc_end - block_size;
+    }
+
+    // ctrl_begin可以是自己或者新ctrl的
+    // 对齐控制块所有指针
+    constexpr void align_elem_alloc_as_ctrl_back(block *ctrl_begin) noexcept
+    {
+        auto const alloc_block_size = block_alloc_end - block_alloc_begin;
+        auto const elem_block_size = block_elem_end - block_elem_begin;
+        auto const alloc_elem_offset_front = block_elem_begin - block_alloc_begin;
+        // 将elem_begin和alloc_begin都对齐到ctrl_begin
+        std::ranges::copy(block_elem_begin, block_elem_end, block_ctrl_begin);
+        std::ranges::copy(block_alloc_begin, block_elem_begin, block_ctrl_begin + elem_block_size);
+        std::ranges::copy(block_elem_end, block_alloc_end,
+                          block_ctrl_begin + elem_block_size + alloc_elem_offset_front);
+        block_alloc_begin = ctrl_begin;
+        block_alloc_end = ctrl_begin + alloc_block_size;
+        block_elem_begin = ctrl_begin;
+        set_block_elem_end(ctrl_begin + elem_block_size);
+    }
+
+    // ctrl_begin可以是自己或者新ctrl的
+    // 对齐控制块所有指针
+    constexpr void align_elem_alloc_as_ctrl_front(block *ctrl_end) noexcept
+    {
+        auto const alloc_block_size = block_alloc_end - block_alloc_begin;
+        auto const elem_block_size = block_elem_end - block_elem_begin;
+        auto const alloc_elem_offset_front = block_elem_begin - block_alloc_begin;
+        std::ranges::copy_backward(block_elem_begin, block_elem_end, block_ctrl_end);
+        std::ranges::copy_backward(block_alloc_begin, block_elem_begin, block_ctrl_end - elem_block_size);
+        std::ranges::copy_backward(block_elem_end, block_alloc_end,
+                                   block_ctrl_end - elem_block_size - alloc_elem_offset_front);
+        block_alloc_end = ctrl_end;
+        block_alloc_begin = ctrl_end - alloc_block_size;
+        set_block_elem_end(ctrl_end);
+        block_elem_begin = ctrl_end - elem_block_size;
+    }
 
     // 向前分配新block，需要block_size小于等于(block_alloc_begin - block_ctrl_begin)
     // 且不block_alloc_X不是空指针
@@ -511,7 +519,7 @@ ctrl_end   →
         // 如果move_cap够则移动
         if (move_cap >= add_elem_size)
         {
-            std::ranges::copy(block_elem_begin, block_elem_end, block_alloc_end);
+            align_elem_as_alloc_front();
             return;
         }
         // 计算需要分配多少块数组，无论接下来是什么逻辑都直接使用它
@@ -600,27 +608,27 @@ ctrl_end   →
         if (block_size)
         {
             // 此时最为特殊，因为只有一个有效快时，可以从头部生长也可以从尾部生长
-            // 析构永远按头部的begin和end进行，因此复制时elem_begin的end迭代器不动，成功后在动
+            // 析构永远按头部的begin和end进行，因此复制时elem_begin的end迭代器不动，成功后再动
             auto const elem_size = other.elem_begin_end - other.elem_begin_end;
             // 按从前到后生长，也就是只有一个block有效且block后半有空闲
             if (other.elem_end_begin == other.elem_begin_first)
             {
-                auto begin = *block_elem_begin;
+                auto begin = *block_elem_end;
                 elem_end(begin, begin + elem_size, begin + block_elements<T>());
                 elem_begin(begin, begin, begin);
             }
             else
             {
                 // 否则按第一个block是后到前生长
-                auto first = *block_elem_begin;
+                auto first = *block_elem_end;
                 auto last = elem_begin_first + block_elements<T>();
                 auto end = last - elem_size;
                 elem_begin(first, first, first);
                 elem_end(first, end, last);
             }
-            ++block_elem_end;
             std::ranges::uninitialized_copy(other.elem_begin_begin, other.elem_begin_end, elem_begin_end,
                                             std::unreachable_sentinel);
+            set_block_elem_end(++block_elem_end);
             elem_begin_end += elem_size;
         }
         if (block_size > 2z)
@@ -628,7 +636,6 @@ ctrl_end   →
             for (auto block_begin : std::ranges::subrange{other.block_elem_end - 1uz, other.block_elem_begin + 1uz})
             {
                 auto const begin = *block_elem_end;
-                ++block_elem_end;
                 elem_end_begin = begin;
                 elem_end_end = elem_end_begin;
                 // 由于回滚完全不在乎last，因此此处不用设置
@@ -636,16 +643,18 @@ ctrl_end   →
                 auto const src_begin = block_begin;
                 std::ranges::uninitialized_copy(src_begin, src_begin + block_elements<T>(), elem_end_end,
                                                 std::unreachable_sentinel);
+                // set_block_elem_end(++block_elem_end);
+                ++block_elem_end;
                 elem_end_end += block_elements<T>();
             }
         }
         if (block_size > 1z)
         {
             auto const begin = *block_elem_end;
-            ++block_elem_end;
             elem_end(begin, begin, begin + block_elements<T>());
             std::ranges::uninitialized_copy(other.elem_end_begin, other.elem_end_end, elem_end_end,
                                             std::unreachable_sentinel);
+            set_block_elem_end(++block_elem_end);
             elem_end_end += (other.elem_end_end - other.elem_end_begin);
         }
     }
@@ -681,7 +690,6 @@ ctrl_end   →
         {
             auto const begin = *block_elem_end;
             auto const end = begin + block_elements<T>();
-            ++block_elem_end;
             elem_begin(begin, begin, begin);
             elem_end(begin, end, end);
             if constexpr (sizeof...(Ts) == 0uz)
@@ -710,13 +718,13 @@ ctrl_end   →
             {
                 static_assert(false);
             }
+            set_block_elem_end(++block_elem_end);
             elem_begin_end = end;
         }
         for (auto i = 0uz; i != quot - 1uz; ++i)
         {
             auto const begin = *block_elem_end;
             auto const end = elem_begin_begin + block_elements<T>();
-            ++block_elem_end;
             elem_end_begin = begin;
             elem_end_end = begin;
             // 由于回滚完全不在乎last，因此此处不用设置
@@ -747,13 +755,13 @@ ctrl_end   →
             {
                 static_assert(false);
             }
+            set_block_elem_end(++block_elem_end);
             elem_begin_end = end;
         }
         if (rem)
         {
             auto const begin = *block_elem_end;
             auto const end = begin + rem;
-            ++block_elem_end;
             elem_end(begin, begin, begin + block_elements<T>());
             if constexpr (sizeof...(Ts) == 0uz)
             {
@@ -779,6 +787,7 @@ ctrl_end   →
             {
                 static_assert(false);
             }
+            set_block_elem_end(++block_elem_end);
             elem_end_end = end;
         }
     }
@@ -828,7 +837,7 @@ ctrl_end   →
             auto const begin = *block_elem_end;
             std::construct_at(begin, std::forward<V>(v)...); // may throw
             elem_end(begin, begin + 1uz, begin + block_elements<T>());
-            ++block_elem_end;
+            set_block_elem_end(++block_elem_end);
             // 修正elem_begin
             if (block_elem_end - block_elem_begin == 1z)
             {
@@ -1068,7 +1077,7 @@ ctrl_end   →
             --elem_end_end;
             if (elem_end_end == elem_end_begin)
             {
-                --block_elem_end;
+                set_block_elem_end(--block_elem_end);
                 auto const begin = *(block_elem_end - 1uz);
                 auto const last = elem_end_begin + block_elements<T>();
                 elem_end(begin, last, last);
@@ -1085,7 +1094,7 @@ ctrl_end   →
         }
         else
         {
-            --block_elem_end;
+            set_block_elem_end(--block_elem_end);
             auto const begin = *(block_elem_end - 1uz);
             auto const last = elem_end_begin + block_elements<T>();
             elem_end(begin, last - 1uz, last);
