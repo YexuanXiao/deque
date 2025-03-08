@@ -107,6 +107,11 @@ alloc_end  →□
              □
 ctrl_end   →
     */
+    /*
+    不变式：
+    *block_elem_end必须永远为0且不储存block
+    迭代器的++在走到last时会主动走到下一个块，由于上一条的保证，使得最终走到*block_elem_end得到0
+    */
 
     static constexpr std::size_t ceil_n(std::size_t const num, std::size_t const n) noexcept
     {
