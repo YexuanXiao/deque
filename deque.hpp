@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cassert>
+#include <compare>
 #include <concepts>
 #include <deque>
 #include <iterator>
@@ -258,8 +259,245 @@ ctrl_end   →
         {
         }
 
+        constexpr T &at_impl(std::ptrdiff_t pos) const noexcept
+        {
+            if (pos >= 0uz)
+            {
+                // 几乎等于deque的at，但缺少断言
+                auto const back_size = elem_end - elem_curr;
+                if (back_size - pos >= 0)
+                {
+                    return *(elem_curr + pos);
+                }
+                else
+                {
+                    auto const new_pos = pos - back_size;
+                    auto const quot = new_pos / block_elements<T>();
+                    auto const rem = new_pos / block_elements<T>();
+                    auto target_block = block_elem_begin + quot + 1uz;
+                    return *(*target_block + rem);
+                }
+            }
+            else
+            {
+                auto const front_size = elem_curr - elem_begin;
+
+                if (front_size + pos >= 0)
+                {
+                    return *(elem_curr + pos);
+                }
+                else
+                {
+                    auto const new_pos = pos + front_size;
+                    auto const quot = new_pos / block_elements<T>();
+                    auto const rem = new_pos / block_elements<T>();
+                    auto target_block = block_elem_begin + quot - 1uz;
+                    return *((*target_block) + block_elements<T>() + rem);
+                }
+            }
+        }
+
+        constexpr void plus_and_assign(std::ptrdiff_t pos) noexcept
+        {
+            if (pos >= 0uz)
+            {
+                // 几乎等于at_impl
+                auto const back_size = elem_end - elem_curr;
+                if (back_size - pos >= 0)
+                {
+                    elem_curr += pos;
+                }
+                else
+                {
+                    auto const new_pos = pos - back_size;
+                    auto const quot = new_pos / block_elements<T>();
+                    auto const rem = new_pos / block_elements<T>();
+                    auto target_block = block_elem_begin + quot + 1uz;
+                    block_elem_begin = target_block;
+                    elem_begin = *target_block;
+                    elem_curr = elem_begin + rem;
+                    elem_end = elem_begin + block_elements<T>();
+                }
+            }
+            else
+            {
+                auto const front_size = elem_curr - elem_begin;
+
+                if (front_size + pos >= 0)
+                {
+                    elem_curr += pos;
+                }
+                else
+                {
+                    auto const new_pos = pos + front_size;
+                    auto const quot = new_pos / block_elements<T>();
+                    auto const rem = new_pos / block_elements<T>();
+                    auto target_block = block_elem_begin + quot - 1uz;
+                    block_elem_begin = target_block;
+                    elem_begin = *target_block;
+                    elem_end = elem_begin + block_elements<T>();
+                    elem_curr = elem_end + rem;
+                }
+            }
+        }
+
       public:
+        using difference_type = std::ptrdiff_t;
+        using value_type = T;
+        using pointer = T *;
+        using reference = T &;
+        using iterator_category = std::random_access_iterator_tag;
+
         constexpr iterator() noexcept = default;
+
+        constexpr iterator(iterator const &other) noexcept = default;
+
+        constexpr iterator &operator=(iterator const &other) noexcept = default;
+
+        constexpr ~iterator() = default;
+
+        constexpr bool operator==(iterator const &other) const noexcept
+        {
+            return elem_curr == other.elem_curr;
+        }
+
+        constexpr std::strong_ordering operator<=>(iterator const &other) const noexcept
+        {
+            if (block_elem_begin < other.block_elem_begin)
+                return std::strong_ordering::less;
+            if (block_elem_begin > other.block_elem_begin)
+                return std::strong_ordering::greater;
+            if (elem_curr < other.elem_curr)
+                return std::strong_ordering::less;
+            if (elem_curr > other.elem_curr)
+                return std::strong_ordering::greater;
+            return std::strong_ordering::equal;
+        }
+
+        T &operator*() noexcept
+        {
+            return *elem_curr;
+        }
+
+        T &operator*() const noexcept
+        {
+            return *elem_curr;
+        }
+
+        T *operator->() const noexcept
+        {
+            return elem_curr;
+        }
+
+        T *operator->() noexcept
+        {
+            return elem_curr;
+        }
+
+        constexpr iterator &operator++() noexcept
+        {
+            ++elem_curr;
+            if (elem_curr == elem_end)
+            {
+                ++block_elem_begin;
+                elem_begin = *block_elem_begin;
+                elem_curr = elem_begin;
+                elem_end = elem_begin + block_elements<T>();
+            }
+            return *this;
+        }
+
+        constexpr iterator operator++(int) noexcept
+        {
+            iterator temp(*this);
+            ++temp;
+            return temp;
+        }
+
+        constexpr iterator &operator--() noexcept
+        {
+            if (elem_curr != elem_begin)
+            {
+                --elem_curr;
+            }
+            else
+            {
+                --block_elem_begin;
+                elem_begin = *block_elem_begin;
+                elem_end = elem_begin + block_elements<T>();
+                elem_curr = elem_end - 1uz;
+            }
+            return *this;
+        }
+
+        constexpr iterator operator--(int) noexcept
+        {
+            iterator temp(*this);
+            --temp;
+            return temp;
+        }
+
+        constexpr T &operator[](std::ptrdiff_t pos) noexcept
+        {
+            return at_impl(pos);
+        }
+
+        constexpr T &operator[](std::ptrdiff_t pos) const noexcept
+        {
+            return at_impl(pos);
+        }
+
+        constexpr std::ptrdiff_t operator-(iterator const &other) const noexcept
+        {
+            if (block_elem_begin < other.block_elem_begin)
+            {
+                return (other.block_elem_begin - block_elem_begin) * block_elements<T>() + (elem_curr - elem_begin) -
+                       (other.elem_curr - other.elem_begin);
+            }
+            else if (block_elem_begin > other.block_elem_begin)
+            {
+                return (block_elem_begin - other.block_elem_begin) * block_elements<T>() + (elem_curr - elem_begin) -
+                       (other.elem_curr - other.elem_begin);
+            }
+            else
+            {
+                return elem_curr - other.elem_curr;
+            }
+        }
+
+        constexpr iterator &operator+=(std::ptrdiff_t pos) noexcept
+        {
+            plus_and_assign(pos);
+            return *this;
+        }
+
+        friend constexpr iterator operator+(iterator const &it, std::ptrdiff_t pos) noexcept
+        {
+            iterator temp = it;
+            temp.plus_and_assign(pos);
+            return temp;
+        }
+
+        friend constexpr iterator operator+(std::ptrdiff_t pos, iterator const &it) noexcept
+        {
+            return it + pos;
+        }
+
+        constexpr iterator &operator-=(std::ptrdiff_t pos) noexcept
+        {
+            plus_and_assign(-pos);
+            return *this;
+        }
+
+        friend constexpr iterator operator-(iterator const &it, std::ptrdiff_t pos) noexcept
+        {
+            return it + (-pos);
+        }
+
+        friend constexpr iterator operator-(std::ptrdiff_t pos, iterator const &it) noexcept
+        {
+            return it + (-pos);
+        }
     };
 
     // todo:
@@ -971,10 +1209,11 @@ ctrl_end   →
     }
 
   private:
+    // 几乎等于iterator的at，但缺少断言
     constexpr T &at_impl(std::size_t pos) const noexcept
     {
         auto const head_size = elem_begin_end - elem_begin_begin;
-        if (head_size <= pos)
+        if (head_size >= pos)
         {
             return *(elem_begin_begin + pos);
         }
@@ -983,7 +1222,7 @@ ctrl_end   →
             auto const new_pos = pos - head_size;
             auto const quot = new_pos / block_elements<T>();
             auto const rem = new_pos / block_elements<T>();
-            auto target_block = block_elem_begin + quot + 2uz;
+            auto target_block = block_elem_begin + quot + 1uz;
             assert(target_block < block_elem_end);
             assert((target_block + 1uz == block_elem_end) ? (rem <= block_elem_end - block_elem_begin) : true);
             return *(*target_block + rem);
