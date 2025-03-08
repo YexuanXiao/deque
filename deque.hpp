@@ -384,16 +384,6 @@ ctrl_end   →
             return *elem_curr;
         }
 
-        T *operator->() const noexcept
-        {
-            return elem_curr;
-        }
-
-        T *operator->() noexcept
-        {
-            return elem_curr;
-        }
-
         constexpr iterator &operator++() noexcept
         {
             ++elem_curr;
@@ -499,6 +489,10 @@ ctrl_end   →
             return it + (-pos);
         }
     };
+
+    static_assert(std::random_access_iterator<iterator>);
+    static_assert(std::output_iterator<iterator, T>);
+    static_assert(std::sentinel_for<iterator, iterator>);
 
     using const_iterator = std::basic_const_iterator<iterator>;
 
@@ -1457,4 +1451,179 @@ ctrl_end   →
         return *(elem_end_end - 1uz);
     }
 
+    class bucket_type
+    {
+        block *block_elem_begin{};
+        block *block_elem_end{};
+        T *elem_begin_begin{};
+        T *elem_begin_end{};
+        T *elem_end_begin{};
+        T *elem_end_end{};
+
+      public:
+        class iterator
+        {
+            friend bucket_type;
+
+            block *block_elem_begin{};
+            block *block_elem_end{};
+            block *block_elem_curr{};
+            T *elem_begin_begin{};
+            T *elem_begin_end{};
+            T *elem_end_begin{};
+            T *elem_end_end{};
+            T *elem_curr_begin{};
+            T *elem_curr_end{};
+
+            iterator(block *block_elem_begin_, block *block_elem_end_, block *block_elem_curr_, T *elem_begin_begin_,
+                     T *elem_begin_end_, T *elem_end_begin_, T *elem_end_end_, T *elem_curr_begin_,
+                     T *elem_curr_end_) noexcept
+                : block_elem_begin(block_elem_begin_), block_elem_end(block_elem_end_),
+                  block_elem_curr(block_elem_curr_), elem_begin_begin(elem_begin_begin_),
+                  elem_begin_end(elem_begin_end_), elem_end_begin(elem_end_begin_), elem_end_end(elem_end_end_),
+                  elem_curr_begin(elem_curr_begin_), elem_curr_end(elem_curr_end_)
+            {
+            }
+
+          public:
+            using difference_type = std::ptrdiff_t;
+            using value_type = std::span<T>;
+            using pointer = value_type *;
+            using reference = value_type &;
+            using iterator_category = std::random_access_iterator_tag;
+
+            constexpr iterator() noexcept = default;
+
+            constexpr iterator(iterator const &other) noexcept = default;
+
+            constexpr iterator &operator=(iterator const &other) noexcept = default;
+
+            constexpr ~iterator() = default;
+
+            constexpr bool operator==(iterator const &other) const noexcept
+            {
+                return block_elem_begin == other.block_elem_begin;
+            }
+
+            constexpr value_type operator*() noexcept
+            {
+                return {elem_curr_begin, elem_curr_end};
+            }
+
+            constexpr value_type operator*() const noexcept
+            {
+                return {elem_curr_begin, elem_curr_end};
+            }
+
+            constexpr iterator &operator++() noexcept
+            {
+                ++block_elem_curr;
+                if (block_elem_curr + 1uz == block_elem_end)
+                {
+                    elem_curr_begin = elem_end_begin;
+                    elem_curr_end = elem_end_end;
+                }
+                else
+                {
+                    elem_curr_begin = *block_elem_begin;
+                    elem_curr_end = elem_begin_begin + block_elements<T>();
+                }
+                return *this;
+            }
+
+            constexpr iterator operator++(int) noexcept
+            {
+                iterator temp = *this;
+                ++temp;
+                return temp;
+            }
+
+            constexpr iterator &operator--() noexcept
+            {
+                --block_elem_curr;
+                if (block_elem_curr == block_elem_begin)
+                {
+                    elem_curr_begin = elem_begin_begin;
+                    elem_curr_end = elem_begin_end;
+                }
+                else
+                {
+                    elem_begin_begin = *(block_elem_begin - 1uz);
+                    elem_begin_end = elem_begin_begin + block_elements<T>();
+                }
+                return *this;
+            }
+
+            constexpr iterator operator--(int) noexcept
+            {
+                iterator temp = *this;
+                --temp;
+                return temp;
+            }
+
+            constexpr bool operator==(iterator const &other)
+            {
+                return block_elem_curr == other.block_elem_curr;
+            }
+        };
+
+        using const_iterator = std::basic_const_iterator<iterator>;
+
+        static_assert(std::bidirectional_iterator<iterator>);
+        static_assert(std::sentinel_for<iterator, iterator>);
+
+        iterator begin() noexcept
+        {
+            return {block_elem_begin, block_elem_end, block_elem_begin, elem_begin_begin, elem_begin_end,
+                    elem_end_begin,   elem_end_end,   elem_begin_begin, elem_begin_end};
+        }
+
+        iterator end() noexcept
+        {
+            return {block_elem_begin, block_elem_end, block_elem_end, elem_begin_begin, elem_begin_end,
+                    elem_end_begin,   elem_end_end,   elem_end_begin, elem_end_end};
+        }
+
+        const_iterator begin() const noexcept
+        {
+            return iterator{block_elem_begin, block_elem_end, block_elem_begin, elem_begin_begin, elem_begin_end,
+                            elem_end_begin,   elem_end_end,   elem_begin_begin, elem_begin_end};
+        }
+
+        const_iterator end() const noexcept
+        {
+            return iterator{block_elem_begin, block_elem_end, block_elem_end, elem_begin_begin, elem_begin_end,
+                            elem_end_begin,   elem_end_end,   elem_end_begin, elem_end_end};
+        }
+
+        const_iterator cbegin() const noexcept
+        {
+            return begin();
+        }
+
+        const_iterator cend() const noexcept
+        {
+            return end();
+        }
+
+        std::reverse_iterator<iterator> rbegin() noexcept
+        {
+            return std::reverse_iterator<iterator>{end()};
+        }
+
+        std::reverse_iterator<iterator> rend() noexcept
+        {
+            return std::reverse_iterator<iterator>{begin()};
+        }
+
+        std::reverse_iterator<const_iterator> rcbegin() noexcept
+        {
+            return std::reverse_iterator<const_iterator>{end()};
+        }
+
+        std::reverse_iterator<const_iterator> rcend() noexcept
+        {
+            return std::reverse_iterator<const_iterator>{begin()};
+        }
+    };
 };
