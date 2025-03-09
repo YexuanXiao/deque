@@ -52,10 +52,9 @@ consteval std::size_t block_elements() noexcept
     return result / pv;
 }
 
+template <typename T>
 class deque
 {
-
-    using T = int;
     using block = T *;
 
 #if __has_cpp_attribute(msvc::no_unique_address)
@@ -518,6 +517,18 @@ ctrl_end   →
         return deque_iterator{block_elem_end, elem_end_end, elem_end_begin, elem_end_end};
     }
 
+    constexpr std::reverse_iterator<deque_iterator> rbegin() noexcept
+    {
+        return std::reverse_iterator{end()};
+    }
+
+    constexpr std::reverse_iterator<deque_iterator> rend() noexcept
+    {
+        return std::reverse_iterator{begin()};
+    }
+
+#if defined(__cpp_lib_ranges_as_const) && __cpp_lib_ranges_as_const >= 202311L
+
     constexpr std::basic_const_iterator<deque_iterator> begin() const noexcept
     {
         return deque_iterator{block_elem_begin, elem_begin_begin, elem_begin_begin, elem_begin_end};
@@ -536,16 +547,6 @@ ctrl_end   →
     constexpr std::basic_const_iterator<deque_iterator> cend() const noexcept
     {
         return end();
-    }
-
-    constexpr std::reverse_iterator<deque_iterator> rbegin() noexcept
-    {
-        return std::reverse_iterator{end()};
-    }
-
-    constexpr std::reverse_iterator<deque_iterator> rend() noexcept
-    {
-        return std::reverse_iterator{begin()};
     }
 
     constexpr std::reverse_iterator<std::basic_const_iterator<deque_iterator>> rbegin() const noexcept
@@ -567,6 +568,7 @@ ctrl_end   →
     {
         return std::reverse_iterator{begin()};
     }
+#endif
 
   private:
     // case 1           case 2            case 3           case 4
@@ -691,8 +693,7 @@ ctrl_end   →
         // 将elem_begin和alloc_begin都对齐到ctrl_begin
         std::ranges::copy(block_elem_begin, block_elem_end, ctrl_begin);
         std::ranges::copy(block_alloc_begin, block_elem_begin, ctrl_begin + elem_block_size);
-        std::ranges::copy(block_elem_end, block_alloc_end,
-                          ctrl_begin + elem_block_size + alloc_elem_offset_front);
+        std::ranges::copy(block_elem_end, block_alloc_end, ctrl_begin + elem_block_size + alloc_elem_offset_front);
         block_alloc_begin = ctrl_begin;
         block_alloc_end = ctrl_begin + alloc_block_size;
         block_elem_begin = ctrl_begin;
@@ -1496,8 +1497,8 @@ ctrl_end   →
             T *elem_curr_end{};
 
             constexpr basic_bucket_iterator(block *block_elem_begin_, block *block_elem_end_, block *block_elem_curr_,
-                                  T *elem_begin_begin_, T *elem_begin_end_, T *elem_end_begin_, T *elem_end_end_,
-                                  T *elem_curr_begin_, T *elem_curr_end_) noexcept
+                                            T *elem_begin_begin_, T *elem_begin_end_, T *elem_end_begin_,
+                                            T *elem_end_end_, T *elem_curr_begin_, T *elem_curr_end_) noexcept
                 : block_elem_begin(block_elem_begin_), block_elem_end(block_elem_end_),
                   block_elem_curr(block_elem_curr_), elem_begin_begin(elem_begin_begin_),
                   elem_begin_end(elem_begin_end_), elem_end_begin(elem_end_begin_), elem_end_end(elem_end_end_),
@@ -1579,8 +1580,8 @@ ctrl_end   →
             friend const_bucket_iterator;
 
             constexpr bucket_iterator(block *block_elem_begin_, block *block_elem_end_, block *block_elem_curr_,
-                            T *elem_begin_begin_, T *elem_begin_end_, T *elem_end_begin_, T *elem_end_end_,
-                            T *elem_curr_begin_, T *elem_curr_end_) noexcept
+                                      T *elem_begin_begin_, T *elem_begin_end_, T *elem_end_begin_, T *elem_end_end_,
+                                      T *elem_curr_begin_, T *elem_curr_end_) noexcept
                 : basic_bucket_iterator(block_elem_begin_, block_elem_end_, block_elem_curr_, elem_begin_begin_,
                                         elem_begin_end_, elem_end_begin_, elem_end_end_, elem_curr_begin_,
                                         elem_curr_end_)
@@ -1604,12 +1605,12 @@ ctrl_end   →
 
             constexpr value_type operator*() noexcept
             {
-                return {elem_curr_begin, elem_curr_end};
+                return {this->elem_curr_begin, this->elem_curr_end};
             }
 
             constexpr value_type operator*() const noexcept
             {
-                return {elem_curr_begin, elem_curr_end};
+                return {this->elem_curr_begin, this->elem_curr_end};
             }
 
             constexpr bucket_iterator &operator++() noexcept
@@ -1645,8 +1646,8 @@ ctrl_end   →
             friend bucket_iterator;
 
             constexpr const_bucket_iterator(block *block_elem_begin_, block *block_elem_end_, block *block_elem_curr_,
-                                  T *elem_begin_begin_, T *elem_begin_end_, T *elem_end_begin_, T *elem_end_end_,
-                                  T *elem_curr_begin_, T *elem_curr_end_) noexcept
+                                            T *elem_begin_begin_, T *elem_begin_end_, T *elem_end_begin_,
+                                            T *elem_end_end_, T *elem_curr_begin_, T *elem_curr_end_) noexcept
                 : basic_bucket_iterator(block_elem_begin_, block_elem_end_, block_elem_curr_, elem_begin_begin_,
                                         elem_begin_end_, elem_end_begin_, elem_end_end_, elem_curr_begin_,
                                         elem_curr_end_)
@@ -1677,12 +1678,12 @@ ctrl_end   →
 
             constexpr value_type operator*() noexcept
             {
-                return {elem_curr_begin, elem_curr_end};
+                return {this->elem_curr_begin, this->elem_curr_end};
             }
 
             constexpr value_type operator*() const noexcept
             {
-                return {elem_curr_begin, elem_curr_end};
+                return {this->elem_curr_begin, this->elem_curr_end};
             }
 
             constexpr const_bucket_iterator &operator++() noexcept
@@ -1791,7 +1792,9 @@ ctrl_end   →
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
     using iterator = deque_iterator;
-    using const_iterator = std::basic_const_iterator<iterator>;
     using reverse_iterator = std::reverse_iterator<deque_iterator>;
+#if defined(__cpp_lib_ranges_as_const) && __cpp_lib_ranges_as_const >= 202311L
+    using const_iterator = std::basic_const_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<std::basic_const_iterator<deque_iterator>>;
+#endif
 };
