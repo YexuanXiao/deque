@@ -52,9 +52,9 @@ consteval std::size_t block_elements() noexcept
     return result / pv;
 }
 
-template <typename T>
 class deque
 {
+    using T = int;
     using block = T *;
 
 #if __has_cpp_attribute(msvc::no_unique_address)
@@ -534,13 +534,12 @@ ctrl_end   →
 
     constexpr bucket_type buckets() noexcept
     {
-        bucket_type temp{};
-        temp.block_elem_begin = block_elem_begin;
-        temp.block_elem_end = block_elem_end;
-        temp.elem_begin_begin = elem_begin_begin;
-        temp.elem_begin_end = elem_begin_end;
-        temp.elem_end_begin = elem_end_begin;
-        temp.elem_end_end = block_elem_end;
+        return {block_elem_begin, block_elem_end, elem_begin_begin, elem_begin_end, elem_end_begin, elem_end_end};
+    }
+
+    constexpr bucket_type buckets() const noexcept
+    {
+        return {block_elem_begin, block_elem_end, elem_begin_begin, elem_begin_end, elem_end_begin, elem_end_end};
     }
 
     constexpr ~deque()
@@ -1241,15 +1240,14 @@ ctrl_end   →
     }
 
     // 构造函数和复制赋值的辅助函数，要求block_alloc必须足够大
-    constexpr void copy(deque const &other, std::size_t block_size)
+    constexpr void copy(bucket_type const &other, std::size_t block_size)
     {
         if (block_size)
         {
             // 此时最为特殊，因为只有一个有效快时，可以从头部生长也可以从尾部生长
             // 析构永远按头部的begin和end进行，因此复制时elem_begin的end迭代器不动，成功后再动
             auto const elem_size = other.elem_begin_end - other.elem_begin_end;
-            // 按从前到后生长，也就是只有一个block有效且block后半有空闲
-            if (other.elem_end_begin == other.elem_begin_first)
+            if (block_size == 1uz)
             {
                 auto begin = *block_elem_end;
                 elem_end(begin, begin + elem_size, begin + block_elements<T>());
@@ -1257,7 +1255,6 @@ ctrl_end   →
             }
             else
             {
-                // 否则按第一个block是后到前生长
                 auto first = *block_elem_end;
                 auto last = elem_begin_first + block_elements<T>();
                 auto end = last - elem_size;
@@ -1314,7 +1311,7 @@ ctrl_end   →
         construct_guard guard(*this);
         auto const block_size = other.block_elem_end - other.block_elem_begin;
         construct_block(block_size);
-        copy(other, block_size);
+        copy(other.buckets(), block_size);
         guard.release();
     }
 
@@ -1525,6 +1522,27 @@ ctrl_end   →
     {
     }
 
+    template <typename R>
+    constexpr deque(std::from_range_t, R &&rg) requires std::ranges::sized_range<R>
+    {
+        auto const count = rg.size();
+        auto const quot = count / block_elements<T>();
+        auto const rem = count % block_elements<T>();
+        construct_guard guard(*this);
+        construct_block(quot + 1uz);
+        construct_n(quot + 1uz, quot, rem, std::ranges::begin(rg), std::ranges::end(rg));
+        guard.release();
+    }
+    
+    constexpr deque(std::from_range_t, deque const& rg) : deque(rg)
+    {
+    }
+
+    constexpr deque(std::from_range_t, deque && rg) : deque(std::move(rg))
+    {
+    }
+
+
     constexpr deque(std::initializer_list<T> init)
     {
         auto const count = init.size();
@@ -1551,7 +1569,7 @@ ctrl_end   →
         destroy_elems();
         auto const block_size = other.block_elem_end - other.block_alloc_begin;
         extent_block(block_size);
-        copy(other, block_size);
+        copy(other.buckets(), block_size);
         return *this;
     }
 
@@ -1586,17 +1604,23 @@ ctrl_end   →
         requires std::input_iterator<U> && std::sentinel_for<V, U>
     {
         destroy_elems();
-        if constexpr (std::random_access_iterator<U>)
+        if constexpr (requires { is_deque_iterator(begin); })
+        {
+            // iterator begin, end;
+            bucket_type bucket{begin.block_elem_begin, end.block_elem_begin + 1uz,
+                               begin.elem_curr,        begin.elem_end,
+                               end.elem_begin,         end.elem_curr};
+            auto const block_size = bucket.size();
+            extent_block(block_size);
+            copy(bucket, block_size);
+        }
+        else if constexpr (std::random_access_iterator<U>)
         {
             auto const count = end - begin;
             auto const quot = count / block_elements<T>();
             auto const rem = count % block_elements<T>();
             extent_block(quot + 1uz);
             construct_n(quot + 1uz, quot, rem, begin, end);
-        }
-        if constexpr (requires { is_deque_iterator(begin); })
-        {
-            // todo
         }
         else
         {
