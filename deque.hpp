@@ -194,6 +194,355 @@ ctrl_end   →
     }
 
   public:
+    class bucket_type
+    {
+        friend deque;
+
+        block *block_elem_begin{};
+        block *block_elem_end{};
+        T *elem_begin_begin{};
+        T *elem_begin_end{};
+        T *elem_end_begin{};
+        T *elem_end_end{};
+
+        constexpr bucket_type(block *block_elem_begin_, block *block_elem_end_, T *elem_begin_begin_,
+                              T *elem_begin_end_, T *elem_end_begin_, T *elem_end_end_) noexcept
+            : block_elem_begin(block_elem_begin_), block_elem_end(block_elem_end_), elem_begin_begin(elem_begin_begin_),
+              elem_begin_end(elem_begin_end_), elem_end_begin(elem_end_begin_), elem_end_end(elem_end_end_)
+        {
+        }
+
+      public:
+        constexpr bucket_type() = default;
+        constexpr ~bucket_type() = default;
+        constexpr bucket_type(bucket_type const &) = default;
+        constexpr bucket_type &operator=(bucket_type const &) = default;
+
+        constexpr std::size_t size() const noexcept
+        {
+            return block_elem_end - block_elem_begin;
+        }
+
+        constexpr bool empty() const noexcept
+        {
+            return size();
+        }
+
+      private:
+        class basic_bucket_iterator
+        {
+            friend bucket_type;
+
+          protected:
+            block *block_elem_begin{};
+            block *block_elem_end{};
+            block *block_elem_curr{};
+            T *elem_begin_begin{};
+            T *elem_begin_end{};
+            T *elem_end_begin{};
+            T *elem_end_end{};
+            T *elem_curr_begin{};
+            T *elem_curr_end{};
+
+            constexpr basic_bucket_iterator(block *block_elem_begin_, block *block_elem_end_, block *block_elem_curr_,
+                                            T *elem_begin_begin_, T *elem_begin_end_, T *elem_end_begin_,
+                                            T *elem_end_end_, T *elem_curr_begin_, T *elem_curr_end_) noexcept
+                : block_elem_begin(block_elem_begin_), block_elem_end(block_elem_end_),
+                  block_elem_curr(block_elem_curr_), elem_begin_begin(elem_begin_begin_),
+                  elem_begin_end(elem_begin_end_), elem_end_begin(elem_end_begin_), elem_end_end(elem_end_end_),
+                  elem_curr_begin(elem_curr_begin_), elem_curr_end(elem_curr_end_)
+            {
+            }
+
+          public:
+            constexpr basic_bucket_iterator() noexcept = default;
+
+            constexpr basic_bucket_iterator(basic_bucket_iterator const &other) noexcept = default;
+
+            constexpr basic_bucket_iterator &operator=(basic_bucket_iterator const &other) noexcept = default;
+
+            constexpr ~basic_bucket_iterator() = default;
+
+            constexpr bool operator==(basic_bucket_iterator const &other) const noexcept
+            {
+                return block_elem_begin == other.block_elem_begin;
+            }
+
+            constexpr basic_bucket_iterator &operator++() noexcept
+            {
+                ++block_elem_curr;
+                if (block_elem_curr + 1uz == block_elem_end)
+                {
+                    elem_curr_begin = elem_end_begin;
+                    elem_curr_end = elem_end_end;
+                }
+                else
+                {
+                    elem_curr_begin = *block_elem_begin;
+                    elem_curr_end = elem_begin_begin + block_elements<T>();
+                }
+                return *this;
+            }
+
+            constexpr basic_bucket_iterator operator++(int) noexcept
+            {
+                basic_bucket_iterator temp = *this;
+                ++temp;
+                return temp;
+            }
+
+            constexpr basic_bucket_iterator &operator--() noexcept
+            {
+                --block_elem_curr;
+                if (block_elem_curr == block_elem_begin)
+                {
+                    elem_curr_begin = elem_begin_begin;
+                    elem_curr_end = elem_begin_end;
+                }
+                else
+                {
+                    elem_begin_begin = *(block_elem_begin - 1uz);
+                    elem_begin_end = elem_begin_begin + block_elements<T>();
+                }
+                return *this;
+            }
+
+            constexpr basic_bucket_iterator operator--(int) noexcept
+            {
+                basic_bucket_iterator temp = *this;
+                --temp;
+                return temp;
+            }
+
+            constexpr bool operator==(basic_bucket_iterator const &other)
+            {
+                return block_elem_curr == other.block_elem_curr;
+            }
+        };
+
+        class bucket_iterator;
+        class const_bucket_iterator;
+        class bucket_iterator : public basic_bucket_iterator
+        {
+            friend deque;
+            friend const_bucket_iterator;
+
+            constexpr bucket_iterator(block *block_elem_begin_, block *block_elem_end_, block *block_elem_curr_,
+                                      T *elem_begin_begin_, T *elem_begin_end_, T *elem_end_begin_, T *elem_end_end_,
+                                      T *elem_curr_begin_, T *elem_curr_end_) noexcept
+                : basic_bucket_iterator(block_elem_begin_, block_elem_end_, block_elem_curr_, elem_begin_begin_,
+                                        elem_begin_end_, elem_end_begin_, elem_end_end_, elem_curr_begin_,
+                                        elem_curr_end_)
+            {
+            }
+
+          public:
+            using difference_type = std::ptrdiff_t;
+            using value_type = std::span<T>;
+            using pointer = value_type *;
+            using reference = value_type &;
+            using iterator_category = std::bidirectional_iterator_tag;
+
+            constexpr bucket_iterator() noexcept = default;
+
+            constexpr bucket_iterator(bucket_iterator const &other) noexcept = default;
+
+            constexpr bucket_iterator &operator=(bucket_iterator const &other) noexcept = default;
+
+            constexpr ~bucket_iterator() = default;
+
+            constexpr value_type operator*() noexcept
+            {
+                return {this->elem_curr_begin, this->elem_curr_end};
+            }
+
+            constexpr value_type operator*() const noexcept
+            {
+                return {this->elem_curr_begin, this->elem_curr_end};
+            }
+
+            constexpr bucket_iterator &operator++() noexcept
+            {
+                ++static_cast<basic_bucket_iterator &>(*this);
+                return *this;
+            }
+
+            constexpr bucket_iterator &operator--() noexcept
+            {
+                --static_cast<basic_bucket_iterator &>(*this);
+                return *this;
+            }
+
+            constexpr bucket_iterator operator++(int) noexcept
+            {
+                bucket_iterator temp = *this;
+                ++temp;
+                return temp;
+            }
+
+            constexpr bucket_iterator operator--(int) noexcept
+            {
+                bucket_iterator temp = *this;
+                --temp;
+                return temp;
+            }
+        };
+
+        class const_bucket_iterator : public basic_bucket_iterator
+        {
+            friend deque;
+            friend bucket_iterator;
+
+            constexpr const_bucket_iterator(block *block_elem_begin_, block *block_elem_end_, block *block_elem_curr_,
+                                            T *elem_begin_begin_, T *elem_begin_end_, T *elem_end_begin_,
+                                            T *elem_end_end_, T *elem_curr_begin_, T *elem_curr_end_) noexcept
+                : basic_bucket_iterator(block_elem_begin_, block_elem_end_, block_elem_curr_, elem_begin_begin_,
+                                        elem_begin_end_, elem_end_begin_, elem_end_end_, elem_curr_begin_,
+                                        elem_curr_end_)
+            {
+            }
+
+          public:
+            using difference_type = std::ptrdiff_t;
+            using value_type = std::span<const T>;
+            using pointer = value_type *;
+            using reference = value_type &;
+            using iterator_category = std::bidirectional_iterator_tag;
+
+            constexpr const_bucket_iterator() noexcept = default;
+
+            constexpr const_bucket_iterator(const_bucket_iterator const &other) noexcept = default;
+
+            constexpr const_bucket_iterator &operator=(const_bucket_iterator const &other) noexcept = default;
+
+            constexpr ~const_bucket_iterator() = default;
+
+            constexpr const_bucket_iterator(bucket_iterator const &other) noexcept
+                : const_bucket_iterator(other.block_elem_begin, other.block_elem_end, other.block_elem_curr,
+                                        other.elem_begin_begin, other.elem_begin_end, other.elem_end_begin,
+                                        other.elem_end_end, other.elem_curr_begin, other.elem_curr_end)
+            {
+            }
+
+            constexpr value_type operator*() noexcept
+            {
+                return {this->elem_curr_begin, this->elem_curr_end};
+            }
+
+            constexpr value_type operator*() const noexcept
+            {
+                return {this->elem_curr_begin, this->elem_curr_end};
+            }
+
+            constexpr const_bucket_iterator &operator++() noexcept
+            {
+                ++static_cast<basic_bucket_iterator &>(*this);
+                return *this;
+            }
+
+            constexpr const_bucket_iterator &operator--() noexcept
+            {
+                --static_cast<basic_bucket_iterator &>(*this);
+                return *this;
+            }
+
+            constexpr const_bucket_iterator operator++(int) noexcept
+            {
+                const_bucket_iterator temp = *this;
+                ++temp;
+                return temp;
+            }
+
+            constexpr const_bucket_iterator operator--(int) noexcept
+            {
+                const_bucket_iterator temp = *this;
+                --temp;
+                return temp;
+            }
+        };
+
+        static_assert(std::bidirectional_iterator<bucket_iterator>);
+        static_assert(std::sentinel_for<bucket_iterator, bucket_iterator>);
+
+      public:
+        bucket_iterator begin() noexcept
+        {
+            return {block_elem_begin, block_elem_end, block_elem_begin, elem_begin_begin, elem_begin_end,
+                    elem_end_begin,   elem_end_end,   elem_begin_begin, elem_begin_end};
+        }
+
+        bucket_iterator end() noexcept
+        {
+            return {block_elem_begin, block_elem_end, block_elem_end, elem_begin_begin, elem_begin_end,
+                    elem_end_begin,   elem_end_end,   elem_end_begin, elem_end_end};
+        }
+
+        const_bucket_iterator begin() const noexcept
+        {
+            return bucket_iterator{block_elem_begin, block_elem_end, block_elem_begin, elem_begin_begin, elem_begin_end,
+                                   elem_end_begin,   elem_end_end,   elem_begin_begin, elem_begin_end};
+        }
+
+        const_bucket_iterator end() const noexcept
+        {
+            return bucket_iterator{block_elem_begin, block_elem_end, block_elem_end, elem_begin_begin, elem_begin_end,
+                                   elem_end_begin,   elem_end_end,   elem_end_begin, elem_end_end};
+        }
+
+        const_bucket_iterator cbegin() const noexcept
+        {
+            return begin();
+        }
+
+        const_bucket_iterator cend() const noexcept
+        {
+            return end();
+        }
+
+        std::reverse_iterator<const_bucket_iterator> rbegin() noexcept
+        {
+            return std::reverse_iterator{end()};
+        }
+
+        std::reverse_iterator<const_bucket_iterator> rend() noexcept
+        {
+            return std::reverse_iterator{begin()};
+        }
+
+        std::reverse_iterator<const_bucket_iterator> rcbegin() noexcept
+        {
+            return std::reverse_iterator{end()};
+        }
+
+        std::reverse_iterator<const_bucket_iterator> rcend() noexcept
+        {
+            return std::reverse_iterator{begin()};
+        }
+
+        using value_type = std::span<T>;
+        using pointer = value_type *;
+        using reference = value_type &;
+        using const_pointer = value_type const *;
+        using const_reference = value_type const &;
+        using size_type = std::size_t;
+        using difference_type = std::ptrdiff_t;
+        using iterator = basic_bucket_iterator;
+        using const_iterator = const_bucket_iterator;
+        using reverse_iterator = std::reverse_iterator<basic_bucket_iterator>;
+        using const_reverse_iterator = std::reverse_iterator<const_bucket_iterator>;
+    };
+
+    constexpr bucket_type buckets() noexcept
+    {
+        bucket_type temp{};
+        temp.block_elem_begin = block_elem_begin;
+        temp.block_elem_end = block_elem_end;
+        temp.elem_begin_begin = elem_begin_begin;
+        temp.elem_begin_end = elem_begin_end;
+        temp.elem_end_begin = elem_end_begin;
+        temp.elem_end_end = block_elem_end;
+    }
+
     constexpr ~deque()
     {
         destruct();
@@ -514,7 +863,7 @@ ctrl_end   →
     {
         // 空deque不能迭代所以比较相同
         // 非空deque应该在尾block是满的情况下，end永远在*block_elem_end的位置
-        return deque_iterator{block_elem_end, elem_end_end, elem_end_begin, elem_end_end};
+        return deque_iterator{block_elem_end - 1uz, elem_end_end, elem_end_begin, elem_end_end};
     }
 
     constexpr std::reverse_iterator<deque_iterator> rbegin() noexcept
@@ -948,6 +1297,11 @@ ctrl_end   →
         }
     }
 
+    static consteval void is_deque_iterator(deque_iterator const &) noexcept
+    {
+        /* */
+    }
+
   public:
     constexpr deque() noexcept = default;
 
@@ -1240,6 +1594,10 @@ ctrl_end   →
             extent_block(quot + 1uz);
             construct_n(quot + 1uz, quot, rem, begin, end);
         }
+        if constexpr (requires { is_deque_iterator(begin); })
+        {
+            // todo
+        }
         else
         {
             for (; begin != end; ++begin)
@@ -1460,329 +1818,6 @@ ctrl_end   →
         assert(not empty());
         return *(elem_end_end - 1uz);
     }
-    class bucket_type
-    {
-        block *block_elem_begin{};
-        block *block_elem_end{};
-        T *elem_begin_begin{};
-        T *elem_begin_end{};
-        T *elem_end_begin{};
-        T *elem_end_end{};
-
-      public:
-        constexpr bool empty() const noexcept
-        {
-            return block_elem_end - block_elem_begin;
-        }
-
-        constexpr std::size_t size() const noexcept
-        {
-            return block_elem_end - block_elem_begin;
-        }
-
-      private:
-        class basic_bucket_iterator
-        {
-            friend bucket_type;
-
-          protected:
-            block *block_elem_begin{};
-            block *block_elem_end{};
-            block *block_elem_curr{};
-            T *elem_begin_begin{};
-            T *elem_begin_end{};
-            T *elem_end_begin{};
-            T *elem_end_end{};
-            T *elem_curr_begin{};
-            T *elem_curr_end{};
-
-            constexpr basic_bucket_iterator(block *block_elem_begin_, block *block_elem_end_, block *block_elem_curr_,
-                                            T *elem_begin_begin_, T *elem_begin_end_, T *elem_end_begin_,
-                                            T *elem_end_end_, T *elem_curr_begin_, T *elem_curr_end_) noexcept
-                : block_elem_begin(block_elem_begin_), block_elem_end(block_elem_end_),
-                  block_elem_curr(block_elem_curr_), elem_begin_begin(elem_begin_begin_),
-                  elem_begin_end(elem_begin_end_), elem_end_begin(elem_end_begin_), elem_end_end(elem_end_end_),
-                  elem_curr_begin(elem_curr_begin_), elem_curr_end(elem_curr_end_)
-            {
-            }
-
-          public:
-            constexpr basic_bucket_iterator() noexcept = default;
-
-            constexpr basic_bucket_iterator(basic_bucket_iterator const &other) noexcept = default;
-
-            constexpr basic_bucket_iterator &operator=(basic_bucket_iterator const &other) noexcept = default;
-
-            constexpr ~basic_bucket_iterator() = default;
-
-            constexpr bool operator==(basic_bucket_iterator const &other) const noexcept
-            {
-                return block_elem_begin == other.block_elem_begin;
-            }
-
-            constexpr basic_bucket_iterator &operator++() noexcept
-            {
-                ++block_elem_curr;
-                if (block_elem_curr + 1uz == block_elem_end)
-                {
-                    elem_curr_begin = elem_end_begin;
-                    elem_curr_end = elem_end_end;
-                }
-                else
-                {
-                    elem_curr_begin = *block_elem_begin;
-                    elem_curr_end = elem_begin_begin + block_elements<T>();
-                }
-                return *this;
-            }
-
-            constexpr basic_bucket_iterator operator++(int) noexcept
-            {
-                basic_bucket_iterator temp = *this;
-                ++temp;
-                return temp;
-            }
-
-            constexpr basic_bucket_iterator &operator--() noexcept
-            {
-                --block_elem_curr;
-                if (block_elem_curr == block_elem_begin)
-                {
-                    elem_curr_begin = elem_begin_begin;
-                    elem_curr_end = elem_begin_end;
-                }
-                else
-                {
-                    elem_begin_begin = *(block_elem_begin - 1uz);
-                    elem_begin_end = elem_begin_begin + block_elements<T>();
-                }
-                return *this;
-            }
-
-            constexpr basic_bucket_iterator operator--(int) noexcept
-            {
-                basic_bucket_iterator temp = *this;
-                --temp;
-                return temp;
-            }
-
-            constexpr bool operator==(basic_bucket_iterator const &other)
-            {
-                return block_elem_curr == other.block_elem_curr;
-            }
-        };
-
-        class bucket_iterator;
-        class const_bucket_iterator;
-        class bucket_iterator : public basic_bucket_iterator
-        {
-            friend deque;
-            friend const_bucket_iterator;
-
-            constexpr bucket_iterator(block *block_elem_begin_, block *block_elem_end_, block *block_elem_curr_,
-                                      T *elem_begin_begin_, T *elem_begin_end_, T *elem_end_begin_, T *elem_end_end_,
-                                      T *elem_curr_begin_, T *elem_curr_end_) noexcept
-                : basic_bucket_iterator(block_elem_begin_, block_elem_end_, block_elem_curr_, elem_begin_begin_,
-                                        elem_begin_end_, elem_end_begin_, elem_end_end_, elem_curr_begin_,
-                                        elem_curr_end_)
-            {
-            }
-
-          public:
-            using difference_type = std::ptrdiff_t;
-            using value_type = std::span<T>;
-            using pointer = value_type *;
-            using reference = value_type &;
-            using iterator_category = std::bidirectional_iterator_tag;
-
-            constexpr bucket_iterator() noexcept = default;
-
-            constexpr bucket_iterator(bucket_iterator const &other) noexcept = default;
-
-            constexpr bucket_iterator &operator=(bucket_iterator const &other) noexcept = default;
-
-            constexpr ~bucket_iterator() = default;
-
-            constexpr value_type operator*() noexcept
-            {
-                return {this->elem_curr_begin, this->elem_curr_end};
-            }
-
-            constexpr value_type operator*() const noexcept
-            {
-                return {this->elem_curr_begin, this->elem_curr_end};
-            }
-
-            constexpr bucket_iterator &operator++() noexcept
-            {
-                ++static_cast<basic_bucket_iterator &>(*this);
-                return *this;
-            }
-
-            constexpr bucket_iterator &operator--() noexcept
-            {
-                --static_cast<basic_bucket_iterator &>(*this);
-                return *this;
-            }
-
-            constexpr bucket_iterator operator++(int) noexcept
-            {
-                bucket_iterator temp = *this;
-                ++temp;
-                return temp;
-            }
-
-            constexpr bucket_iterator operator--(int) noexcept
-            {
-                bucket_iterator temp = *this;
-                --temp;
-                return temp;
-            }
-        };
-
-        class const_bucket_iterator : public basic_bucket_iterator
-        {
-            friend deque;
-            friend bucket_iterator;
-
-            constexpr const_bucket_iterator(block *block_elem_begin_, block *block_elem_end_, block *block_elem_curr_,
-                                            T *elem_begin_begin_, T *elem_begin_end_, T *elem_end_begin_,
-                                            T *elem_end_end_, T *elem_curr_begin_, T *elem_curr_end_) noexcept
-                : basic_bucket_iterator(block_elem_begin_, block_elem_end_, block_elem_curr_, elem_begin_begin_,
-                                        elem_begin_end_, elem_end_begin_, elem_end_end_, elem_curr_begin_,
-                                        elem_curr_end_)
-            {
-            }
-
-          public:
-            using difference_type = std::ptrdiff_t;
-            using value_type = std::span<const T>;
-            using pointer = value_type *;
-            using reference = value_type &;
-            using iterator_category = std::bidirectional_iterator_tag;
-
-            constexpr const_bucket_iterator() noexcept = default;
-
-            constexpr const_bucket_iterator(const_bucket_iterator const &other) noexcept = default;
-
-            constexpr const_bucket_iterator &operator=(const_bucket_iterator const &other) noexcept = default;
-
-            constexpr ~const_bucket_iterator() = default;
-
-            constexpr const_bucket_iterator(bucket_iterator const &other) noexcept
-                : const_bucket_iterator(other.block_elem_begin, other.block_elem_end, other.block_elem_curr,
-                                        other.elem_begin_begin, other.elem_begin_end, other.elem_end_begin,
-                                        other.elem_end_end, other.elem_curr_begin, other.elem_curr_end)
-            {
-            }
-
-            constexpr value_type operator*() noexcept
-            {
-                return {this->elem_curr_begin, this->elem_curr_end};
-            }
-
-            constexpr value_type operator*() const noexcept
-            {
-                return {this->elem_curr_begin, this->elem_curr_end};
-            }
-
-            constexpr const_bucket_iterator &operator++() noexcept
-            {
-                ++static_cast<basic_bucket_iterator &>(*this);
-                return *this;
-            }
-
-            constexpr const_bucket_iterator &operator--() noexcept
-            {
-                --static_cast<basic_bucket_iterator &>(*this);
-                return *this;
-            }
-
-            constexpr const_bucket_iterator operator++(int) noexcept
-            {
-                const_bucket_iterator temp = *this;
-                ++temp;
-                return temp;
-            }
-
-            constexpr const_bucket_iterator operator--(int) noexcept
-            {
-                const_bucket_iterator temp = *this;
-                --temp;
-                return temp;
-            }
-        };
-
-        static_assert(std::bidirectional_iterator<bucket_iterator>);
-        static_assert(std::sentinel_for<bucket_iterator, bucket_iterator>);
-
-      public:
-        bucket_iterator begin() noexcept
-        {
-            return {block_elem_begin, block_elem_end, block_elem_begin, elem_begin_begin, elem_begin_end,
-                    elem_end_begin,   elem_end_end,   elem_begin_begin, elem_begin_end};
-        }
-
-        bucket_iterator end() noexcept
-        {
-            return {block_elem_begin, block_elem_end, block_elem_end, elem_begin_begin, elem_begin_end,
-                    elem_end_begin,   elem_end_end,   elem_end_begin, elem_end_end};
-        }
-
-        const_bucket_iterator begin() const noexcept
-        {
-            return bucket_iterator{block_elem_begin, block_elem_end, block_elem_begin, elem_begin_begin, elem_begin_end,
-                                   elem_end_begin,   elem_end_end,   elem_begin_begin, elem_begin_end};
-        }
-
-        const_bucket_iterator end() const noexcept
-        {
-            return bucket_iterator{block_elem_begin, block_elem_end, block_elem_end, elem_begin_begin, elem_begin_end,
-                                   elem_end_begin,   elem_end_end,   elem_end_begin, elem_end_end};
-        }
-
-        const_bucket_iterator cbegin() const noexcept
-        {
-            return begin();
-        }
-
-        const_bucket_iterator cend() const noexcept
-        {
-            return end();
-        }
-
-        std::reverse_iterator<const_bucket_iterator> rbegin() noexcept
-        {
-            return std::reverse_iterator{end()};
-        }
-
-        std::reverse_iterator<const_bucket_iterator> rend() noexcept
-        {
-            return std::reverse_iterator{begin()};
-        }
-
-        std::reverse_iterator<const_bucket_iterator> rcbegin() noexcept
-        {
-            return std::reverse_iterator{end()};
-        }
-
-        std::reverse_iterator<const_bucket_iterator> rcend() noexcept
-        {
-            return std::reverse_iterator{begin()};
-        }
-
-        using value_type = std::span<T>;
-        using pointer = value_type *;
-        using reference = value_type &;
-        using const_pointer = value_type const *;
-        using const_reference = value_type const &;
-        using size_type = std::size_t;
-        using difference_type = std::ptrdiff_t;
-        using iterator = basic_bucket_iterator;
-        using const_iterator = const_bucket_iterator;
-        using reverse_iterator = std::reverse_iterator<basic_bucket_iterator>;
-        using const_reverse_iterator = std::reverse_iterator<const_bucket_iterator>;
-    };
 
     using value_type = T;
     using pointer = value_type *;
