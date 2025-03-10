@@ -2,6 +2,7 @@
 #include <cassert>
 #include <compare>
 #include <concepts>
+#include <cstddef>
 #include <deque>
 #include <iterator>
 #include <limits>
@@ -254,6 +255,26 @@ ctrl_end   →
             {
             }
 
+            constexpr void plus_and_assign(std::ptrdiff_t pos) noexcept
+            {
+                block_elem_curr += pos;
+                if (block_elem_curr + 1uz == block_elem_end)
+                {
+                    elem_curr_begin = elem_end_begin;
+                    elem_curr_end = elem_end_end;
+                }
+                if (block_elem_curr == block_elem_begin)
+                {
+                    elem_curr_begin = elem_begin_begin;
+                    elem_curr_end = elem_begin_end;
+                }
+                else
+                {
+                    elem_curr_begin = *block_elem_begin;
+                    elem_curr_end = elem_begin_begin + block_elements<T>();
+                }
+            }
+
           public:
             constexpr basic_bucket_iterator() noexcept = default;
 
@@ -262,11 +283,6 @@ ctrl_end   →
             constexpr basic_bucket_iterator &operator=(basic_bucket_iterator const &other) noexcept = default;
 
             constexpr ~basic_bucket_iterator() = default;
-
-            constexpr bool operator==(basic_bucket_iterator const &other) const noexcept
-            {
-                return block_elem_begin == other.block_elem_begin;
-            }
 
             constexpr basic_bucket_iterator &operator++() noexcept
             {
@@ -314,14 +330,25 @@ ctrl_end   →
                 return temp;
             }
 
-            constexpr bool operator==(basic_bucket_iterator const &other)
+            constexpr bool operator==(basic_bucket_iterator const &other) const noexcept
             {
                 return block_elem_curr == other.block_elem_curr;
+            }
+
+            constexpr std::strong_ordering operator<=>(basic_bucket_iterator const &other) const noexcept
+            {
+                return block_elem_curr <=> other.block_elem_curr;
+            }
+
+            constexpr std::ptrdiff_t operator-(basic_bucket_iterator const &other) const noexcept
+            {
+                return block_elem_curr - other.block_elem_curr;
             }
         };
 
         class bucket_iterator;
         class const_bucket_iterator;
+
         class bucket_iterator : public basic_bucket_iterator
         {
             friend deque;
@@ -341,7 +368,7 @@ ctrl_end   →
             using value_type = std::span<T>;
             using pointer = value_type *;
             using reference = value_type &;
-            using iterator_category = std::bidirectional_iterator_tag;
+            using iterator_category = std::random_access_iterator_tag;
 
             constexpr bucket_iterator() noexcept = default;
 
@@ -386,7 +413,58 @@ ctrl_end   →
                 --temp;
                 return temp;
             }
+
+            constexpr std::span<T> operator[](std::ptrdiff_t pos)
+            {
+                auto temp = *this;
+                temp += pos;
+                return *temp;
+            }
+
+            constexpr std::span<T> operator[](std::ptrdiff_t pos) const noexcept
+            {
+                auto temp = *this;
+                temp += pos;
+                return *temp;
+            }
+
+            constexpr bucket_iterator &operator+=(std::ptrdiff_t pos) noexcept
+            {
+                this->plus_and_assign(pos);
+                return *this;
+            }
+
+            constexpr bucket_iterator &operator-=(std::ptrdiff_t pos) noexcept
+            {
+                this->plus_and_assign(-pos);
+                return *this;
+            }
+
+            friend constexpr bucket_iterator operator+(bucket_iterator const &it, std::ptrdiff_t pos) noexcept
+            {
+                auto temp = it;
+                temp.plus_and_assign(pos);
+                return temp;
+            }
+
+            friend constexpr bucket_iterator operator+(std::ptrdiff_t pos, bucket_iterator const &it) noexcept
+            {
+                return it + pos;
+            }
+
+            friend constexpr bucket_iterator operator-(std::ptrdiff_t pos, bucket_iterator const &it) noexcept
+            {
+                return it + (-pos);
+            }
+
+            friend constexpr bucket_iterator operator-(bucket_iterator const &it, std::ptrdiff_t pos) noexcept
+            {
+                return it + (-pos);
+            }
         };
+
+        static_assert(std::random_access_iterator<bucket_iterator>);
+        static_assert(std::sentinel_for<bucket_iterator, bucket_iterator>);
 
         class const_bucket_iterator : public basic_bucket_iterator
         {
@@ -407,7 +485,7 @@ ctrl_end   →
             using value_type = std::span<const T>;
             using pointer = value_type *;
             using reference = value_type &;
-            using iterator_category = std::bidirectional_iterator_tag;
+            using iterator_category = std::random_access_iterator_tag;
 
             constexpr const_bucket_iterator() noexcept = default;
 
@@ -459,10 +537,55 @@ ctrl_end   →
                 --temp;
                 return temp;
             }
-        };
 
-        static_assert(std::bidirectional_iterator<bucket_iterator>);
-        static_assert(std::sentinel_for<bucket_iterator, bucket_iterator>);
+            constexpr std::span<const T> operator[](std::ptrdiff_t pos)
+            {
+                auto temp = *this;
+                temp += pos;
+                return *temp;
+            }
+
+            constexpr std::span<const T> operator[](std::ptrdiff_t pos) const noexcept
+            {
+                auto temp = *this;
+                temp += pos;
+                return *temp;
+            }
+
+            constexpr const_bucket_iterator &operator+=(std::ptrdiff_t pos) noexcept
+            {
+                this->plus_and_assign(pos);
+                return *this;
+            }
+
+            constexpr const_bucket_iterator &operator-=(std::ptrdiff_t pos) noexcept
+            {
+                this->plus_and_assign(-pos);
+                return *this;
+            }
+
+            friend constexpr const_bucket_iterator operator+(const_bucket_iterator const &it, std::ptrdiff_t pos) noexcept
+            {
+                auto temp = it;
+                temp.plus_and_assign(pos);
+                return temp;
+            }
+
+            friend constexpr const_bucket_iterator operator+(std::ptrdiff_t pos,const_bucket_iterator const &it) noexcept
+            {
+                return it + pos;
+            }
+
+            friend constexpr const_bucket_iterator operator-(std::ptrdiff_t pos, const_bucket_iterator const &it) noexcept
+            {
+                return it + (-pos);
+            }
+
+            friend constexpr const_bucket_iterator operator-(const_bucket_iterator const &it, std::ptrdiff_t pos) noexcept
+            {
+                return it + (-pos);
+            }
+        };
 
       public:
         bucket_iterator begin() noexcept
@@ -1523,7 +1646,8 @@ ctrl_end   →
     }
 
     template <typename R>
-    constexpr deque(std::from_range_t, R &&rg) requires std::ranges::sized_range<R>
+    constexpr deque(std::from_range_t, R &&rg)
+        requires std::ranges::sized_range<R>
     {
         auto const count = rg.size();
         auto const quot = count / block_elements<T>();
@@ -1533,15 +1657,14 @@ ctrl_end   →
         construct_n(quot + 1uz, quot, rem, std::ranges::begin(rg), std::ranges::end(rg));
         guard.release();
     }
-    
-    constexpr deque(std::from_range_t, deque const& rg) : deque(rg)
+
+    constexpr deque(std::from_range_t, deque const &rg) : deque(rg)
     {
     }
 
-    constexpr deque(std::from_range_t, deque && rg) : deque(std::move(rg))
+    constexpr deque(std::from_range_t, deque &&rg) : deque(std::move(rg))
     {
     }
-
 
     constexpr deque(std::initializer_list<T> init)
     {
