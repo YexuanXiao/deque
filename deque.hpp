@@ -143,7 +143,7 @@ class basic_bucket_iterator
 
     constexpr basic_bucket_iterator operator++(int) noexcept
     {
-        basic_bucket_iterator temp = *this;
+        auto temp = *this;
         ++temp;
         return temp;
     }
@@ -166,7 +166,7 @@ class basic_bucket_iterator
 
     constexpr basic_bucket_iterator operator--(int) noexcept
     {
-        basic_bucket_iterator temp = *this;
+        auto temp = *this;
         --temp;
         return temp;
     }
@@ -306,20 +306,36 @@ class basic_bucket_type
 
     iterator end() noexcept
     {
-        return {block_elem_begin, block_elem_end, block_elem_end, elem_begin_begin, elem_begin_end,
-                elem_end_begin,   elem_end_end,   elem_end_begin, elem_end_end};
+        if (block_elem_begin == block_elem_end)
+        {
+            return {block_elem_begin, block_elem_end, block_elem_end, elem_begin_begin, elem_begin_end,
+                    elem_end_begin,   elem_end_end,   elem_end_begin, elem_end_end};
+        }
+        else
+        {
+            return {block_elem_begin, block_elem_end, block_elem_end - 1uz, elem_begin_begin, elem_begin_end,
+                    elem_end_begin,   elem_end_end,   elem_end_begin,       elem_end_end};
+        }
     }
 
     const_iterator begin() const noexcept
     {
-        return iterator{block_elem_begin, block_elem_end, block_elem_begin, elem_begin_begin, elem_begin_end,
-                        elem_end_begin,   elem_end_end,   elem_begin_begin, elem_begin_end};
+        return {block_elem_begin, block_elem_end, block_elem_begin, elem_begin_begin, elem_begin_end,
+                elem_end_begin,   elem_end_end,   elem_begin_begin, elem_begin_end};
     }
 
     const_iterator end() const noexcept
     {
-        return iterator{block_elem_begin, block_elem_end, block_elem_end, elem_begin_begin, elem_begin_end,
-                        elem_end_begin,   elem_end_end,   elem_end_begin, elem_end_end};
+        if (block_elem_begin == block_elem_end)
+        {
+            return {block_elem_begin, block_elem_end, block_elem_end, elem_begin_begin, elem_begin_end,
+                    elem_end_begin,   elem_end_end,   elem_end_begin, elem_end_end};
+        }
+        else
+        {
+            return {block_elem_begin, block_elem_end, block_elem_end - 1uz, elem_begin_begin, elem_begin_end,
+                    elem_end_begin,   elem_end_end,   elem_end_begin,       elem_end_end};
+        }
     }
 
     const_iterator cbegin() const noexcept
@@ -332,33 +348,43 @@ class basic_bucket_type
         return end();
     }
 
-    std::reverse_iterator<const_iterator> rbegin() noexcept
+    constexpr auto rbegin() noexcept
     {
-        return std::reverse_iterator{end()};
+        return reverse_iterator{end()};
     }
 
-    std::reverse_iterator<const_iterator> rend() noexcept
+    constexpr auto rend() noexcept
     {
-        return std::reverse_iterator{begin()};
+        return reverse_iterator{begin()};
     }
 
-    std::reverse_iterator<const_iterator> rcbegin() noexcept
+    constexpr auto rbegin() const noexcept
     {
-        return std::reverse_iterator{end()};
+        return const_reverse_iterator{end()};
     }
 
-    std::reverse_iterator<const_iterator> rcend() noexcept
+    constexpr auto rend() const noexcept
     {
-        return std::reverse_iterator{begin()};
+        return const_reverse_iterator{begin()};
+    }
+
+    constexpr auto rcbegin() const noexcept
+    {
+        return const_reverse_iterator{end()};
+    }
+
+    constexpr auto rcend() const noexcept
+    {
+        return const_reverse_iterator{begin()};
     }
 };
 
 template <typename T>
 class basic_deque_iterator
 {
-    friend deque<T>;
+    friend deque<std::remove_const_t<T>>;
 
-    using block = T *;
+    using block = std::add_pointer_t<std::remove_const_t<T>>;
 
     block *block_elem_begin{};
     T *elem_begin{};
@@ -562,7 +588,7 @@ class basic_deque_iterator
 
     friend constexpr basic_deque_iterator operator+(basic_deque_iterator const &it, std::ptrdiff_t pos) noexcept
     {
-        basic_deque_iterator temp = it;
+        auto temp = it;
         temp.plus_and_assign(pos);
         return temp;
     }
@@ -743,11 +769,9 @@ ctrl_end   →
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
     using iterator = detail::basic_deque_iterator<T>;
-    using reverse_iterator = std::reverse_iterator<detail::basic_deque_iterator<const T>>;
-#if defined(__cpp_lib_ranges_as_const) && __cpp_lib_ranges_as_const >= 202311L
-    using const_iterator = std::basic_const_iterator<iterator>;
-    using const_reverse_iterator = std::reverse_iterator<std::basic_const_iterator<deque_iterator>>;
-#endif
+    using reverse_iterator = std::reverse_iterator<detail::basic_deque_iterator<T>>;
+    using const_iterator = detail::basic_deque_iterator<const T>;
+    using const_reverse_iterator = std::reverse_iterator<detail::basic_deque_iterator<const T>>;
     using bucket_type = detail::basic_bucket_type<T>;
     using const_bucket_type = detail::basic_bucket_type<const T>;
 
@@ -858,58 +882,62 @@ ctrl_end   →
         }
     }
 
-    constexpr std::reverse_iterator<iterator> rbegin() noexcept
+    constexpr const_iterator begin() const noexcept
     {
-        return std::reverse_iterator{end()};
+        return const_iterator{block_elem_begin, elem_begin_begin, elem_begin_begin, elem_begin_end};
     }
 
-    constexpr std::reverse_iterator<iterator> rend() noexcept
+    constexpr const_iterator end() const noexcept
     {
-        return std::reverse_iterator{begin()};
+        if (block_elem_begin == block_elem_end)
+        {
+            return const_iterator{block_elem_end, elem_end_end, elem_end_begin, elem_end_end};
+        }
+        else
+        {
+            return const_iterator{block_elem_end - 1uz, elem_end_end, elem_end_begin, elem_end_end};
+        }
     }
 
-#if defined(__cpp_lib_ranges_as_const) && __cpp_lib_ranges_as_const >= 202311L
-
-    constexpr std::basic_const_iterator<iterator> begin() const noexcept
-    {
-        return iterator{block_elem_begin, elem_begin_begin, elem_begin_begin, elem_begin_end};
-    }
-
-    constexpr std::basic_const_iterator<iterator> end() const noexcept
-    {
-        return iterator{block_elem_end, elem_end_end, elem_end_begin, elem_end_end};
-    }
-
-    constexpr std::basic_const_iterator<iterator> cbegin() const noexcept
+    constexpr const_iterator cbegin() const noexcept
     {
         return begin();
     }
 
-    constexpr std::basic_const_iterator<iterator> cend() const noexcept
+    constexpr const_iterator cend() const noexcept
     {
         return end();
     }
 
-    constexpr std::reverse_iterator<std::basic_const_iterator<iterator>> rbegin() const noexcept
+    constexpr auto rbegin() noexcept
     {
-        return std::reverse_iterator{end()};
+        return reverse_iterator{end()};
     }
 
-    constexpr std::reverse_iterator<std::basic_const_iterator<iterator>> rend() const noexcept
+    constexpr auto rend() noexcept
     {
-        return std::reverse_iterator{begin()};
+        return reverse_iterator{begin()};
     }
 
-    constexpr std::reverse_iterator<std::basic_const_iterator<iterator>> rcbegin() const noexcept
+    constexpr auto rbegin() const noexcept
     {
-        return std::reverse_iterator{end()};
+        return const_reverse_iterator{end()};
     }
 
-    constexpr std::reverse_iterator<std::basic_const_iterator<iterator>> rcend() const noexcept
+    constexpr auto rend() const noexcept
     {
-        return std::reverse_iterator{begin()};
+        return const_reverse_iterator{begin()};
     }
-#endif
+
+    constexpr auto rcbegin() const noexcept
+    {
+        return const_reverse_iterator{end()};
+    }
+
+    constexpr auto rcend() const noexcept
+    {
+        return const_reverse_iterator{begin()};
+    }
 
   private:
     // case 1           case 2            case 3           case 4
