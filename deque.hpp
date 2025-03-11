@@ -410,7 +410,7 @@ class basic_deque_iterator
             {
                 auto const new_pos = pos - back_size;
                 auto const quot = new_pos / detail::block_elements<T>();
-                auto const rem = new_pos / detail::block_elements<T>();
+                auto const rem = new_pos % detail::block_elements<T>();
                 auto target_block = block_elem_begin + quot + 1uz;
                 return *(*target_block + rem);
             }
@@ -426,7 +426,7 @@ class basic_deque_iterator
             {
                 auto const new_pos = pos + front_size;
                 auto const quot = new_pos / detail::block_elements<T>();
-                auto const rem = new_pos / detail::block_elements<T>();
+                auto const rem = new_pos % detail::block_elements<T>();
                 auto target_block = block_elem_begin + quot - 1uz;
                 return *((*target_block) + detail::block_elements<T>() + rem);
             }
@@ -447,7 +447,7 @@ class basic_deque_iterator
             {
                 auto const new_pos = pos - back_size;
                 auto const quot = new_pos / detail::block_elements<T>();
-                auto const rem = new_pos / detail::block_elements<T>();
+                auto const rem = new_pos % detail::block_elements<T>();
                 auto target_block = block_elem_begin + quot + 1uz;
                 block_elem_begin = target_block;
                 elem_begin = *target_block;
@@ -1674,7 +1674,7 @@ ctrl_end   →
     constexpr T &at_impl(std::size_t pos) const noexcept
     {
         auto const head_size = elem_begin_end - elem_begin_begin;
-        if (head_size >= pos)
+        if (head_size > pos)
         {
             return *(elem_begin_begin + pos);
         }
@@ -1682,10 +1682,10 @@ ctrl_end   →
         {
             auto const new_pos = pos - head_size;
             auto const quot = new_pos / detail::block_elements<T>();
-            auto const rem = new_pos / detail::block_elements<T>();
+            auto const rem = new_pos % detail::block_elements<T>();
             auto target_block = block_elem_begin + quot + 1uz;
             assert(target_block < block_elem_end);
-            assert((target_block + 1uz == block_elem_end) ? (rem <= block_elem_end - block_elem_begin) : true);
+            assert((target_block + 1uz == block_elem_end) ? (rem < (elem_end_end - elem_end_begin)) : true);
             return *(*target_block + rem);
         }
     }
