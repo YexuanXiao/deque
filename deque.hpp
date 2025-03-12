@@ -1277,23 +1277,15 @@ ctrl_end   →
         if (block_size)
         {
             // 此时最为特殊，因为只有一个有效快时，可以从头部生长也可以从尾部生长
-            // 析构永远按头部的begin和end进行，因此复制时elem_begin的end迭代器不动，成功后再动
+            // 这里选择按头部生长简化代码
             auto const elem_size = other.elem_begin_end - other.elem_begin_begin;
             auto const first = *block_elem_end;
-            std::ranges::uninitialized_copy(other.elem_begin_begin, other.elem_begin_end, first,
+            auto const last = first + detail::block_elements<T>();
+            auto const begin = last - elem_size;
+            std::ranges::uninitialized_copy(other.elem_begin_begin, other.elem_begin_end, begin,
                                             std::unreachable_sentinel);
-            if (block_size == 1uz)
-            {
-                elem_end(first, first + elem_size, first + detail::block_elements<T>());
-                elem_begin(first, first + elem_size, first);
-            }
-            else
-            {
-                auto const last = first + detail::block_elements<T>();
-                auto const end = last - elem_size;
-                elem_begin(first, end, first);
-                elem_end(first, end, last);
-            }
+            elem_begin(begin, last, first);
+            elem_end(begin, last, last);
             ++block_elem_end;
         }
         if (block_size > 2z)
