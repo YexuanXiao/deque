@@ -1,3 +1,5 @@
+#pragma once
+
 #include <algorithm>
 #include <cassert>
 #include <compare>
@@ -27,13 +29,15 @@ template <typename T>
 consteval std::size_t block_elements() noexcept
 {
     auto constexpr pv = sizeof(T);
+    // 测试时使用固定块大小可用于测试每个块有不同元素数量时的情况
+#if defined(BIZWEN_DEQUE_BASE_BLOCK_SIZE)
+    return BIZWEN_DEQUE_BASE_BLOCK_SIZE / pv;
+#else
     // 块的基本大小
     auto constexpr base = 4096uz;
     // 基本大小下，元素最大大小，至少保证16个
     auto constexpr sieve = base / 16uz;
-
     auto result = 0uz;
-
     if (pv < sieve)
     {
         // 在基本大小的1-8倍间找到利用率最高的
@@ -42,7 +46,7 @@ consteval std::size_t block_elements() noexcept
         for (auto i = 0uz; i != 8uz; ++i)
         {
             block_sz = base * (i + 1uz);
-            auto rmd_cur = (block_sz * i) % pv;
+            auto constexpr rmd_cur = (block_sz * i) % pv;
             // 越小利用率越高
             if (rmd_cur < rmd_pre)
             {
@@ -56,8 +60,8 @@ consteval std::size_t block_elements() noexcept
         // 寻找y使得y大于16*元素大小，且y为4096整数倍
         result = (pv * 16uz + base - 1uz) / base * base;
     }
-
     return result / pv;
+#endif
 }
 
 template <typename T>
@@ -411,7 +415,7 @@ class basic_deque_iterator
                 auto const new_pos = pos - back_size;
                 auto const quot = new_pos / detail::block_elements<T>();
                 auto const rem = new_pos % detail::block_elements<T>();
-                auto target_block = block_elem_begin + quot + 1uz;
+                auto const target_block = block_elem_begin + quot + 1uz;
                 return *(*target_block + rem);
             }
         }
@@ -427,7 +431,7 @@ class basic_deque_iterator
                 auto const new_pos = pos + front_size;
                 auto const quot = new_pos / detail::block_elements<T>();
                 auto const rem = new_pos % detail::block_elements<T>();
-                auto target_block = block_elem_begin + quot - 1uz;
+                auto const target_block = block_elem_begin + quot - 1uz;
                 return *((*target_block) + detail::block_elements<T>() + rem);
             }
         }
@@ -448,7 +452,7 @@ class basic_deque_iterator
                 auto const new_pos = pos - back_size;
                 auto const quot = new_pos / detail::block_elements<T>();
                 auto const rem = new_pos % detail::block_elements<T>();
-                auto target_block = block_elem_begin + quot + 1uz;
+                auto const target_block = block_elem_begin + quot + 1uz;
                 block_elem_begin = target_block;
                 elem_begin = *target_block;
                 elem_curr = elem_begin + rem;
@@ -467,8 +471,8 @@ class basic_deque_iterator
             {
                 auto const new_pos = pos + front_size;
                 auto const quot = new_pos / detail::block_elements<T>();
-                auto const rem = new_pos / detail::block_elements<T>();
-                auto target_block = block_elem_begin + quot - 1uz;
+                auto const rem = new_pos % detail::block_elements<T>();
+                auto const target_block = block_elem_begin + quot - 1uz;
                 block_elem_begin = target_block;
                 elem_begin = *target_block;
                 elem_end = elem_begin + detail::block_elements<T>();
@@ -711,7 +715,7 @@ ctrl_end   →
         auto const elem_block_size = block_elem_end - block_elem_begin;
         if (elem_block_size)
         {
-            for (auto &i : std::ranges::subrange{elem_begin_begin, elem_begin_end})
+            for (auto const &i : std::ranges::subrange{elem_begin_begin, elem_begin_end})
             {
                 std::destroy_at(&i);
             }
@@ -719,9 +723,9 @@ ctrl_end   →
         // 清理中间的块
         if (elem_block_size > 2z)
         {
-            for (auto block_begin : std::ranges::subrange{block_elem_begin + 1uz, block_elem_end - 1uz})
+            for (auto const block_begin : std::ranges::subrange{block_elem_begin + 1uz, block_elem_end - 1uz})
             {
-                for (auto &i : std::ranges::subrange{block_begin, block_begin + detail::block_elements<T>()})
+                for (auto const &i : std::ranges::subrange{block_begin, block_begin + detail::block_elements<T>()})
                 {
                     std::destroy_at(&i);
                 }
@@ -729,7 +733,7 @@ ctrl_end   →
         }
         if (elem_block_size > 1z)
         {
-            for (auto &i : std::ranges::subrange{elem_end_begin, elem_end_end})
+            for (auto const &i : std::ranges::subrange{elem_end_begin, elem_end_end})
             {
                 std::destroy_at(&i);
             }
@@ -740,7 +744,7 @@ ctrl_end   →
     {
         destroy_elems();
         // 清理块数组
-        for (auto i : std::ranges::subrange{block_alloc_begin, block_alloc_end})
+        for (auto const i : std::ranges::subrange{block_alloc_begin, block_alloc_end})
         {
             dealloc_block(i);
         }
@@ -1272,15 +1276,15 @@ ctrl_end   →
             auto const elem_size = other.elem_begin_end - other.elem_begin_end;
             if (block_size == 1uz)
             {
-                auto begin = *block_elem_end;
+                auto const begin = *block_elem_end;
                 elem_end(begin, begin + elem_size, begin + detail::block_elements<T>());
                 elem_begin(begin, begin, begin);
             }
             else
             {
-                auto first = *block_elem_end;
-                auto last = elem_begin_first + detail::block_elements<T>();
-                auto end = last - elem_size;
+                auto const first = *block_elem_end;
+                auto const last = elem_begin_first + detail::block_elements<T>();
+                auto const end = last - elem_size;
                 elem_begin(first, first, first);
                 elem_end(first, end, last);
             }
@@ -1291,7 +1295,7 @@ ctrl_end   →
         }
         if (block_size > 2z)
         {
-            for (auto block_begin : std::ranges::subrange{other.block_elem_end - 1uz, other.block_elem_begin + 1uz})
+            for (auto const block_begin : std::ranges::subrange{other.block_elem_end - 1uz, other.block_elem_begin + 1uz})
             {
                 auto const begin = *block_elem_end;
                 elem_end_begin = begin;
@@ -1369,7 +1373,7 @@ ctrl_end   →
                 auto &src_begin = t...[0uz];
                 auto &src_end = t...[1uz];
 #else
-                auto x = std::tuple<Ts &...>(t...);
+                auto const x = std::tuple<Ts &...>(t...);
                 auto &src_begin = std::get<0uz>(x);
                 auto &src_end = std::get<1uz>(x);
 #endif
@@ -1408,7 +1412,7 @@ ctrl_end   →
                     auto &src_begin = t...[0uz];
                     auto &src_end = t...[1uz];
 #else
-                    auto x = std::tuple<Ts &...>(t...);
+                    auto const x = std::tuple<Ts &...>(t...);
                     auto &src_begin = std::get<0uz>(x);
                     auto &src_end = std::get<1uz>(x);
 #endif
@@ -1445,7 +1449,7 @@ ctrl_end   →
                 auto &src_begin = t...[0uz];
                 auto &src_end = t...[1uz];
 #else
-                auto x = std::tuple<Ts &...>(t...);
+                auto const x = std::tuple<Ts &...>(t...);
                 auto &src_begin = std::get<0uz>(x);
                 auto &src_end = std::get<1uz>(x);
 #endif
@@ -1714,12 +1718,12 @@ ctrl_end   →
     // 不会失败且不移动元素
     constexpr void shrink_to_fit() noexcept
     {
-        for (auto i : std::ranges::subrange{block_alloc_begin, block_elem_begin})
+        for (auto const i : std::ranges::subrange{block_alloc_begin, block_elem_begin})
         {
             dealloc_block(i);
         }
         block_alloc_begin = block_elem_begin;
-        for (auto i : std::ranges::subrange{block_elem_end, block_alloc_end})
+        for (auto const i : std::ranges::subrange{block_elem_end, block_alloc_end})
         {
             dealloc_block(i);
         }
