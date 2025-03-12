@@ -1278,7 +1278,7 @@ ctrl_end   →
         {
             // 此时最为特殊，因为只有一个有效快时，可以从头部生长也可以从尾部生长
             // 析构永远按头部的begin和end进行，因此复制时elem_begin的end迭代器不动，成功后再动
-            auto const elem_size = other.elem_begin_end - other.elem_begin_end;
+            auto const elem_size = other.elem_begin_end - other.elem_begin_begin;
             auto const first = *block_elem_end;
             std::ranges::uninitialized_copy(other.elem_begin_begin, other.elem_begin_end, first,
                                             std::unreachable_sentinel);
@@ -1289,7 +1289,7 @@ ctrl_end   →
             }
             else
             {
-                auto const last = elem_begin_first + detail::block_elements<T>();
+                auto const last = first + detail::block_elements<T>();
                 auto const end = last - elem_size;
                 elem_begin(first, end, first);
                 elem_end(first, end, last);
@@ -1299,7 +1299,7 @@ ctrl_end   →
         if (block_size > 2z)
         {
             for (auto const block_begin :
-                 std::ranges::subrange{other.block_elem_end - 1uz, other.block_elem_begin + 1uz})
+                 std::ranges::subrange{other.block_elem_begin + 1uz, other.block_elem_end - 1uz})
             {
                 auto const begin = *block_elem_end;
                 auto const src_begin = block_begin;
@@ -1315,8 +1315,7 @@ ctrl_end   →
         if (block_size > 1z)
         {
             auto const begin = *block_elem_end;
-            std::ranges::uninitialized_copy(other.elem_end_begin, other.elem_end_end, begin,
-                                            std::unreachable_sentinel);
+            std::ranges::uninitialized_copy(other.elem_end_begin, other.elem_end_end, begin, std::unreachable_sentinel);
             elem_end(begin, begin + (other.elem_end_end - other.elem_end_begin), begin + detail::block_elements<T>());
             ++block_elem_end;
         }
@@ -1471,6 +1470,8 @@ ctrl_end   →
   public:
     constexpr deque(std::size_t count)
     {
+        if (count == 0uz) // 必须
+            return;
         auto const quot = count / detail::block_elements<T>();
         auto const rem = count % detail::block_elements<T>();
         construct_guard guard(*this);
@@ -1481,6 +1482,8 @@ ctrl_end   →
 
     constexpr deque(std::size_t count, T const &t)
     {
+        if (count == 0uz) // 必须
+            return;
         auto const quot = count / detail::block_elements<T>();
         auto const rem = count % detail::block_elements<T>();
         construct_guard guard(*this);
@@ -1496,11 +1499,12 @@ ctrl_end   →
         {
             auto const begin = elem_end_end;
             std::construct_at(begin, std::forward<V>(v)...); // may throw
-            ++elem_end_end;
+            auto const end = elem_end_end + 1uz;
+            elem_end_end = end;
             // 修正elem_begin
             if (block_elem_end - block_elem_begin == 1z)
             {
-                ++elem_begin_end;
+                elem_begin_end = end;
             }
             return *begin;
         }
@@ -1524,6 +1528,8 @@ ctrl_end   →
         requires std::input_iterator<U> && std::sentinel_for<V, U>
     constexpr deque(U begin, V end)
     {
+        if (begin == end) // 必须
+            return;
         if constexpr (requires { is_iterator(begin); })
         {
             // iterator begin, end;
@@ -1567,6 +1573,8 @@ ctrl_end   →
         requires std::ranges::sized_range<R>
     {
         auto const count = rg.size();
+        if (count == 0uz) // 必须
+            return;
         auto const quot = count / detail::block_elements<T>();
         auto const rem = count % detail::block_elements<T>();
         construct_guard guard(*this);
@@ -1586,6 +1594,8 @@ ctrl_end   →
     constexpr deque(std::initializer_list<T> init)
     {
         auto const count = init.size();
+        if (count == 0uz) // 必须
+            return;
         auto const quot = count / detail::block_elements<T>();
         auto const rem = count % detail::block_elements<T>();
         construct_guard guard(*this);
@@ -1617,6 +1627,8 @@ ctrl_end   →
     {
         destroy_elems();
         auto const count = ilist.size();
+        if (count == 0uz) // 必须
+            return;
         auto const quot = count / detail::block_elements<T>();
         auto const rem = count % detail::block_elements<T>();
         extent_block(quot + 1uz);
@@ -1633,6 +1645,8 @@ ctrl_end   →
     constexpr void assign(std::size_t count, const T &value)
     {
         destroy_elems();
+        if (count == 0uz) // 必须
+            return;
         auto const quot = count / detail::block_elements<T>();
         auto const rem = count % detail::block_elements<T>();
         extent_block(quot + 1uz);
@@ -1644,6 +1658,8 @@ ctrl_end   →
         requires std::input_iterator<U> && std::sentinel_for<V, U>
     {
         destroy_elems();
+        if (begin == end) // 必须
+            return;
         if constexpr (requires { is_iterator(begin); })
         {
             // iterator begin, end;
@@ -1674,6 +1690,8 @@ ctrl_end   →
     constexpr void assign(std::initializer_list<T> ilist)
     {
         auto const count = ilist.size();
+        if (count == 0uz) // 必须
+            return;
         auto const quot = count / detail::block_elements<T>();
         auto const rem = count % detail::block_elements<T>();
         extent_block(quot + 1uz);
