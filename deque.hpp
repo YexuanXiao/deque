@@ -943,6 +943,12 @@ ctrl_end   →
     }
 
   private:
+    // 参见ctrl_alloc注释
+    constexpr void reset_block_alloc_end() noexcept
+    {
+        *block_alloc_end = nullptr;
+    }
+
     // case 1           case 2            case 3           case 4
     // A1 B1 → A2 B2   A1       A2       A1 B1   A2       A1       A2 B2
     // |        |       |        |        |    ↘ |        |     ↗ |
@@ -971,6 +977,7 @@ ctrl_end   →
             d.block_alloc_end = block_ctrl_begin;
             d.block_elem_begin = block_ctrl_begin;
             d.block_elem_end = block_ctrl_begin;
+            d.reset_block_alloc_end();
         }
 
         // 扩容时，back为插入元素的方向
@@ -999,21 +1006,14 @@ ctrl_end   →
         // 参数是新大小
         constexpr ctrl_alloc(deque &dq, std::size_t const ctrl_size) : d(dq)
         {
-            // 永远多分配一个，使得block_ctrl_end可以解引用以及*block_ctrl_end/*block_elem_end合法
-            // 并始终保证*block_elem_end为0
+            // 永远多分配一个，使得block_ctrl_end可以解引用以及*block_elem_end/*block_alloc_end始终合法
+            // 通过保证*block_alloc_end为0
             auto const size = ceil_n(ctrl_size + 1uz, 4uz);
             block_ctrl_begin = d.alloc_ctrl(size);
             // 多分配的这个不可见
             block_ctrl_end = block_ctrl_begin + size - 1uz;
         }
     };
-
-    // 参见ctrl_alloc注释
-    constexpr void set_block_elem_end(block *end) noexcept
-    {
-        block_elem_end = end;
-        *block_elem_end = nullptr;
-    }
 
     // 对齐控制块
     // 对齐alloc和ctrl的begin，用于构造函数
@@ -1023,6 +1023,7 @@ ctrl_end   →
         auto const block_size = block_alloc_end - block_alloc_begin;
         block_alloc_begin = block_ctrl_begin;
         block_alloc_end = block_ctrl_begin + block_size;
+        reset_block_alloc_end();
     }
 
     // 对齐控制块
@@ -1033,6 +1034,7 @@ ctrl_end   →
         auto const block_size = block_alloc_end - block_alloc_begin;
         block_alloc_end = block_ctrl_end;
         block_alloc_begin = block_ctrl_end - block_size;
+        reset_block_alloc_end();
     }
 
     // 对齐控制块
@@ -1042,7 +1044,7 @@ ctrl_end   →
         std::ranges::rotate(block_alloc_begin, block_elem_begin, block_elem_end);
         auto const block_size = block_elem_end - block_elem_begin;
         block_elem_begin = block_alloc_begin;
-        set_block_elem_end(block_alloc_begin + block_size);
+        block_elem_end = block_alloc_begin + block_size;
     }
 
     // 对齐控制块
@@ -1051,7 +1053,7 @@ ctrl_end   →
     {
         std::ranges::rotate(block_elem_begin, block_elem_end, block_alloc_end);
         auto const block_size = block_elem_end - block_elem_begin;
-        set_block_elem_end(block_alloc_end);
+        block_elem_end = block_alloc_end;
         block_elem_begin = block_alloc_end - block_size;
     }
 
@@ -1069,7 +1071,8 @@ ctrl_end   →
         block_alloc_begin = ctrl_begin;
         block_alloc_end = ctrl_begin + alloc_block_size;
         block_elem_begin = ctrl_begin;
-        set_block_elem_end(ctrl_begin + elem_block_size);
+        block_elem_end = ctrl_begin + elem_block_size;
+        reset_block_alloc_end();
     }
 
     // ctrl_begin可以是自己或者新ctrl的
@@ -1085,8 +1088,9 @@ ctrl_end   →
                                    block_ctrl_end - elem_block_size - alloc_elem_offset_front);
         block_alloc_end = ctrl_end;
         block_alloc_begin = ctrl_end - alloc_block_size;
-        set_block_elem_end(ctrl_end);
+        block_elem_end = ctrl_end;
         block_elem_begin = ctrl_end - elem_block_size;
+        reset_block_alloc_end();
     }
 
     // 向前分配新block，需要block_size小于等于(block_alloc_begin - block_ctrl_begin)
@@ -1109,6 +1113,7 @@ ctrl_end   →
             *block_alloc_end = alloc_block();
             ++block_alloc_end;
         }
+        reset_block_alloc_end();
     }
 
     // 向back扩展block
@@ -1289,7 +1294,7 @@ ctrl_end   →
             }
             std::ranges::uninitialized_copy(other.elem_begin_begin, other.elem_begin_end, elem_begin_end,
                                             std::unreachable_sentinel);
-            set_block_elem_end(++block_elem_end);
+            ++block_elem_end;
             elem_begin_end += elem_size;
         }
         if (block_size > 2z)
@@ -1305,7 +1310,6 @@ ctrl_end   →
                 auto const src_begin = block_begin;
                 std::ranges::uninitialized_copy(src_begin, src_begin + detail::block_elements<T>(), elem_end_end,
                                                 std::unreachable_sentinel);
-                // set_block_elem_end(++block_elem_end);
                 ++block_elem_end;
                 elem_end_end += detail::block_elements<T>();
             }
@@ -1316,7 +1320,7 @@ ctrl_end   →
             elem_end(begin, begin, begin + detail::block_elements<T>());
             std::ranges::uninitialized_copy(other.elem_end_begin, other.elem_end_end, elem_end_end,
                                             std::unreachable_sentinel);
-            set_block_elem_end(++block_elem_end);
+            ++block_elem_end;
             elem_end_end += (other.elem_end_end - other.elem_end_begin);
         }
     }
@@ -1385,7 +1389,7 @@ ctrl_end   →
             {
                 static_assert(false);
             }
-            set_block_elem_end(++block_elem_end);
+            ++block_elem_end;
             elem_begin_end = end;
         }
         if (quot > 1uz)
@@ -1427,7 +1431,6 @@ ctrl_end   →
                 ++block_elem_end;
                 elem_begin_end = end;
             }
-            set_block_elem_end(block_elem_end);
             elem_end_last = elem_end_begin + detail::block_elements<T>();
         }
         if (rem)
@@ -1459,7 +1462,7 @@ ctrl_end   →
             {
                 static_assert(false);
             }
-            set_block_elem_end(++block_elem_end);
+            ++block_elem_end;
             elem_end_end = end;
         }
     }
@@ -1509,7 +1512,7 @@ ctrl_end   →
             auto const begin = *block_elem_end;
             std::construct_at(begin, std::forward<V>(v)...); // may throw
             elem_end(begin, begin + 1uz, begin + detail::block_elements<T>());
-            set_block_elem_end(++block_elem_end);
+            ++block_elem_end;
             // 修正elem_begin
             if (block_elem_end - block_elem_begin == 1z)
             {
@@ -1779,7 +1782,7 @@ ctrl_end   →
             --elem_end_end;
             if (elem_end_end == elem_end_begin)
             {
-                set_block_elem_end(--block_elem_end);
+                --block_elem_end;
                 auto const begin = *(block_elem_end - 1uz);
                 auto const last = elem_end_begin + detail::block_elements<T>();
                 elem_end(begin, last, last);
@@ -1796,7 +1799,7 @@ ctrl_end   →
         }
         else
         {
-            set_block_elem_end(--block_elem_end);
+            --block_elem_end;
             auto const begin = *(block_elem_end - 1uz);
             auto const last = elem_end_begin + detail::block_elements<T>();
             elem_end(begin, last - 1uz, last);
