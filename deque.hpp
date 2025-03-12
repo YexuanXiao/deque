@@ -406,7 +406,7 @@ class basic_deque_iterator
         {
             // 几乎等于deque的at，但缺少断言
             auto const back_size = elem_end - elem_curr;
-            if (back_size - pos >= 0)
+            if (back_size > pos)
             {
                 return *(elem_curr + pos);
             }
@@ -422,7 +422,7 @@ class basic_deque_iterator
         else
         {
             auto const front_size = elem_curr - elem_begin;
-            if (front_size + pos >= 0)
+            if (front_size > (-pos))
             {
                 return *(elem_curr + pos);
             }
@@ -443,7 +443,7 @@ class basic_deque_iterator
         {
             // 几乎等于at_impl
             auto const back_size = elem_end - elem_curr;
-            if (back_size - pos >= 0)
+            if (back_size > pos)
             {
                 elem_curr += pos;
             }
@@ -462,8 +462,7 @@ class basic_deque_iterator
         else
         {
             auto const front_size = elem_curr - elem_begin;
-
-            if (front_size + pos >= 0)
+            if (front_size > (-pos))
             {
                 elem_curr += pos;
             }
@@ -1295,7 +1294,8 @@ ctrl_end   →
         }
         if (block_size > 2z)
         {
-            for (auto const block_begin : std::ranges::subrange{other.block_elem_end - 1uz, other.block_elem_begin + 1uz})
+            for (auto const block_begin :
+                 std::ranges::subrange{other.block_elem_end - 1uz, other.block_elem_begin + 1uz})
             {
                 auto const begin = *block_elem_end;
                 elem_end_begin = begin;
@@ -1388,7 +1388,7 @@ ctrl_end   →
             set_block_elem_end(++block_elem_end);
             elem_begin_end = end;
         }
-        if (quot - 1uz)
+        if (quot > 1uz)
         {
             for (auto i = 0uz; i != quot - 1uz; ++i)
             {
