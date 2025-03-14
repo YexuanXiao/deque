@@ -1477,7 +1477,9 @@ ctrl_end   →
     constexpr deque(std::size_t count)
     {
         if (count == 0uz) // 必须
+        {
             return;
+        }
         auto const quot = count / detail::block_elements<T>();
         auto const rem = count % detail::block_elements<T>();
         construct_guard guard(*this);
@@ -1489,7 +1491,9 @@ ctrl_end   →
     constexpr deque(std::size_t count, T const &t)
     {
         if (count == 0uz) // 必须
+        {
             return;
+        }
         auto const quot = count / detail::block_elements<T>();
         auto const rem = count % detail::block_elements<T>();
         construct_guard guard(*this);
@@ -1535,7 +1539,9 @@ ctrl_end   →
     constexpr deque(U begin, V end)
     {
         if (begin == end) // 必须
+        {
             return;
+        }
         if constexpr (requires { is_iterator(begin); })
         {
             // iterator begin, end;
@@ -1580,7 +1586,9 @@ ctrl_end   →
     {
         auto const count = rg.size();
         if (count == 0uz) // 必须
+        {
             return;
+        }
         auto const quot = count / detail::block_elements<T>();
         auto const rem = count % detail::block_elements<T>();
         construct_guard guard(*this);
@@ -1601,7 +1609,9 @@ ctrl_end   →
     {
         auto const count = init.size();
         if (count == 0uz) // 必须
+        {
             return;
+        }
         auto const quot = count / detail::block_elements<T>();
         auto const rem = count % detail::block_elements<T>();
         construct_guard guard(*this);
@@ -1624,7 +1634,9 @@ ctrl_end   →
         reset_block_elem_end();
         auto const block_size = other.block_elem_end - other.block_elem_begin;
         if (block_size == 0uz) // 必须
+        {
             return *this;
+        }
         extent_block(block_size);
         copy(other.buckets(), block_size);
         return *this;
@@ -1636,7 +1648,9 @@ ctrl_end   →
         reset_block_elem_end();
         auto const count = ilist.size();
         if (count == 0uz) // 必须
+        {
             return *this;
+        }
         auto const quot = count / detail::block_elements<T>();
         auto const rem = count % detail::block_elements<T>();
         extent_block(quot + 1uz);
@@ -1655,7 +1669,9 @@ ctrl_end   →
         destroy_elems();
         reset_block_elem_end();
         if (count == 0uz) // 必须
+        {
             return;
+        }
         auto const quot = count / detail::block_elements<T>();
         auto const rem = count % detail::block_elements<T>();
         extent_block(quot + 1uz);
@@ -1669,7 +1685,9 @@ ctrl_end   →
         destroy_elems();
         reset_block_elem_end();
         if (begin == end) // 必须
+        {
             return;
+        }
         if constexpr (requires { is_iterator(begin); })
         {
             // iterator begin, end;
@@ -1703,7 +1721,9 @@ ctrl_end   →
         reset_block_elem_end();
         auto const count = ilist.size();
         if (count == 0uz) // 必须
+        {
             return;
+        }
         auto const quot = count / detail::block_elements<T>();
         auto const rem = count % detail::block_elements<T>();
         extent_block(quot + 1uz);
@@ -1772,6 +1792,11 @@ ctrl_end   →
     // 不会失败且不移动元素
     constexpr void shrink_to_fit() noexcept
     {
+        auto const alloc_block_size = block_alloc_end - block_alloc_begin;
+        if (alloc_block_size == 0uz)
+        {
+            return;
+        }
         for (auto const i : std::ranges::subrange{block_alloc_begin, block_elem_begin})
         {
             dealloc_block(i);
@@ -1901,7 +1926,7 @@ ctrl_end   →
                 {
                     elem_begin(elem_end_begin, elem_end_end, elem_end_begin);
                 }
-                else if(block_size)
+                else if (block_size)
                 {
                     auto const begin = *block_elem_begin;
                     auto const last = begin + detail::block_elements<T>();
