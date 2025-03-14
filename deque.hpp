@@ -19,16 +19,18 @@ class deque;
 
 namespace detail
 {
-// 返回每个块的元素数量
-// 块的大小，一定是4096的整数倍
-template <typename T>
-consteval std::size_t block_elements() noexcept
-{
-    auto constexpr pv = sizeof(T);
-    // 测试时使用固定块大小可用于测试每个块有不同元素数量时的情况
+
+// 测试时使用固定块大小可用于测试每个块有不同元素数量时的情况
+// 不要定义它，影响ABI
 #if defined(BIZWEN_DEQUE_BASE_BLOCK_SIZE)
-    return BIZWEN_DEQUE_BASE_BLOCK_SIZE / pv;
+consteval std::size_t calc_block(std::size_t pv) noexcept
+{
+    return BIZWEN_DEQUE_BASE_BLOCK_SIZE;
+}
 #else
+// 返回每个块的大小，一定是4096的整数倍
+consteval std::size_t calc_block(std::size_t pv) noexcept
+{
     // 块的基本大小
     auto constexpr base = 4096uz;
     // 基本大小下，元素最大大小，至少保证16个
@@ -42,7 +44,7 @@ consteval std::size_t block_elements() noexcept
         for (auto i = 0uz; i != 8uz; ++i)
         {
             block_sz = base * (i + 1uz);
-            auto constexpr rmd_cur = block_sz % pv;
+            auto rmd_cur = block_sz % pv;
             // 越小利用率越高
             if (rmd_cur < rmd_pre)
             {
@@ -56,9 +58,21 @@ consteval std::size_t block_elements() noexcept
         // 寻找y使得y大于16*元素大小，且y为4096整数倍
         result = (pv * 16uz + base - 1uz) / base * base;
     }
-    return result / pv;
-#endif
+    return result;
 }
+
+static_assert(calc_block(1uz) == 4096uz);
+static_assert(calc_block(2uz) == 4096uz);
+static_assert(calc_block(3uz) == 3uz * 4096uz);
+static_assert(calc_block(4uz) == 4096uz);
+static_assert(calc_block(5uz) == 5uz * 4096uz);
+static_assert(calc_block(6uz) == 3uz * 4096uz);
+static_assert(calc_block(7uz) == 7uz * 4096uz);
+
+#endif
+
+template <typename T>
+constexpr std::size_t block_elements_v = calc_block(sizeof(T)) / sizeof(T);
 
 template <typename T>
 class basic_bucket_type;
@@ -106,7 +120,7 @@ class basic_bucket_iterator
         else
         {
             elem_curr_begin = *block_elem_begin;
-            elem_curr_end = elem_begin_begin + block_elements<T>();
+            elem_curr_end = elem_begin_begin + block_elements_v<T>;
         }
     }
 
@@ -136,7 +150,7 @@ class basic_bucket_iterator
         else
         {
             elem_curr_begin = *block_elem_begin;
-            elem_curr_end = elem_begin_begin + block_elements<T>();
+            elem_curr_end = elem_begin_begin + block_elements_v<T>;
         }
         return *this;
     }
@@ -159,7 +173,7 @@ class basic_bucket_iterator
         else
         {
             elem_begin_begin = *(block_elem_begin - 1uz);
-            elem_begin_end = elem_begin_begin + block_elements<T>();
+            elem_begin_end = elem_begin_begin + block_elements_v<T>;
         }
         return *this;
     }
@@ -425,8 +439,8 @@ class basic_deque_iterator
             else
             {
                 auto const new_pos = pos - back_size;
-                auto const quot = new_pos / detail::block_elements<T>();
-                auto const rem = new_pos % detail::block_elements<T>();
+                auto const quot = new_pos / detail::block_elements_v<T>;
+                auto const rem = new_pos % detail::block_elements_v<T>;
                 auto const target_block = block_elem_begin + quot + 1uz;
                 return *(*target_block + rem);
             }
@@ -441,10 +455,10 @@ class basic_deque_iterator
             else
             {
                 auto const new_pos = pos + front_size;
-                auto const quot = new_pos / detail::block_elements<T>();
-                auto const rem = new_pos % detail::block_elements<T>();
+                auto const quot = new_pos / detail::block_elements_v<T>;
+                auto const rem = new_pos % detail::block_elements_v<T>;
                 auto const target_block = block_elem_begin + quot - 1uz;
-                return *((*target_block) + detail::block_elements<T>() + rem);
+                return *((*target_block) + detail::block_elements_v<T> + rem);
             }
         }
     }
@@ -462,13 +476,13 @@ class basic_deque_iterator
             else
             {
                 auto const new_pos = pos - back_size;
-                auto const quot = new_pos / detail::block_elements<T>();
-                auto const rem = new_pos % detail::block_elements<T>();
+                auto const quot = new_pos / detail::block_elements_v<T>;
+                auto const rem = new_pos % detail::block_elements_v<T>;
                 auto const target_block = block_elem_begin + quot + 1uz;
                 block_elem_begin = target_block;
                 elem_begin = *target_block;
                 elem_curr = elem_begin + rem;
-                elem_end = elem_begin + detail::block_elements<T>();
+                elem_end = elem_begin + detail::block_elements_v<T>;
             }
         }
         else
@@ -481,12 +495,12 @@ class basic_deque_iterator
             else
             {
                 auto const new_pos = pos + front_size;
-                auto const quot = new_pos / detail::block_elements<T>();
-                auto const rem = new_pos % detail::block_elements<T>();
+                auto const quot = new_pos / detail::block_elements_v<T>;
+                auto const rem = new_pos % detail::block_elements_v<T>;
                 auto const target_block = block_elem_begin + quot - 1uz;
                 block_elem_begin = target_block;
                 elem_begin = *target_block;
-                elem_end = elem_begin + detail::block_elements<T>();
+                elem_end = elem_begin + detail::block_elements_v<T>;
                 elem_curr = elem_end + rem;
             }
         }
@@ -544,7 +558,7 @@ class basic_deque_iterator
             ++block_elem_begin;
             elem_begin = *block_elem_begin;
             elem_curr = elem_begin;
-            elem_end = elem_begin + detail::block_elements<T>();
+            elem_end = elem_begin + detail::block_elements_v<T>;
         }
         return *this;
     }
@@ -566,7 +580,7 @@ class basic_deque_iterator
         {
             --block_elem_begin;
             elem_begin = *block_elem_begin;
-            elem_end = elem_begin + detail::block_elements<T>();
+            elem_end = elem_begin + detail::block_elements_v<T>;
             elem_curr = elem_end - 1uz;
         }
         return *this;
@@ -591,7 +605,7 @@ class basic_deque_iterator
 
     constexpr std::ptrdiff_t operator-(basic_deque_iterator const &other) const noexcept
     {
-        return (block_elem_begin - other.block_elem_begin) * detail::block_elements<T>() + (elem_curr - elem_begin) -
+        return (block_elem_begin - other.block_elem_begin) * detail::block_elements_v<T> + (elem_curr - elem_begin) -
                (other.elem_curr - other.elem_begin);
     }
 
@@ -711,7 +725,7 @@ ctrl_end   →
 
     constexpr block alloc_block()
     {
-        return new T[detail::block_elements<T>()];
+        return new T[detail::block_elements_v<T>];
     }
 
     constexpr block *alloc_ctrl(std::size_t size)
@@ -741,7 +755,7 @@ ctrl_end   →
         {
             for (auto const block_begin : std::ranges::subrange{block_elem_begin + 1uz, block_elem_end - 1uz})
             {
-                for (auto const &i : std::ranges::subrange{block_begin, block_begin + detail::block_elements<T>()})
+                for (auto const &i : std::ranges::subrange{block_begin, block_begin + detail::block_elements_v<T>})
                 {
                     std::destroy_at(&i);
                 }
@@ -881,7 +895,7 @@ ctrl_end   →
         }
         if (block_size > 2uz)
         {
-            result += (block_size - 2uz) * detail::block_elements<T>();
+            result += (block_size - 2uz) * detail::block_elements_v<T>;
         }
         if (block_size > 1uz)
         {
@@ -1155,9 +1169,9 @@ ctrl_end   →
     {
         // 计算现有头尾是否够用
         // 头部块的cap
-        auto const head_block_alloc_cap = (block_elem_begin - block_alloc_begin) * detail::block_elements<T>();
+        auto const head_block_alloc_cap = (block_elem_begin - block_alloc_begin) * detail::block_elements_v<T>;
         // 尾部块的cap
-        auto const tail_block_alloc_cap = (block_alloc_end - block_elem_end) * detail::block_elements<T>();
+        auto const tail_block_alloc_cap = (block_alloc_end - block_elem_end) * detail::block_elements_v<T>;
         // 尾块的已使用大小
         auto const tail_cap = elem_end_last - elem_end_end;
         // non_move_cap为尾部-尾部已用，不移动块时cap
@@ -1177,10 +1191,10 @@ ctrl_end   →
         }
         // 计算需要分配多少块数组，无论接下来是什么逻辑都直接使用它
         auto const add_block_size =
-            (add_elem_size - move_cap + detail::block_elements<T>() - 1uz) / detail::block_elements<T>();
+            (add_elem_size - move_cap + detail::block_elements_v<T> - 1uz) / detail::block_elements_v<T>;
         // 获得目前控制块容许容量
         auto const ctrl_cap = ((block_alloc_begin - block_ctrl_begin) + (block_ctrl_end - block_alloc_end)) *
-                                  detail::block_elements<T>() +
+                                  detail::block_elements_v<T> +
                               move_cap;
         // 如果容许容量足够，那么移动alloc
         if (ctrl_cap >= add_elem_size)
@@ -1202,9 +1216,9 @@ ctrl_end   →
     {
         // 计算现有头尾是否够用
         // 头部块的cap
-        auto const head_block_alloc_cap = (block_elem_begin - block_alloc_begin) * detail::block_elements<T>();
+        auto const head_block_alloc_cap = (block_elem_begin - block_alloc_begin) * detail::block_elements_v<T>;
         // 尾部块的cap
-        auto const tail_block_alloc_cap = (block_alloc_end - block_elem_end) * detail::block_elements<T>();
+        auto const tail_block_alloc_cap = (block_alloc_end - block_elem_end) * detail::block_elements_v<T>;
         // 头块的已使用大小
         auto const head_cap = elem_begin_begin - elem_begin_first;
         // non_move_cap为头部-头部已用，不移动块时cap
@@ -1224,10 +1238,10 @@ ctrl_end   →
         }
         // 计算需要分配多少块数组，无论接下来是什么逻辑都直接使用它
         auto const add_block_size =
-            (add_elem_size - move_cap + detail::block_elements<T>() - 1uz) / detail::block_elements<T>();
+            (add_elem_size - move_cap + detail::block_elements_v<T> - 1uz) / detail::block_elements_v<T>;
         // 获得目前控制块容许容量
         auto const ctrl_cap = ((block_alloc_begin - block_ctrl_begin) + (block_ctrl_end - block_alloc_end)) *
-                                  detail::block_elements<T>() +
+                                  detail::block_elements_v<T> +
                               move_cap;
 
         if (ctrl_cap >= add_elem_size)
@@ -1312,7 +1326,7 @@ ctrl_end   →
             // 这里选择按头部生长简化代码
             auto const elem_size = other.elem_begin_end - other.elem_begin_begin;
             auto const first = *block_elem_end;
-            auto const last = first + detail::block_elements<T>();
+            auto const last = first + detail::block_elements_v<T>;
             auto const begin = last - elem_size;
             std::ranges::uninitialized_copy(other.elem_begin_begin, other.elem_begin_end, begin,
                                             std::unreachable_sentinel);
@@ -1327,10 +1341,10 @@ ctrl_end   →
             {
                 auto const begin = *block_elem_end;
                 auto const src_begin = block_begin;
-                std::ranges::uninitialized_copy(src_begin, src_begin + detail::block_elements<T>(), begin,
+                std::ranges::uninitialized_copy(src_begin, src_begin + detail::block_elements_v<T>, begin,
                                                 std::unreachable_sentinel);
                 elem_end_begin = begin;
-                elem_end_end = begin + detail::block_elements<T>();
+                elem_end_end = begin + detail::block_elements_v<T>;
                 ++block_elem_end;
             }
             elem_end_last = elem_end_end;
@@ -1339,7 +1353,7 @@ ctrl_end   →
         {
             auto const begin = *block_elem_end;
             std::ranges::uninitialized_copy(other.elem_end_begin, other.elem_end_end, begin, std::unreachable_sentinel);
-            elem_end(begin, begin + (other.elem_end_end - other.elem_end_begin), begin + detail::block_elements<T>());
+            elem_end(begin, begin + (other.elem_end_end - other.elem_end_begin), begin + detail::block_elements_v<T>);
             ++block_elem_end;
         }
     }
@@ -1379,7 +1393,7 @@ ctrl_end   →
         if (quot)
         {
             auto const begin = *block_elem_end;
-            auto const end = begin + detail::block_elements<T>();
+            auto const end = begin + detail::block_elements_v<T>;
             if constexpr (sizeof...(Ts) == 0uz)
             {
                 std::ranges::uninitialized_default_construct(begin, end);
@@ -1398,9 +1412,9 @@ ctrl_end   →
                 auto &src_begin = std::get<0uz>(x);
                 auto &src_end = std::get<1uz>(x);
 #endif
-                std::ranges::uninitialized_copy(std::counted_iterator(src_begin, detail::block_elements<T>()),
+                std::ranges::uninitialized_copy(std::counted_iterator(src_begin, detail::block_elements_v<T>),
                                                 std::default_sentinel, begin, std::unreachable_sentinel);
-                src_begin += detail::block_elements<T>();
+                src_begin += detail::block_elements_v<T>;
             }
             else
             {
@@ -1415,7 +1429,7 @@ ctrl_end   →
             for (auto i = 0uz; i != quot - 1uz; ++i)
             {
                 auto const begin = *block_elem_end;
-                auto const end = begin + detail::block_elements<T>();
+                auto const end = begin + detail::block_elements_v<T>;
                 if constexpr (sizeof...(Ts) == 0uz)
                 {
                     std::ranges::uninitialized_default_construct(begin, end);
@@ -1434,9 +1448,9 @@ ctrl_end   →
                     auto &src_begin = std::get<0uz>(x);
                     auto &src_end = std::get<1uz>(x);
 #endif
-                    std::ranges::uninitialized_copy(std::counted_iterator(src_begin, detail::block_elements<T>()),
+                    std::ranges::uninitialized_copy(std::counted_iterator(src_begin, detail::block_elements_v<T>),
                                                     std::default_sentinel, begin, std::unreachable_sentinel);
-                    src_begin += detail::block_elements<T>();
+                    src_begin += detail::block_elements_v<T>;
                 }
                 else
                 {
@@ -1480,7 +1494,7 @@ ctrl_end   →
             {
                 elem_begin(begin, end, begin);
             }
-            elem_end(begin, end, begin + detail::block_elements<T>());
+            elem_end(begin, end, begin + detail::block_elements_v<T>);
             ++block_elem_end;
         }
     }
@@ -1495,8 +1509,8 @@ ctrl_end   →
         {
             return;
         }
-        auto const quot = count / detail::block_elements<T>();
-        auto const rem = count % detail::block_elements<T>();
+        auto const quot = count / detail::block_elements_v<T>;
+        auto const rem = count % detail::block_elements_v<T>;
         construct_guard guard(*this);
         construct_block(quot + 1uz);
         construct_n(quot + 1uz, quot, rem);
@@ -1509,8 +1523,8 @@ ctrl_end   →
         {
             return;
         }
-        auto const quot = count / detail::block_elements<T>();
-        auto const rem = count % detail::block_elements<T>();
+        auto const quot = count / detail::block_elements_v<T>;
+        auto const rem = count % detail::block_elements_v<T>;
         construct_guard guard(*this);
         construct_block(quot + 1uz);
         construct_n(quot + 1uz, quot, rem, t);
@@ -1538,7 +1552,7 @@ ctrl_end   →
             reserve_back(1uz);
             auto const begin = *block_elem_end;
             std::construct_at(begin, std::forward<V>(v)...); // may throw
-            elem_end(begin, begin + 1uz, begin + detail::block_elements<T>());
+            elem_end(begin, begin + 1uz, begin + detail::block_elements_v<T>);
             ++block_elem_end;
             // 修正elem_begin
             if (block_elem_size() == 1uz)
@@ -1572,8 +1586,8 @@ ctrl_end   →
         else if constexpr (std::random_access_iterator<U>)
         {
             auto const count = end - begin;
-            auto const quot = count / detail::block_elements<T>();
-            auto const rem = count % detail::block_elements<T>();
+            auto const quot = count / detail::block_elements_v<T>;
+            auto const rem = count % detail::block_elements_v<T>;
             construct_guard guard(*this);
             construct_block(quot + 1uz);
             construct_n(quot + 1uz, quot, rem, begin, end);
@@ -1604,8 +1618,8 @@ ctrl_end   →
         {
             return;
         }
-        auto const quot = count / detail::block_elements<T>();
-        auto const rem = count % detail::block_elements<T>();
+        auto const quot = count / detail::block_elements_v<T>;
+        auto const rem = count % detail::block_elements_v<T>;
         construct_guard guard(*this);
         construct_block(quot + 1uz);
         construct_n(quot + 1uz, quot, rem, std::ranges::begin(rg), std::ranges::end(rg));
@@ -1627,8 +1641,8 @@ ctrl_end   →
         {
             return;
         }
-        auto const quot = count / detail::block_elements<T>();
-        auto const rem = count % detail::block_elements<T>();
+        auto const quot = count / detail::block_elements_v<T>;
+        auto const rem = count % detail::block_elements_v<T>;
         construct_guard guard(*this);
         construct_block(quot + 1uz);
         construct_n(quot + 1uz, quot, rem, init.begin(), init.end());
@@ -1666,8 +1680,8 @@ ctrl_end   →
         {
             return *this;
         }
-        auto const quot = count / detail::block_elements<T>();
-        auto const rem = count % detail::block_elements<T>();
+        auto const quot = count / detail::block_elements_v<T>;
+        auto const rem = count % detail::block_elements_v<T>;
         extent_block(quot + 1uz);
         construct_n(quot + 1uz, quot, rem, ilist.begin(), ilist.end());
         return *this;
@@ -1687,8 +1701,8 @@ ctrl_end   →
         {
             return;
         }
-        auto const quot = count / detail::block_elements<T>();
-        auto const rem = count % detail::block_elements<T>();
+        auto const quot = count / detail::block_elements_v<T>;
+        auto const rem = count % detail::block_elements_v<T>;
         extent_block(quot + 1uz);
         construct_n(quot + 1uz, quot, rem, value);
     }
@@ -1716,8 +1730,8 @@ ctrl_end   →
         else if constexpr (std::random_access_iterator<U>)
         {
             auto const count = end - begin;
-            auto const quot = count / detail::block_elements<T>();
-            auto const rem = count % detail::block_elements<T>();
+            auto const quot = count / detail::block_elements_v<T>;
+            auto const rem = count % detail::block_elements_v<T>;
             extent_block(quot + 1uz);
             construct_n(quot + 1uz, quot, rem, begin, end);
         }
@@ -1739,8 +1753,8 @@ ctrl_end   →
         {
             return;
         }
-        auto const quot = count / detail::block_elements<T>();
-        auto const rem = count % detail::block_elements<T>();
+        auto const quot = count / detail::block_elements_v<T>;
+        auto const rem = count % detail::block_elements_v<T>;
         extent_block(quot + 1uz);
         construct_n(quot + 1uz, quot, rem, ilist.begin(), ilist.end());
     }
@@ -1764,8 +1778,8 @@ ctrl_end   →
         else
         {
             auto const new_pos = pos - head_size;
-            auto const quot = new_pos / detail::block_elements<T>();
-            auto const rem = new_pos % detail::block_elements<T>();
+            auto const quot = new_pos / detail::block_elements_v<T>;
+            auto const rem = new_pos % detail::block_elements_v<T>;
             auto const target_block = block_elem_begin + quot + 1uz;
             auto const check1 = target_block < block_elem_end;
             auto const check2 = (target_block + 1uz == block_elem_end) ? (elem_end_begin + rem < elem_end_end) : true;
@@ -1854,7 +1868,7 @@ ctrl_end   →
             reserve_front(1uz);
             auto const block = block_elem_begin - 1uz;
             auto const first = *block;
-            auto const end = first + detail::block_elements<T>();
+            auto const end = first + detail::block_elements_v<T>;
             std::construct_at(end - 1uz, std::forward<V>(v)...); // may throw
             elem_begin(end - 1uz, end, first);
             [[assume(block + 1uz == block_elem_begin)]];
@@ -1896,7 +1910,7 @@ ctrl_end   →
                 else if (block_size)
                 {
                     auto const begin = *(block_elem_end - 1uz);
-                    auto const last = begin + detail::block_elements<T>();
+                    auto const last = begin + detail::block_elements_v<T>;
                     elem_end(begin, last, last);
                 }
                 return;
@@ -1910,7 +1924,7 @@ ctrl_end   →
         {
             --block_elem_end;
             auto const first = *(block_elem_end - 1uz);
-            auto const last = first + detail::block_elements<T>();
+            auto const last = first + detail::block_elements_v<T>;
             auto end = last - 1uz;
             std::destroy_at(end);
             if (block_elem_size() == 1uz)
@@ -1943,7 +1957,7 @@ ctrl_end   →
                 else if (block_size)
                 {
                     auto const begin = *block_elem_begin;
-                    auto const last = begin + detail::block_elements<T>();
+                    auto const last = begin + detail::block_elements_v<T>;
                     elem_begin(begin, last, begin);
                 }
                 return;
@@ -1963,7 +1977,7 @@ ctrl_end   →
             else
             {
                 auto const begin = *block_elem_begin;
-                auto const end = begin + detail::block_elements<T>();
+                auto const end = begin + detail::block_elements_v<T>;
                 std::destroy_at(begin);
                 elem_begin(begin + 1uz, end, begin);
             }
