@@ -245,7 +245,7 @@ class basic_bucket_iterator
     }
 
     constexpr operator basic_bucket_iterator<const T>() const
-        requires(!std::is_const_v<T>)
+        requires(not std::is_const_v<T>)
     {
         return {block_elem_begin, block_elem_end, block_elem_curr, elem_begin_begin, elem_begin_end,
                 elem_end_begin,   elem_end_end,   elem_curr_begin, elem_curr_end
@@ -389,7 +389,7 @@ class basic_bucket_type
     }
 
     constexpr operator basic_bucket_type<const T>() const
-        requires(!std::is_const_v<T>)
+        requires(not std::is_const_v<T>)
     {
         return {block_elem_begin, block_elem_end, elem_begin_begin, elem_begin_end, elem_end_begin, elem_end_end};
     }
@@ -630,7 +630,7 @@ class basic_deque_iterator
     }
 
     constexpr operator basic_deque_iterator<const T>() const
-        requires(!std::is_const_v<T>)
+        requires(not std::is_const_v<T>)
     {
         return {block_elem_begin, elem_begin, elem_curr, elem_end};
     }
@@ -641,7 +641,7 @@ template <typename T>
 class deque
 {
     static_assert(std::is_object_v<T>);
-    static_assert(!std::is_const_v<T>);
+    static_assert(not std::is_const_v<T>);
 
     using block = T *;
 
@@ -1263,7 +1263,7 @@ ctrl_end   →
 
         constexpr ~construct_guard()
         {
-            if (!released)
+            if (not released)
             {
                 d.destruct();
             }
@@ -1771,7 +1771,7 @@ ctrl_end   →
             auto const check2 = (target_block + 1uz == block_elem_end) ? (elem_end_begin + rem < elem_end_end) : true;
             if constexpr (throw_exception)
             {
-                if (!(check1 && check2))
+                if (not(check1 && check2))
                     throw std::out_of_range{""};
             }
             else
