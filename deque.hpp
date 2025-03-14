@@ -11,6 +11,7 @@
 #include <memory>
 #include <new>
 #include <ranges>
+#include <stdexcept>
 #include <stdio.h>
 #include <stdlib.h>
 #include <type_traits>
@@ -699,8 +700,7 @@ ctrl_end   →
     */
     /*
     不变式：
-    *block_elem_end必须永远为0且不储存block
-    迭代器的++在走到last时会主动走到下一个块，由于上一条的保证，使得最终走到*block_elem_end得到0
+    迭代器的++在走到last时会主动走到下一个块，由于block_alloc_end的保证，使得最终走到*block_elem_end得到0
     */
 
     static constexpr std::size_t ceil_n(std::size_t const num, std::size_t const n) noexcept
@@ -1060,7 +1060,7 @@ ctrl_end   →
     }
 
     // 对齐控制块
-    // 对齐elem和alloc的begin，用于push_back
+    // 对齐elem和alloc的begin，用于emplace_back
     constexpr void align_elem_as_alloc_back() noexcept
     {
         std::ranges::rotate(block_alloc_begin, block_elem_begin, block_elem_end);
@@ -1070,7 +1070,7 @@ ctrl_end   →
     }
 
     // 对齐控制块
-    // 对齐elem和alloc的end，用于push_front
+    // 对齐elem和alloc的end，用于emplace_front
     constexpr void align_elem_as_alloc_front() noexcept
     {
         std::ranges::rotate(block_elem_begin, block_elem_end, block_alloc_end);
@@ -1617,16 +1617,6 @@ ctrl_end   →
         guard.release();
     }
 
-    constexpr void push_back(T const &t)
-    {
-        emplace_back(t);
-    }
-
-    constexpr void push_back(T &&t)
-    {
-        emplace_back(std::move(t));
-    }
-
     constexpr deque &operator=(const deque &other)
     {
         destroy_elems();
@@ -1718,7 +1708,8 @@ ctrl_end   →
     }
 
   private:
-    // 几乎等于iterator的at，但缺少断言
+    // 几乎等于iterator的at，但具有检查和断言
+    template <bool throw_exception>
     constexpr T &at_impl(std::size_t pos) const noexcept
     {
         auto const head_size = elem_begin_end - elem_begin_begin;
@@ -1732,8 +1723,17 @@ ctrl_end   →
             auto const quot = new_pos / detail::block_elements<T>();
             auto const rem = new_pos % detail::block_elements<T>();
             auto const target_block = block_elem_begin + quot + 1uz;
-            assert(target_block < block_elem_end);
-            assert((target_block + 1uz == block_elem_end) ? (rem < (elem_end_end - elem_end_begin)) : true);
+            auto const check1 = target_block < block_elem_end;
+            auto const check2 = (target_block + 1uz == block_elem_end) ? (elem_end_begin + rem < elem_end_end) : true;
+            if constexpr (throw_exception)
+            {
+                if (!(check1 && check2))
+                    throw std::out_of_range{""};
+            }
+            else
+            {
+                assert(check1 && check2);
+            }
             auto const result = *target_block + rem;
             return *result;
         }
@@ -1773,6 +1773,16 @@ ctrl_end   →
             dealloc_block(i);
         }
         block_alloc_end = block_elem_end;
+    }
+
+    constexpr void push_back(T const &t)
+    {
+        emplace_back(t);
+    }
+
+    constexpr void push_back(T &&t)
+    {
+        emplace_back(std::move(t));
     }
 
     template <class... V>
