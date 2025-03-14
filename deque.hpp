@@ -1318,12 +1318,11 @@ ctrl_end   →
                 auto const src_begin = block_begin;
                 std::ranges::uninitialized_copy(src_begin, src_begin + detail::block_elements<T>(), begin,
                                                 std::unreachable_sentinel);
-                ++block_elem_end;
                 elem_end_begin = begin;
                 elem_end_end = begin + detail::block_elements<T>();
-                // 由于回滚完全不在乎last，因此此处不用设置
-                // elem_end_last = elem_end_begin + detail::block_elements<T>();
+                ++block_elem_end;
             }
+            elem_end_last = elem_end_end;
         }
         if (block_size > 1z)
         {
@@ -1434,8 +1433,6 @@ ctrl_end   →
                 }
                 elem_end_begin = begin;
                 elem_end_end = end;
-                // 由于回滚完全不在乎last，因此此处不用设置
-                // elem_end_last = elem_end_begin + detail::block_elements<T>();
                 ++block_elem_end;
             }
             elem_end_last = elem_end_end;
