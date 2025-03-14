@@ -1636,7 +1636,7 @@ ctrl_end   →
         reset_block_elem_end();
         auto const count = ilist.size();
         if (count == 0uz) // 必须
-            return;
+            return *this;
         auto const quot = count / detail::block_elements<T>();
         auto const rem = count % detail::block_elements<T>();
         extent_block(quot + 1uz);
