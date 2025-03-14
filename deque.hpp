@@ -299,7 +299,7 @@ class basic_bucket_type
 
     constexpr std::size_t size() const noexcept
     {
-        return block_elem_end - block_elem_begin;
+        return block_elem_size();
     }
 
     constexpr bool empty() const noexcept
@@ -728,8 +728,8 @@ ctrl_end   →
     constexpr void destroy_elems() noexcept
     {
         // 4种情况，0，1，2，3+个块有元素
-        auto const elem_block_size = block_elem_end - block_elem_begin;
-        if (elem_block_size)
+        auto const block_size = block_elem_size();
+        if (block_size)
         {
             for (auto const &i : std::ranges::subrange{elem_begin_begin, elem_begin_end})
             {
@@ -737,7 +737,7 @@ ctrl_end   →
             }
         }
         // 清理中间的块
-        if (elem_block_size > 2z)
+        if (block_size > 2uz)
         {
             for (auto const block_begin : std::ranges::subrange{block_elem_begin + 1uz, block_elem_end - 1uz})
             {
@@ -747,7 +747,7 @@ ctrl_end   →
                 }
             }
         }
-        if (elem_block_size > 1z)
+        if (block_size > 1uz)
         {
             for (auto const &i : std::ranges::subrange{elem_end_begin, elem_end_end})
             {
@@ -779,6 +779,21 @@ ctrl_end   →
         elem_end_begin = begin;
         elem_end_end = end;
         elem_end_last = last;
+    }
+
+    constexpr std::size_t block_elem_size() const noexcept
+    {
+        return block_elem_end - block_elem_begin;
+    }
+
+    constexpr std::size_t block_ctrl_size() const noexcept
+    {
+        return block_ctrl_end - block_ctrl_begin;
+    }
+
+    constexpr std::size_t block_alloc_size() const noexcept
+    {
+        return block_alloc_end - block_alloc_begin;
     }
 
   public:
@@ -858,17 +873,17 @@ ctrl_end   →
     // 空deque安全
     constexpr auto size() const noexcept
     {
-        auto const elem_block_size = block_elem_end - block_elem_begin;
+        auto const block_size = block_elem_size();
         auto result = 0uz;
-        if (elem_block_size)
+        if (block_size)
         {
             result += elem_begin_end - elem_begin_begin;
         }
-        if (elem_block_size > 2z)
+        if (block_size > 2uz)
         {
-            result += (elem_block_size - 2z) * detail::block_elements<T>();
+            result += (block_size - 2uz) * detail::block_elements<T>();
         }
-        if (elem_block_size > 1z)
+        if (block_size > 1uz)
         {
             result += elem_end_end - elem_end_begin;
         }
@@ -1034,22 +1049,22 @@ ctrl_end   →
     };
 
     // 对齐控制块
-    // 对齐alloc和ctrl的begin，用于构造函数
+    // 对齐alloc和ctrl的begin，用于push_back
     constexpr void align_alloc_as_ctrl_back() noexcept
     {
         std::ranges::copy(block_alloc_begin, block_alloc_end, block_ctrl_begin);
-        auto const block_size = block_alloc_end - block_alloc_begin;
+        auto const block_size = block_alloc_size();
         block_alloc_begin = block_ctrl_begin;
         block_alloc_end = block_ctrl_begin + block_size;
         fill_block_alloc_end();
     }
 
     // 对齐控制块
-    // 对齐alloc和ctrl的end，用于？
+    // 对齐alloc和ctrl的end，用于push_front
     constexpr void align_alloc_as_ctrl_front() noexcept
     {
         std::ranges::copy_backward(block_alloc_begin, block_alloc_end, block_ctrl_end);
-        auto const block_size = block_alloc_end - block_alloc_begin;
+        auto const block_size = block_alloc_size();
         block_alloc_end = block_ctrl_end;
         block_alloc_begin = block_ctrl_end - block_size;
         fill_block_alloc_end();
@@ -1060,7 +1075,7 @@ ctrl_end   →
     constexpr void align_elem_as_alloc_back() noexcept
     {
         std::ranges::rotate(block_alloc_begin, block_elem_begin, block_elem_end);
-        auto const block_size = block_elem_end - block_elem_begin;
+        auto const block_size = block_elem_size();
         block_elem_begin = block_alloc_begin;
         block_elem_end = block_alloc_begin + block_size;
     }
@@ -1070,7 +1085,7 @@ ctrl_end   →
     constexpr void align_elem_as_alloc_front() noexcept
     {
         std::ranges::rotate(block_elem_begin, block_elem_end, block_alloc_end);
-        auto const block_size = block_elem_end - block_elem_begin;
+        auto const block_size = block_elem_size();
         block_elem_end = block_alloc_end;
         block_elem_begin = block_alloc_end - block_size;
     }
@@ -1079,8 +1094,8 @@ ctrl_end   →
     // 对齐控制块所有指针
     constexpr void align_elem_alloc_as_ctrl_back(block *ctrl_begin) noexcept
     {
-        auto const alloc_block_size = block_alloc_end - block_alloc_begin;
-        auto const elem_block_size = block_elem_end - block_elem_begin;
+        auto const alloc_block_size = block_alloc_size();
+        auto const elem_block_size = block_elem_size();
         auto const alloc_elem_offset_front = block_elem_begin - block_alloc_begin;
         // 将elem_begin和alloc_begin都对齐到ctrl_begin
         std::ranges::copy(block_elem_begin, block_elem_end, ctrl_begin);
@@ -1097,8 +1112,8 @@ ctrl_end   →
     // 对齐控制块所有指针
     constexpr void align_elem_alloc_as_ctrl_front(block *ctrl_end) noexcept
     {
-        auto const alloc_block_size = block_alloc_end - block_alloc_begin;
-        auto const elem_block_size = block_elem_end - block_elem_begin;
+        auto const alloc_block_size = block_alloc_size();
+        auto const elem_block_size = block_elem_size();
         auto const alloc_elem_offset_front = block_elem_begin - block_alloc_begin;
         std::ranges::copy_backward(block_elem_begin, block_elem_end, ctrl_end);
         std::ranges::copy_backward(block_alloc_begin, block_elem_begin, ctrl_end - elem_block_size);
@@ -1175,7 +1190,7 @@ ctrl_end   →
         else
         {
             // 否则扩展控制块
-            auto const new_ctrl_size = block_ctrl_end - block_ctrl_begin + add_block_size;
+            auto const new_ctrl_size = block_ctrl_size() + add_block_size;
             ctrl_alloc const ctrl{*this, new_ctrl_size}; // may throw
             ctrl.replace_ctrl_back();
         }
@@ -1222,7 +1237,7 @@ ctrl_end   →
         else
         {
             // 否则扩展控制块
-            auto const new_ctrl_size = block_ctrl_end - block_ctrl_begin + add_block_size;
+            auto const new_ctrl_size = block_ctrl_size() + add_block_size;
             ctrl_alloc const ctrl{*this, new_ctrl_size}; // may throw
             ctrl.replace_ctrl_front();
         }
@@ -1270,12 +1285,12 @@ ctrl_end   →
     // 调用后可直接填充元素
     constexpr void extent_block(std::size_t new_block_size)
     {
-        auto const old_alloc_size = block_alloc_end - block_alloc_begin;
+        auto const old_alloc_size = block_alloc_size();
         if (old_alloc_size > new_block_size)
         {
             return;
         }
-        auto const old_ctrl_size = block_ctrl_end - block_ctrl_begin;
+        auto const old_ctrl_size = block_ctrl_size();
         if (old_ctrl_size < new_block_size)
         {
             ctrl_alloc const ctrl(*this, new_block_size); // may throw
@@ -1305,7 +1320,7 @@ ctrl_end   →
             elem_end(begin, last, last);
             ++block_elem_end;
         }
-        if (block_size > 2z)
+        if (block_size > 2uz)
         {
             for (auto const block_begin :
                  std::ranges::subrange{other.block_elem_begin + 1uz, other.block_elem_end - 1uz})
@@ -1320,7 +1335,7 @@ ctrl_end   →
             }
             elem_end_last = elem_end_end;
         }
-        if (block_size > 1z)
+        if (block_size > 1uz)
         {
             auto const begin = *block_elem_end;
             std::ranges::uninitialized_copy(other.elem_end_begin, other.elem_end_end, begin, std::unreachable_sentinel);
@@ -1512,7 +1527,7 @@ ctrl_end   →
             auto const end = elem_end_end + 1uz;
             elem_end_end = end;
             // 修正elem_begin
-            if (block_elem_end - block_elem_begin == 1z)
+            if (block_elem_size() == 1uz)
             {
                 elem_begin_end = end;
             }
@@ -1526,7 +1541,7 @@ ctrl_end   →
             elem_end(begin, begin + 1uz, begin + detail::block_elements<T>());
             ++block_elem_end;
             // 修正elem_begin
-            if (block_elem_end - block_elem_begin == 1z)
+            if (block_elem_size() == 1uz)
             {
                 elem_begin(begin, begin + 1uz, begin);
             }
@@ -1792,8 +1807,7 @@ ctrl_end   →
     // 不会失败且不移动元素
     constexpr void shrink_to_fit() noexcept
     {
-        auto const alloc_block_size = block_alloc_end - block_alloc_begin;
-        if (alloc_block_size == 0uz)
+        if (block_alloc_size() == 0uz)
         {
             return;
         }
@@ -1828,7 +1842,7 @@ ctrl_end   →
             auto const begin = elem_begin_begin - 1uz;
             std::construct_at(begin, std::forward<V>(v)...); // may throw
             elem_begin_begin = begin;
-            if (block_elem_end - block_elem_begin == 1z)
+            if (block_elem_size() == 1uz)
             {
                 [[assume(begin + 1uz == elem_begin_begin)]];
                 elem_end_begin = begin;
@@ -1846,7 +1860,7 @@ ctrl_end   →
             [[assume(block + 1uz == block_elem_begin)]];
             --block_elem_begin;
             // 修正elem_end
-            if (block_elem_end - block_elem_begin == 1z)
+            if (block_elem_size() == 1uz)
             {
                 elem_end(end - 1uz, end, end);
             }
@@ -1874,8 +1888,8 @@ ctrl_end   →
             if (elem_end_end == elem_end_begin)
             {
                 --block_elem_end;
-                auto const block_size = block_elem_end - block_elem_begin;
-                if (block_size == 1z)
+                auto const block_size = block_elem_size();
+                if (block_size == 1uz)
                 {
                     elem_end(elem_begin_begin, elem_begin_end, elem_begin_end);
                 }
@@ -1887,7 +1901,7 @@ ctrl_end   →
                 }
                 return;
             }
-            if (block_elem_end - block_elem_begin == 1z)
+            if (block_elem_size() == 1uz)
             {
                 --elem_begin_end;
             }
@@ -1899,7 +1913,7 @@ ctrl_end   →
             auto const last = first + detail::block_elements<T>();
             auto end = last - 1uz;
             std::destroy_at(end);
-            if (block_elem_end - block_elem_begin == 1z)
+            if (block_elem_size() == 1uz)
             {
                 elem_end(elem_begin_begin, elem_begin_end, elem_begin_end);
             }
@@ -1920,9 +1934,9 @@ ctrl_end   →
             if (elem_begin_end == elem_begin_begin)
             {
                 ++block_elem_begin;
-                auto const block_size = block_elem_end - block_elem_begin;
+                auto const block_size = block_elem_size();
                 // 注意，如果就剩最后一个block，那么应该采用end的位置而不是计算得到
-                if (block_elem_end - block_elem_begin == 1z)
+                if (block_size == 1uz)
                 {
                     elem_begin(elem_end_begin, elem_end_end, elem_end_begin);
                 }
@@ -1934,7 +1948,7 @@ ctrl_end   →
                 }
                 return;
             }
-            if (block_elem_end - block_elem_begin == 1z)
+            if (block_elem_size() == 1uz)
             {
                 ++elem_end_begin;
             }
@@ -1942,7 +1956,7 @@ ctrl_end   →
         else
         {
             ++block_elem_begin;
-            if (block_elem_end - block_elem_begin == 1z)
+            if (block_elem_size() == 1uz)
             {
                 elem_begin(elem_end_begin, elem_end_end, elem_end_begin);
             }
