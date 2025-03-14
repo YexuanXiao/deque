@@ -92,6 +92,18 @@ static_assert(calc_block(7uz) == 7uz * 4096uz);
 template <typename T>
 constexpr std::size_t block_elements_v = calc_block(sizeof(T)) / sizeof(T);
 
+template<typename T>
+constexpr auto div_block(std::size_t x) noexcept
+{
+    auto const y = block_elements_v<T>;
+    struct div_t
+    {
+        std::size_t quot;
+        std::size_t rem;
+    };
+    return div_t{x / y, x % y};
+}
+
 template <typename T>
 class basic_bucket_type;
 
@@ -457,8 +469,7 @@ class basic_deque_iterator
             else
             {
                 auto const new_pos = pos - back_size;
-                auto const quot = new_pos / detail::block_elements_v<T>;
-                auto const rem = new_pos % detail::block_elements_v<T>;
+                auto const [quot, rem] = detail::div_block<T>(new_pos);
                 auto const target_block = block_elem_begin + quot + 1uz;
                 return *(*target_block + rem);
             }
@@ -473,8 +484,7 @@ class basic_deque_iterator
             else
             {
                 auto const new_pos = pos + front_size;
-                auto const quot = new_pos / detail::block_elements_v<T>;
-                auto const rem = new_pos % detail::block_elements_v<T>;
+                auto const [quot, rem] = detail::div_block<T>(new_pos);
                 auto const target_block = block_elem_begin + quot - 1uz;
                 return *((*target_block) + detail::block_elements_v<T> + rem);
             }
@@ -494,8 +504,7 @@ class basic_deque_iterator
             else
             {
                 auto const new_pos = pos - back_size;
-                auto const quot = new_pos / detail::block_elements_v<T>;
-                auto const rem = new_pos % detail::block_elements_v<T>;
+                auto const [quot, rem] = detail::div_block<T>(new_pos);
                 auto const target_block = block_elem_begin + quot + 1uz;
                 block_elem_begin = target_block;
                 elem_begin = *target_block;
@@ -513,8 +522,7 @@ class basic_deque_iterator
             else
             {
                 auto const new_pos = pos + front_size;
-                auto const quot = new_pos / detail::block_elements_v<T>;
-                auto const rem = new_pos % detail::block_elements_v<T>;
+                auto const [quot, rem] = detail::div_block<T>(new_pos);
                 auto const target_block = block_elem_begin + quot - 1uz;
                 block_elem_begin = target_block;
                 elem_begin = *target_block;
@@ -1521,8 +1529,7 @@ ctrl_end   →
         {
             return;
         }
-        auto const quot = count / detail::block_elements_v<T>;
-        auto const rem = count % detail::block_elements_v<T>;
+        auto const [quot, rem] = detail::div_block<T>(count);
         construct_guard guard(*this);
         construct_block(quot + 1uz);
         construct(quot + 1uz, quot, rem);
@@ -1535,8 +1542,7 @@ ctrl_end   →
         {
             return;
         }
-        auto const quot = count / detail::block_elements_v<T>;
-        auto const rem = count % detail::block_elements_v<T>;
+        auto const [quot, rem] = detail::div_block<T>(count);
         construct_guard guard(*this);
         construct_block(quot + 1uz);
         construct(quot + 1uz, quot, rem, t);
@@ -1598,8 +1604,7 @@ ctrl_end   →
         else if constexpr (std::random_access_iterator<U>)
         {
             auto const count = end - begin;
-            auto const quot = count / detail::block_elements_v<T>;
-            auto const rem = count % detail::block_elements_v<T>;
+            auto const [quot, rem] = detail::div_block<T>(count);
             construct_guard guard(*this);
             construct_block(quot + 1uz);
             construct(quot + 1uz, quot, rem, begin, end);
@@ -1630,8 +1635,7 @@ ctrl_end   →
         {
             return;
         }
-        auto const quot = count / detail::block_elements_v<T>;
-        auto const rem = count % detail::block_elements_v<T>;
+        auto const [quot, rem] = detail::div_block<T>(count);
         construct_guard guard(*this);
         construct_block(quot + 1uz);
         construct(quot + 1uz, quot, rem, std::ranges::begin(rg), std::ranges::end(rg));
@@ -1653,8 +1657,7 @@ ctrl_end   →
         {
             return;
         }
-        auto const quot = count / detail::block_elements_v<T>;
-        auto const rem = count % detail::block_elements_v<T>;
+        auto const [quot, rem] = detail::div_block<T>(count);
         construct_guard guard(*this);
         construct_block(quot + 1uz);
         construct(quot + 1uz, quot, rem, init.begin(), init.end());
@@ -1696,8 +1699,7 @@ ctrl_end   →
         {
             return *this;
         }
-        auto const quot = count / detail::block_elements_v<T>;
-        auto const rem = count % detail::block_elements_v<T>;
+        auto const [quot, rem] = detail::div_block<T>(count);
         extent_block(quot + 1uz);
         construct(quot + 1uz, quot, rem, ilist.begin(), ilist.end());
         return *this;
@@ -1717,8 +1719,7 @@ ctrl_end   →
         {
             return;
         }
-        auto const quot = count / detail::block_elements_v<T>;
-        auto const rem = count % detail::block_elements_v<T>;
+        auto const [quot, rem] = detail::div_block<T>(count);
         extent_block(quot + 1uz);
         construct(quot + 1uz, quot, rem, value);
     }
@@ -1746,8 +1747,7 @@ ctrl_end   →
         else if constexpr (std::random_access_iterator<U>)
         {
             auto const count = end - begin;
-            auto const quot = count / detail::block_elements_v<T>;
-            auto const rem = count % detail::block_elements_v<T>;
+            auto const [quot, rem] = detail::div_block<T>(count);
             extent_block(quot + 1uz);
             construct(quot + 1uz, quot, rem, begin, end);
         }
@@ -1769,8 +1769,7 @@ ctrl_end   →
         {
             return;
         }
-        auto const quot = count / detail::block_elements_v<T>;
-        auto const rem = count % detail::block_elements_v<T>;
+        auto const [quot, rem] = detail::div_block<T>(count);
         extent_block(quot + 1uz);
         construct(quot + 1uz, quot, rem, ilist.begin(), ilist.end());
     }
@@ -1794,8 +1793,7 @@ ctrl_end   →
         else
         {
             auto const new_pos = pos - head_size;
-            auto const quot = new_pos / detail::block_elements_v<T>;
-            auto const rem = new_pos % detail::block_elements_v<T>;
+            auto const [quot, rem] = detail::div_block<T>(new_pos);
             auto const target_block = block_elem_begin + quot + 1uz;
             auto const check1 = target_block < block_elem_end;
             auto const check2 = (target_block + 1uz == block_elem_end) ? (elem_end_begin + rem < elem_end_end) : true;
