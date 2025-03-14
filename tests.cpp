@@ -204,11 +204,11 @@ template <typename deque>
 void test_front_back(std::size_t count = 1000uz)
 {
     deque d(1uz);
-    d.front();
-    d.back();
+    auto&& ignore = d.front();
+    auto&& ignore1 = d.back();
     deque const &d1 = d;
-    d1.front();
-    d1.back();
+    auto&& ignore2 = d1.front();
+    auto&& ignore3 = d1.back();
 }
 
 // size/empty tests in constructor's above and others

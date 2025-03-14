@@ -299,7 +299,7 @@ class basic_bucket_type
 
     constexpr std::size_t size() const noexcept
     {
-        return block_elem_size();
+        return block_elem_end - block_elem_begin;
     }
 
     constexpr bool empty() const noexcept
