@@ -73,7 +73,7 @@ class basic_bucket_iterator
     friend basic_bucket_type<std::remove_const_t<T>>;
     friend basic_bucket_iterator<std::add_const_t<T>>;
 
-    using block = T *;
+    using block = std::add_pointer_t<std::remove_const_t<T>>;
 
     block *block_elem_begin{};
     block *block_elem_end{};
@@ -247,6 +247,15 @@ class basic_bucket_iterator
     {
         return it + (-pos);
     }
+
+    constexpr operator basic_bucket_iterator<const T>() const
+        requires(!std::is_const_v<T>)
+    {
+        return {block_elem_begin, block_elem_end, block_elem_curr, elem_begin_begin, elem_begin_end,
+                elem_end_begin,   elem_end_end,   elem_curr_begin, elem_curr_end
+
+        };
+    }
 };
 
 static_assert(std::random_access_iterator<basic_bucket_iterator<int>>);
@@ -257,7 +266,7 @@ class basic_bucket_type
 {
     friend deque<std::remove_const_t<T>>;
 
-    using block = T *;
+    using block = std::add_pointer_t<std::remove_const_t<T>>;
 
     block *block_elem_begin{};
     block *block_elem_end{};
@@ -380,6 +389,12 @@ class basic_bucket_type
     constexpr auto rcend() const noexcept
     {
         return const_reverse_iterator{begin()};
+    }
+
+    constexpr operator basic_bucket_type<const T>() const
+        requires(!std::is_const_v<T>)
+    {
+        return {block_elem_begin, block_elem_end, elem_begin_begin, elem_begin_end, elem_end_begin, elem_end_end};
     }
 };
 
@@ -615,6 +630,12 @@ class basic_deque_iterator
     friend constexpr basic_deque_iterator operator-(std::ptrdiff_t pos, basic_deque_iterator const &it) noexcept
     {
         return it + (-pos);
+    }
+
+    constexpr operator basic_deque_iterator<const T>() const
+        requires(!std::is_const_v<T>)
+    {
+        return {block_elem_begin, elem_begin, elem_curr, elem_end};
     }
 };
 } // namespace detail
@@ -1272,7 +1293,7 @@ ctrl_end   →
     }
 
     // 构造函数和复制赋值的辅助函数，要求block_alloc必须足够大
-    constexpr void copy(bucket_type const &other, std::size_t block_size)
+    constexpr void copy(const_bucket_type other, std::size_t block_size)
     {
         if (block_size)
         {
