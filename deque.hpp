@@ -1671,6 +1671,10 @@ ctrl_end   →
   public:
     constexpr deque &operator=(const deque &other)
     {
+        if (this == &other)
+        {
+            return *this;
+        }
         destroy_elems();
         reset_block_elem_end();
         auto const block_size = other.block_elem_end - other.block_elem_begin;
