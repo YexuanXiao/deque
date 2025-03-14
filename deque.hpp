@@ -966,7 +966,7 @@ ctrl_end   →
 
   private:
     // 参见ctrl_alloc注释
-    constexpr void reset_block_alloc_end() noexcept
+    constexpr void fill_block_alloc_end() noexcept
     {
         *block_alloc_end = nullptr;
     }
@@ -999,7 +999,7 @@ ctrl_end   →
             d.block_alloc_end = block_ctrl_begin;
             d.block_elem_begin = block_ctrl_begin;
             d.block_elem_end = block_ctrl_begin;
-            d.reset_block_alloc_end();
+            d.fill_block_alloc_end();
         }
 
         // 扩容时，back为插入元素的方向
@@ -1045,7 +1045,7 @@ ctrl_end   →
         auto const block_size = block_alloc_end - block_alloc_begin;
         block_alloc_begin = block_ctrl_begin;
         block_alloc_end = block_ctrl_begin + block_size;
-        reset_block_alloc_end();
+        fill_block_alloc_end();
     }
 
     // 对齐控制块
@@ -1056,7 +1056,7 @@ ctrl_end   →
         auto const block_size = block_alloc_end - block_alloc_begin;
         block_alloc_end = block_ctrl_end;
         block_alloc_begin = block_ctrl_end - block_size;
-        reset_block_alloc_end();
+        fill_block_alloc_end();
     }
 
     // 对齐控制块
@@ -1094,7 +1094,7 @@ ctrl_end   →
         block_alloc_end = ctrl_begin + alloc_block_size;
         block_elem_begin = ctrl_begin;
         block_elem_end = ctrl_begin + elem_block_size;
-        reset_block_alloc_end();
+        fill_block_alloc_end();
     }
 
     // ctrl_begin可以是自己或者新ctrl的
@@ -1112,7 +1112,7 @@ ctrl_end   →
         block_alloc_begin = ctrl_end - alloc_block_size;
         block_elem_end = ctrl_end;
         block_elem_begin = ctrl_end - elem_block_size;
-        reset_block_alloc_end();
+        fill_block_alloc_end();
     }
 
     // 向前分配新block，需要block_size小于等于(block_alloc_begin - block_ctrl_begin)
@@ -1135,7 +1135,7 @@ ctrl_end   →
             *block_alloc_end = alloc_block();
             ++block_alloc_end;
         }
-        reset_block_alloc_end();
+        fill_block_alloc_end();
     }
 
     // 向back扩展block
@@ -1617,10 +1617,21 @@ ctrl_end   →
         guard.release();
     }
 
+  private:
+    // 赋值的辅助函数
+    void reset_block_elem_end() noexcept
+    {
+        block_elem_end = block_elem_begin;
+    }
+
+  public:
     constexpr deque &operator=(const deque &other)
     {
         destroy_elems();
-        auto const block_size = other.block_elem_end - other.block_alloc_begin;
+        reset_block_elem_end();
+        auto const block_size = other.block_elem_end - other.block_elem_begin;
+        if (block_size == 0uz) // 必须
+            return *this;
         extent_block(block_size);
         copy(other.buckets(), block_size);
         return *this;
@@ -1629,6 +1640,7 @@ ctrl_end   →
     constexpr deque &operator=(std::initializer_list<T> ilist)
     {
         destroy_elems();
+        reset_block_elem_end();
         auto const count = ilist.size();
         if (count == 0uz) // 必须
             return;
@@ -1648,6 +1660,7 @@ ctrl_end   →
     constexpr void assign(std::size_t count, const T &value)
     {
         destroy_elems();
+        reset_block_elem_end();
         if (count == 0uz) // 必须
             return;
         auto const quot = count / detail::block_elements<T>();
@@ -1661,6 +1674,7 @@ ctrl_end   →
         requires std::input_iterator<U> && std::sentinel_for<V, U>
     {
         destroy_elems();
+        reset_block_elem_end();
         if (begin == end) // 必须
             return;
         if constexpr (requires { is_iterator(begin); })
@@ -1692,6 +1706,8 @@ ctrl_end   →
 
     constexpr void assign(std::initializer_list<T> ilist)
     {
+        destroy_elems();
+        reset_block_elem_end();
         auto const count = ilist.size();
         if (count == 0uz) // 必须
             return;
@@ -1709,7 +1725,7 @@ ctrl_end   →
 
   private:
     // 几乎等于iterator的at，但具有检查和断言
-    template <bool throw_exception>
+    template <bool throw_exception = false>
     constexpr T &at_impl(std::size_t pos) const noexcept
     {
         auto const head_size = elem_begin_end - elem_begin_begin;
@@ -1742,12 +1758,12 @@ ctrl_end   →
   public:
     constexpr T &at(std::size_t pos) noexcept
     {
-        return at_impl(pos);
+        return at_impl<true>(pos);
     }
 
     constexpr T const &at(std::size_t pos) const noexcept
     {
-        return at_impl(pos);
+        return at_impl<true>(pos);
     }
 
     constexpr T &operator[](std::size_t pos) noexcept
@@ -1773,6 +1789,7 @@ ctrl_end   →
             dealloc_block(i);
         }
         block_alloc_end = block_elem_end;
+        fill_block_alloc_end();
     }
 
     constexpr void push_back(T const &t)
