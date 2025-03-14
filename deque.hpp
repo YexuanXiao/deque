@@ -1399,7 +1399,7 @@ ctrl_end   →
     // 使用count、count和T、或者随机访问迭代器进行构造，用于对应的构造函数
     // 注意异常安全
     template <typename... Ts>
-    constexpr void construct_n(std::size_t block_size, std::size_t quot, std::size_t rem, Ts &&...t)
+    constexpr void construct(std::size_t block_size, std::size_t quot, std::size_t rem, Ts &&...t)
     {
         // 由于析构优先考虑elem_begin，因此必须独立构造elem_begin
         if (quot)
@@ -1525,7 +1525,7 @@ ctrl_end   →
         auto const rem = count % detail::block_elements_v<T>;
         construct_guard guard(*this);
         construct_block(quot + 1uz);
-        construct_n(quot + 1uz, quot, rem);
+        construct(quot + 1uz, quot, rem);
         guard.release();
     }
 
@@ -1539,7 +1539,7 @@ ctrl_end   →
         auto const rem = count % detail::block_elements_v<T>;
         construct_guard guard(*this);
         construct_block(quot + 1uz);
-        construct_n(quot + 1uz, quot, rem, t);
+        construct(quot + 1uz, quot, rem, t);
         guard.release();
     }
 
@@ -1602,7 +1602,7 @@ ctrl_end   →
             auto const rem = count % detail::block_elements_v<T>;
             construct_guard guard(*this);
             construct_block(quot + 1uz);
-            construct_n(quot + 1uz, quot, rem, begin, end);
+            construct(quot + 1uz, quot, rem, begin, end);
             guard.release();
         }
         else
@@ -1634,7 +1634,7 @@ ctrl_end   →
         auto const rem = count % detail::block_elements_v<T>;
         construct_guard guard(*this);
         construct_block(quot + 1uz);
-        construct_n(quot + 1uz, quot, rem, std::ranges::begin(rg), std::ranges::end(rg));
+        construct(quot + 1uz, quot, rem, std::ranges::begin(rg), std::ranges::end(rg));
         guard.release();
     }
 
@@ -1657,7 +1657,7 @@ ctrl_end   →
         auto const rem = count % detail::block_elements_v<T>;
         construct_guard guard(*this);
         construct_block(quot + 1uz);
-        construct_n(quot + 1uz, quot, rem, init.begin(), init.end());
+        construct(quot + 1uz, quot, rem, init.begin(), init.end());
         guard.release();
     }
 
@@ -1695,7 +1695,7 @@ ctrl_end   →
         auto const quot = count / detail::block_elements_v<T>;
         auto const rem = count % detail::block_elements_v<T>;
         extent_block(quot + 1uz);
-        construct_n(quot + 1uz, quot, rem, ilist.begin(), ilist.end());
+        construct(quot + 1uz, quot, rem, ilist.begin(), ilist.end());
         return *this;
     }
 
@@ -1716,7 +1716,7 @@ ctrl_end   →
         auto const quot = count / detail::block_elements_v<T>;
         auto const rem = count % detail::block_elements_v<T>;
         extent_block(quot + 1uz);
-        construct_n(quot + 1uz, quot, rem, value);
+        construct(quot + 1uz, quot, rem, value);
     }
 
     template <typename U, typename V>
@@ -1745,7 +1745,7 @@ ctrl_end   →
             auto const quot = count / detail::block_elements_v<T>;
             auto const rem = count % detail::block_elements_v<T>;
             extent_block(quot + 1uz);
-            construct_n(quot + 1uz, quot, rem, begin, end);
+            construct(quot + 1uz, quot, rem, begin, end);
         }
         else
         {
@@ -1768,7 +1768,7 @@ ctrl_end   →
         auto const quot = count / detail::block_elements_v<T>;
         auto const rem = count % detail::block_elements_v<T>;
         extent_block(quot + 1uz);
-        construct_n(quot + 1uz, quot, rem, ilist.begin(), ilist.end());
+        construct(quot + 1uz, quot, rem, ilist.begin(), ilist.end());
     }
 
     template <typename R>
