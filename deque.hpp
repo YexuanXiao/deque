@@ -261,6 +261,7 @@ template <typename T>
 class basic_bucket_type
 {
     friend deque<std::remove_const_t<T>>;
+    friend basic_bucket_type<std::remove_const_t<T>>;
 
     using block = std::add_pointer_t<std::remove_const_t<T>>;
 
