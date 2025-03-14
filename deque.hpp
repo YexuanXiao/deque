@@ -1,16 +1,34 @@
 #pragma once
 
-#include <algorithm>
+// assert
 #include <cassert>
-#include <compare>
-#include <concepts>
+// ptrdiff_t/size_t
 #include <cstddef>
+// ranges::copy/copy_back_ward/rotate
+#include <algorithm>
+// strong_ordering
+#include <compare>
+// iterator concepts/counted_iterator/reverse_iterator/sentinel/iterator tag
 #include <iterator>
+// construct_at/destroy_at/uninitialized_algorithm
 #include <memory>
-#include <new>
-#include <ranges>
-#include <stdexcept>
+// add_pointer/remove_pointer/remove_const/add_const/is_const/is_object
 #include <type_traits>
+// ranges::subrange/sized_range/from_range_t/begin/end/swap
+#include <ranges>
+// out_of_range
+#include <stdexcept>
+// span
+#include <span>
+// move/forward
+#include <utility>
+// initializer_list
+#include <initializer_list>
+
+#if not defined(__cpp_pack_indexing)
+// tuple/get
+#include <tuple>
+#endif
 
 namespace bizwen
 {
@@ -659,12 +677,6 @@ class deque
 
     using block = T *;
 
-#if __has_cpp_attribute(msvc::no_unique_address)
-    [[msvc::no_unique_address]]
-#else
-    [[no_unique_address]]
-#endif
-    std::monostate alloc;
     // 块数组的起始地址
     block *block_ctrl_begin{};
     // 块数组的结束地址
