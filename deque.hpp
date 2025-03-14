@@ -5,17 +5,12 @@
 #include <compare>
 #include <concepts>
 #include <cstddef>
-#include <deque>
 #include <iterator>
-#include <limits>
 #include <memory>
 #include <new>
 #include <ranges>
 #include <stdexcept>
-#include <stdio.h>
-#include <stdlib.h>
 #include <type_traits>
-#include <variant>
 
 namespace bizwen
 {
@@ -47,7 +42,7 @@ consteval std::size_t block_elements() noexcept
         for (auto i = 0uz; i != 8uz; ++i)
         {
             block_sz = base * (i + 1uz);
-            auto constexpr rmd_cur = (block_sz * i) % pv;
+            auto constexpr rmd_cur = block_sz % pv;
             // 越小利用率越高
             if (rmd_cur < rmd_pre)
             {
@@ -817,7 +812,7 @@ ctrl_end   →
 
     constexpr bool empty() const noexcept
     {
-        return elem_begin_begin != elem_begin_end;
+        return elem_begin_begin == elem_begin_end;
     }
 
     constexpr void clear() noexcept
@@ -1017,7 +1012,7 @@ ctrl_end   →
 
         constexpr void replace_ctrl_front() const noexcept
         {
-            d.align_elem_alloc_as_ctrl_front(block_ctrl_begin);
+            d.align_elem_alloc_as_ctrl_front(block_ctrl_end);
             d.dealloc_ctrl();
             // 注意顺序
             // 从guard替换回deque
@@ -1104,10 +1099,10 @@ ctrl_end   →
         auto const alloc_block_size = block_alloc_end - block_alloc_begin;
         auto const elem_block_size = block_elem_end - block_elem_begin;
         auto const alloc_elem_offset_front = block_elem_begin - block_alloc_begin;
-        std::ranges::copy_backward(block_elem_begin, block_elem_end, block_ctrl_end);
-        std::ranges::copy_backward(block_alloc_begin, block_elem_begin, block_ctrl_end - elem_block_size);
+        std::ranges::copy_backward(block_elem_begin, block_elem_end, ctrl_end);
+        std::ranges::copy_backward(block_alloc_begin, block_elem_begin, ctrl_end - elem_block_size);
         std::ranges::copy_backward(block_elem_end, block_alloc_end,
-                                   block_ctrl_end - elem_block_size - alloc_elem_offset_front);
+                                   ctrl_end - elem_block_size - alloc_elem_offset_front);
         block_alloc_end = ctrl_end;
         block_alloc_begin = ctrl_end - alloc_block_size;
         block_elem_end = ctrl_end;
@@ -1221,7 +1216,7 @@ ctrl_end   →
 
         if (ctrl_cap >= add_elem_size)
         {
-            align_elem_alloc_as_ctrl_front(block_ctrl_begin);
+            align_elem_alloc_as_ctrl_front(block_ctrl_end);
         }
         else
         {
@@ -1804,23 +1799,27 @@ ctrl_end   →
     {
         if (elem_begin_begin != elem_begin_first)
         {
-            auto const begin = elem_begin_begin;
-            std::construct_at(begin - 1uz, std::forward<V>(v)...); // may throw
+            auto const begin = elem_begin_begin - 1uz;
+            std::construct_at(begin, std::forward<V>(v)...); // may throw
+            elem_begin_begin = begin;
             if (block_elem_end - block_elem_begin == 1z)
             {
-                --elem_end_begin;
+                [[assume(begin + 1uz == elem_begin_begin)]];
+                elem_end_begin = begin;
             }
-            return *(begin - 1uz);
+            return *begin;
         }
         else
         {
             reserve_front(1uz);
-            auto const first = *(--block_elem_begin);
+            auto const block = block_elem_begin - 1uz;
+            auto const first = *block;
             auto const end = first + detail::block_elements<T>();
             std::construct_at(end - 1uz, std::forward<V>(v)...); // may throw
             elem_begin(end - 1uz, end, first);
+            [[assume(block + 1uz == block_elem_begin)]];
             --block_elem_begin;
-            // 修正elem_begin
+            // 修正elem_end
             if (block_elem_end - block_elem_begin == 1z)
             {
                 elem_end(end - 1uz, end, end);
@@ -1844,17 +1843,21 @@ ctrl_end   →
         assert(not empty());
         if (elem_end_begin != elem_end_end)
         {
-            std::destroy_at(elem_end_end);
             --elem_end_end;
+            std::destroy_at(elem_end_end);
             if (elem_end_end == elem_end_begin)
             {
                 --block_elem_end;
-                auto const begin = *(block_elem_end - 1uz);
-                auto const last = elem_end_begin + detail::block_elements<T>();
-                elem_end(begin, last, last);
-                if (block_elem_end - block_elem_begin == 1z)
+                auto const block_size = block_elem_end - block_elem_begin;
+                if (block_size == 1z)
                 {
-                    elem_begin(begin, last, begin);
+                    elem_end(elem_begin_begin, elem_begin_end, elem_begin_end);
+                }
+                else if (block_size)
+                {
+                    auto const begin = *(block_elem_end - 1uz);
+                    auto const last = begin + detail::block_elements<T>();
+                    elem_end(begin, last, last);
                 }
                 return;
             }
@@ -1866,13 +1869,17 @@ ctrl_end   →
         else
         {
             --block_elem_end;
-            auto const begin = *(block_elem_end - 1uz);
-            auto const last = elem_end_begin + detail::block_elements<T>();
-            elem_end(begin, last - 1uz, last);
-            std::destroy_at(last - 1uz);
+            auto const first = *(block_elem_end - 1uz);
+            auto const last = first + detail::block_elements<T>();
+            auto end = last - 1uz;
+            std::destroy_at(end);
             if (block_elem_end - block_elem_begin == 1z)
             {
-                elem_begin(begin, last - 1uz, begin);
+                elem_end(elem_begin_begin, elem_begin_end, elem_begin_end);
+            }
+            else
+            {
+                elem_end(first, end, last);
             }
         }
     }
@@ -1884,15 +1891,20 @@ ctrl_end   →
         {
             std::destroy_at(elem_begin_begin);
             ++elem_begin_begin;
-            if (elem_end_end == elem_end_begin)
+            if (elem_begin_end == elem_begin_begin)
             {
                 ++block_elem_begin;
-                auto const begin = *(block_elem_begin);
-                auto const last = elem_end_begin + detail::block_elements<T>();
-                elem_begin(begin, last, begin);
+                auto const block_size = block_elem_end - block_elem_begin;
+                // 注意，如果就剩最后一个block，那么应该采用end的位置而不是计算得到
                 if (block_elem_end - block_elem_begin == 1z)
                 {
-                    elem_end(begin, last, last);
+                    elem_begin(elem_end_begin, elem_end_end, elem_end_begin);
+                }
+                else if(block_size)
+                {
+                    auto const begin = *block_elem_begin;
+                    auto const last = begin + detail::block_elements<T>();
+                    elem_begin(begin, last, begin);
                 }
                 return;
             }
@@ -1904,13 +1916,16 @@ ctrl_end   →
         else
         {
             ++block_elem_begin;
-            auto const begin = *(block_elem_begin);
-            auto const end = begin + detail::block_elements<T>();
-            std::destroy_at(begin);
-            elem_begin(begin + 1uz, end, begin);
             if (block_elem_end - block_elem_begin == 1z)
             {
-                elem_end(begin + 1uz, end, end);
+                elem_begin(elem_end_begin, elem_end_end, elem_end_begin);
+            }
+            else
+            {
+                auto const begin = *block_elem_begin;
+                auto const end = begin + detail::block_elements<T>();
+                std::destroy_at(begin);
+                elem_begin(begin + 1uz, end, begin);
             }
         }
     }
