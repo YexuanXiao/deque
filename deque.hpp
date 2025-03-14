@@ -337,8 +337,11 @@ class basic_bucket_type
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
     constexpr basic_bucket_type() = default;
+
     constexpr ~basic_bucket_type() = default;
+
     constexpr basic_bucket_type(basic_bucket_type const &) = default;
+
     constexpr basic_bucket_type &operator=(basic_bucket_type const &) = default;
 
     constexpr std::size_t size() const noexcept
@@ -789,7 +792,8 @@ ctrl_end   →
             }
         }
     }
-    // 空deque安全
+
+    // 完全等于析构函数
     constexpr void destruct() noexcept
     {
         destroy_elems();
