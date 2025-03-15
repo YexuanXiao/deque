@@ -24,6 +24,8 @@
 #include <utility>
 // initializer_list
 #include <initializer_list>
+// __cpp_lib_containers_ranges
+#include <version>
 
 #if not defined(__cpp_pack_indexing)
 // tuple/get
