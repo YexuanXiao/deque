@@ -92,7 +92,7 @@ static_assert(calc_block(7uz) == 7uz * 4096uz);
 template <typename T>
 constexpr std::size_t block_elements_v = calc_block(sizeof(T)) / sizeof(T);
 
-template<typename T>
+template <typename T>
 constexpr auto div_block(std::size_t x) noexcept
 {
     auto const y = block_elements_v<T>;
@@ -1625,6 +1625,7 @@ ctrl_end   →
         }
     }
 
+#if defined(__cpp_lib_containers_ranges)
     template <typename R>
     constexpr deque(std::from_range_t, R &&rg) : deque(std::ranges::begin(rg), std::ranges::end(rg))
     {
@@ -1653,6 +1654,7 @@ ctrl_end   →
     constexpr deque(std::from_range_t, deque &&rg) : deque(std::move(rg))
     {
     }
+#endif
 
     constexpr deque(std::initializer_list<T> init)
     {

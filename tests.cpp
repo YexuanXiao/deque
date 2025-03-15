@@ -344,6 +344,7 @@ void test_emplace_front(std::size_t count = 1000uz)
 
 // pop_back/pop_front tests in emplace_back/emplace_front
 
+#if defined(__cpp_lib_containers_ranges)
 template <typename Type>
 void test_all(std::size_t count = 1000uz)
 {
@@ -358,6 +359,7 @@ void test_all(std::size_t count = 1000uz)
         test_emplace_back<std::deque<Type>>(count);
         test_emplace_front<std::deque<Type>>(count);
     }
+#endif
     {
         test_constructor<bizwen::deque<Type>>(count);
         test_operator_assign<bizwen::deque<Type>>(count);
