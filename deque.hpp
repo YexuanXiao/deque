@@ -1,5 +1,9 @@
 #pragma once
 
+#if !defined(__cpp_size_t_suffix)
+#error "requires __cpp_size_t_suffix"
+#endif
+
 // assert
 #include <cassert>
 // ptrdiff_t/size_t
@@ -10,7 +14,7 @@
 #include <compare>
 // iterator concepts/counted_iterator/reverse_iterator/sentinel/iterator tag
 #include <iterator>
-// construct_at/destroy_at/uninitialized_algorithm
+// construct_at/destroy_at/uninitialized algorithms
 #include <memory>
 // add_pointer/remove_pointer/remove_const/add_const/is_const/is_object
 #include <type_traits>
@@ -24,6 +28,8 @@
 #include <utility>
 // initializer_list
 #include <initializer_list>
+// __cpp_lib_containers_ranges
+#include <version>
 
 #if not defined(__cpp_pack_indexing)
 // tuple/get

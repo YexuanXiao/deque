@@ -1,11 +1,11 @@
-
-
 #include <cassert>
-#include <deque>
-#include <initializer_list>
-#include <numeric>
 #include <ranges>
 #include <vector>
+#include <version>
+
+#if defined(TEST_CONSIS)
+#include <deque>
+#endif
 
 #if !defined(__cpp_size_t_suffix) || __cpp_size_t_suffix < 202011L
 // make IntelliSence happy
@@ -14,9 +14,9 @@ inline constexpr std::size_t operator"" uz(unsigned long long const value) noexc
     return value;
 }
 #endif
-// max_block_cap
+
 #define BIZWEN_DEQUE_BASE_BLOCK_SIZE 256uz
-#include "deque.hpp"
+#include "./deque.hpp"
 
 template <std::size_t Size>
 class vsn
@@ -344,10 +344,11 @@ void test_emplace_front(std::size_t count = 1000uz)
 
 // pop_back/pop_front tests in emplace_back/emplace_front
 
-#if defined(__cpp_lib_containers_ranges)
 template <typename Type>
 void test_all(std::size_t count = 1000uz)
 {
+#if defined(TEST_CONSIS)
+#if defined(__cpp_lib_containers_ranges)
     {
         test_constructor<std::deque<Type>>(count);
         test_operator_assign<std::deque<Type>>(count);
@@ -359,7 +360,11 @@ void test_all(std::size_t count = 1000uz)
         test_emplace_back<std::deque<Type>>(count);
         test_emplace_front<std::deque<Type>>(count);
     }
+#else
+#error "requires __cpp_lib_containers_ranges"
 #endif
+#endif
+#if defined(TEST_FUNC)
     {
         test_constructor<bizwen::deque<Type>>(count);
         test_operator_assign<bizwen::deque<Type>>(count);
@@ -371,6 +376,10 @@ void test_all(std::size_t count = 1000uz)
         test_emplace_back<bizwen::deque<Type>>(count);
         test_emplace_front<bizwen::deque<Type>>(count);
     }
+#endif
+#if !defined(TEST_CONSIS) && !defined(TEST_FUNC)
+#error "at least one test must be specified"
+#endif
 }
 
 int main()
