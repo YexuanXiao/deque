@@ -27,7 +27,7 @@ class vsn
     vsn() = default;
     vsn(std::size_t num)
     {
-        data[0] = num;
+        data[0] = static_cast<unsigned char>(num);
     }
     vsn(vsn const &other) = default;
     vsn &operator=(vsn const &other) = default;
@@ -165,7 +165,7 @@ void test_assign(std::size_t count = 1000uz)
     // (1) equivalent to constructor (4)
     {
         deque d(100uz);
-        d.assign(100uz,1uz);
+        d.assign(100uz, 1uz);
         assert(d.size() == 100uz);
     }
     // (2) equivalent to constructor (5)
@@ -204,11 +204,11 @@ template <typename deque>
 void test_front_back(std::size_t count = 1000uz)
 {
     deque d(1uz);
-    auto&& ignore = d.front();
-    auto&& ignore1 = d.back();
+    auto &&ignore = d.front();
+    auto &&ignore1 = d.back();
     deque const &d1 = d;
-    auto&& ignore2 = d1.front();
-    auto&& ignore3 = d1.back();
+    auto &&ignore2 = d1.front();
+    auto &&ignore3 = d1.back();
 }
 
 // size/empty tests in constructor's above and others
@@ -230,7 +230,7 @@ void test_clear(std::size_t count = 1000uz)
     assert(d.empty());
 }
 
-// todo: emplace、insert、insert_range、emplace、erase、
+// todo: emplace、insert、insert_range、emplace、erase
 
 template <typename deque>
 void test_emplace_back(std::size_t count = 1000uz)
@@ -344,6 +344,31 @@ void test_emplace_front(std::size_t count = 1000uz)
 
 // pop_back/pop_front tests in emplace_back/emplace_front
 
+template <typename deque>
+void test_prep_app_end_range_resize(std::size_t count = 1000uz)
+{
+    // equivlent to emplace_back/emplace_front
+    {
+        deque d{};
+        d.append_range(std::views::iota(0uz, 100uz));
+        assert(d.size() == 100uz);
+    }
+    {
+        deque d{};
+        d.prepend_range(std::views::iota(0uz, 100uz));
+        assert(d.size() == 100uz);
+    }
+    {
+        deque d{};
+        d.resize(100uz);
+        assert(d.size() == 100uz);
+        d.resize(0uz);
+        assert(d.size() == 0uz);
+        d.resize(100uz, typename deque::value_type(0uz));
+        assert(d.size() == 100uz);
+    }
+}
+
 template <typename Type>
 void test_all(std::size_t count = 1000uz)
 {
@@ -359,6 +384,7 @@ void test_all(std::size_t count = 1000uz)
         test_clear<std::deque<Type>>(count);
         test_emplace_back<std::deque<Type>>(count);
         test_emplace_front<std::deque<Type>>(count);
+        test_prep_app_end_range_resize<std::deque<Type>>(count);
     }
 #else
 #error "requires __cpp_lib_containers_ranges"
@@ -375,6 +401,7 @@ void test_all(std::size_t count = 1000uz)
         test_clear<bizwen::deque<Type>>(count);
         test_emplace_back<bizwen::deque<Type>>(count);
         test_emplace_front<bizwen::deque<Type>>(count);
+        test_prep_app_end_range_resize<bizwen::deque<Type>>(count);
     }
 #endif
 #if !defined(TEST_CONSIS) && !defined(TEST_FUNC)
