@@ -9,9 +9,6 @@ Working in progress.
 + `insert`
 + `insert_range`
 + `emplace`
-+ `append_range`
-+ `prepend_range`
-+ `resize`
 + `operator==`
 + `operator<=>`
 + `erase_if`
