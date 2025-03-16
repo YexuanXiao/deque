@@ -1423,7 +1423,7 @@ ctrl_end   →
         // todo: alloc propagate
         // alloc = other.alloc;
         construct_guard guard(*this);
-        auto const block_size = other.block_elem_end - other.block_elem_begin;
+        auto const block_size = other.block_elem_size();
         construct_block(block_size);
         copy(other.buckets(), block_size);
         guard.release();
@@ -1437,7 +1437,7 @@ ctrl_end   →
     // 使用count、count和T、或者随机访问迭代器进行构造，用于对应的构造函数
     // 注意异常安全
     template <typename... Ts>
-    constexpr void construct(std::size_t block_size, std::size_t full_blocks, std::size_t rem_elems, Ts &&...t)
+    constexpr void construct(std::size_t block_size, std::size_t full_blocks, std::size_t rem_elems, Ts &&...ts)
     {
         // 由于析构优先考虑elem_begin，因此必须独立构造elem_begin
         if (full_blocks)
@@ -1450,15 +1450,15 @@ ctrl_end   →
             }
             else if constexpr (sizeof...(Ts) == 1uz)
             {
-                std::ranges::uninitialized_fill(begin, end, t...);
+                std::ranges::uninitialized_fill(begin, end, ts...);
             }
             else if constexpr (sizeof...(Ts) == 2uz)
             {
 #if defined(__cpp_pack_indexing)
-                auto &src_begin = t...[0uz];
-                auto &src_end = t...[1uz];
+                auto &src_begin = ts...[0uz];
+                auto &src_end = ts...[1uz];
 #else
-                auto const x = std::tuple<Ts &...>(t...);
+                auto const x = std::tuple<Ts &...>(ts...);
                 auto &src_begin = std::get<0uz>(x);
                 auto &src_end = std::get<1uz>(x);
 #endif
@@ -1486,15 +1486,15 @@ ctrl_end   →
                 }
                 else if constexpr (sizeof...(Ts) == 1uz)
                 {
-                    std::ranges::uninitialized_fill(begin, end, t...);
+                    std::ranges::uninitialized_fill(begin, end, ts...);
                 }
                 else if constexpr (sizeof...(Ts) == 2uz)
                 {
 #if defined(__cpp_pack_indexing)
-                    auto &src_begin = t...[0uz];
-                    auto &src_end = t...[1uz];
+                    auto &src_begin = ts...[0uz];
+                    auto &src_end = ts...[1uz];
 #else
-                    auto const x = std::tuple<Ts &...>(t...);
+                    auto const x = std::tuple<Ts &...>(ts...);
                     auto &src_begin = std::get<0uz>(x);
                     auto &src_end = std::get<1uz>(x);
 #endif
@@ -1522,15 +1522,15 @@ ctrl_end   →
             }
             else if constexpr (sizeof...(Ts) == 1uz)
             {
-                std::ranges::uninitialized_fill(begin, end, t...);
+                std::ranges::uninitialized_fill(begin, end, ts...);
             }
             else if constexpr (sizeof...(Ts) == 2uz)
             {
 #if defined(__cpp_pack_indexing)
-                auto &src_begin = t...[0uz];
-                auto &src_end = t...[1uz];
+                auto &src_begin = ts...[0uz];
+                auto &src_end = ts...[1uz];
 #else
-                auto const x = std::tuple<Ts &...>(t...);
+                auto const x = std::tuple<Ts &...>(ts...);
                 auto &src_begin = std::get<0uz>(x);
                 auto &src_end = std::get<1uz>(x);
 #endif
@@ -1552,41 +1552,52 @@ ctrl_end   →
 #pragma clang diagnostic pop
 #endif
 
-    // reserve只需要是0或者1
     template <typename... V>
-    constexpr T &emplace_back_inner(std::size_t reserve, V &&...v)
+    constexpr T &emplace_back_pre(std::size_t block_size, V &&...v)
+    {
+        auto const begin = elem_end_end;
+        std::construct_at(begin, std::forward<V>(v)...); // may throw
+        auto const end = elem_end_end + 1uz;
+        elem_end_end = end;
+        // 修正elem_begin
+        if (block_size == 1uz)
+        {
+            elem_begin_end = end;
+        }
+        return *begin;
+    }
+
+    template <typename... V>
+    constexpr T &emplace_back_post(std::size_t block_size, V &&...v)
+    {
+        auto const begin = *block_elem_end;
+        std::construct_at(begin, std::forward<V>(v)...); // may throw
+        elem_end(begin, begin + 1uz, begin + detail::block_elements_v<T>);
+        ++block_elem_end;
+        // 修正elem_begin，如果先前为0，说明现在是1，修正elem_begin等于elem_end
+        if (block_size == 0uz)
+        {
+            elem_begin(begin, begin + 1uz, begin);
+        }
+        return *begin;
+    }
+
+  public:
+    template <typename... V>
+    constexpr T &emplace_back(V &&...v)
     {
         auto const block_size = block_elem_size();
         if ((block_size != 0uz) && (elem_end_end != elem_end_last))
         {
-            auto const begin = elem_end_end;
-            std::construct_at(begin, std::forward<V>(v)...); // may throw
-            auto const end = elem_end_end + 1uz;
-            elem_end_end = end;
-            // 修正elem_begin
-            if (block_size == 1uz)
-            {
-                elem_begin_end = end;
-            }
-            return *begin;
+            return emplace_back_pre(block_size, v...);
         }
         else
         {
-            reserve_back(reserve);
-            auto const begin = *block_elem_end;
-            std::construct_at(begin, std::forward<V>(v)...); // may throw
-            elem_end(begin, begin + 1uz, begin + detail::block_elements_v<T>);
-            ++block_elem_end;
-            // 修正elem_begin，如果先前为0，说明现在是1，修正elem_begin等于elem_end
-            if (block_size == 0uz)
-            {
-                elem_begin(begin, begin + 1uz, begin);
-            }
-            return *begin;
+            reserve_back(1uz);
+            return emplace_back_post(block_size, v...);
         }
     }
 
-  public:
     constexpr deque(std::size_t count)
     {
         auto const [block_size, full_blocks, rem_elems] = detail::calc_block_cap<T>(count);
@@ -1609,13 +1620,13 @@ ctrl_end   →
         requires std::input_iterator<U> && std::sentinel_for<V, U>
     constexpr deque(U begin, V end)
     {
-        if (begin == end) // 必须
-        {
-            return;
-        }
         if constexpr (requires { is_iterator(begin); })
         {
-            // iterator begin, end;
+            if (begin == end) // 必须
+            {
+                return;
+            }
+            // iterator begin, end
             bucket_type bucket{begin.block_elem_begin, end.block_elem_begin + 1uz,
                                begin.elem_curr,        begin.elem_end,
                                end.elem_begin,         end.elem_curr};
@@ -1639,7 +1650,7 @@ ctrl_end   →
             construct_guard guard{*this};
             for (; begin != end; ++begin)
             {
-                emplace_back_inner(1uz, *begin);
+                emplace_back(*begin);
             }
             guard.release();
         }
@@ -1692,19 +1703,14 @@ ctrl_end   →
   public:
     constexpr deque &operator=(const deque &other)
     {
-        if (this == &other)
+        if (this != &other)
         {
-            return *this;
+            destroy_elems();
+            reset_block_elem_end();
+            auto const block_size = other.block_elem_size();
+            extent_block(block_size);
+            copy(other.buckets(), block_size);
         }
-        destroy_elems();
-        reset_block_elem_end();
-        auto const block_size = other.block_elem_end - other.block_elem_begin;
-        if (block_size == 0uz) // 必须
-        {
-            return *this;
-        }
-        extent_block(block_size);
-        copy(other.buckets(), block_size);
         return *this;
     }
 
@@ -1746,7 +1752,7 @@ ctrl_end   →
             {
                 return;
             }
-            // iterator begin, end;
+            // iterator begin, end
             bucket_type bucket{begin.block_elem_begin, end.block_elem_begin + 1uz,
                                begin.elem_curr,        begin.elem_end,
                                end.elem_begin,         end.elem_curr};
@@ -1765,7 +1771,7 @@ ctrl_end   →
         {
             for (; begin != end; ++begin)
             {
-                emplace_back_inner(1uz, *begin);
+                emplace_back(*begin);
             }
         }
     }
@@ -1802,7 +1808,8 @@ ctrl_end   →
             auto const [block_step, elem_step] = detail::calc_rem_pos<T>(new_pos);
             auto const target_block = block_elem_begin + block_step;
             auto const check1 = target_block < block_elem_end;
-            auto const check2 = (target_block + 1uz == block_elem_end) ? (elem_end_begin + elem_step < elem_end_end) : true;
+            auto const check2 =
+                (target_block + 1uz == block_elem_end) ? (elem_end_begin + elem_step < elem_end_end) : true;
             if constexpr (throw_exception)
             {
                 if (not(check1 && check2))
@@ -1816,43 +1823,41 @@ ctrl_end   →
         }
     }
 
-    template <class... V>
-    constexpr T &emplace_front_inner(std::size_t reserve, V &&...v)
+    template <typename... V>
+    constexpr T &emplace_front_pre(std::size_t block_size, V &&...v)
     {
-        auto const block_size = block_elem_size();
-        if ((block_size != 0uz) && (elem_begin_begin != elem_begin_first))
+
+        auto const begin = elem_begin_begin - 1uz;
+        std::construct_at(begin, std::forward<V>(v)...); // may throw
+        elem_begin_begin = begin;
+        if (block_size == 1uz)
         {
-            auto const begin = elem_begin_begin - 1uz;
-            std::construct_at(begin, std::forward<V>(v)...); // may throw
-            elem_begin_begin = begin;
-            if (block_size == 1uz)
-            {
 #if __has_cpp_attribute(assume)
-                [[assume(begin + 1uz == elem_begin_begin)]];
+            [[assume(begin + 1uz == elem_begin_begin)]];
 #endif
-                elem_end_begin = begin;
-            }
-            return *begin;
+            elem_end_begin = begin;
         }
-        else
+        return *begin;
+    }
+
+    template <typename... V>
+    constexpr T &emplace_front_post(std::size_t block_size, V &&...v)
+    {
+        auto const block = block_elem_begin - 1uz;
+        auto const first = *block;
+        auto const end = first + detail::block_elements_v<T>;
+        std::construct_at(end - 1uz, std::forward<V>(v)...); // may throw
+        elem_begin(end - 1uz, end, first);
+#if __has_cpp_attribute(assume)
+        [[assume(block + 1uz == block_elem_begin)]];
+#endif
+        --block_elem_begin;
+        // 修正elem_end
+        if (block_size == 0uz)
         {
-            reserve_front(reserve);
-            auto const block = block_elem_begin - 1uz;
-            auto const first = *block;
-            auto const end = first + detail::block_elements_v<T>;
-            std::construct_at(end - 1uz, std::forward<V>(v)...); // may throw
-            elem_begin(end - 1uz, end, first);
-#if __has_cpp_attribute(assume)
-            [[assume(block + 1uz == block_elem_begin)]];
-#endif
-            --block_elem_begin;
-            // 修正elem_end
-            if (block_size == 0uz)
-            {
-                elem_end(end - 1uz, end, end);
-            }
-            return *(end - 1uz);
+            elem_end(end - 1uz, end, end);
         }
+        return *(end - 1uz);
     }
 
   public:
@@ -1896,12 +1901,6 @@ ctrl_end   →
         fill_block_alloc_end();
     }
 
-    template <typename... V>
-    constexpr T &emplace_back(V &&...v)
-    {
-        return emplace_back_inner(1uz, std::forward<V>(v)...);
-    }
-
     constexpr void push_back(T const &t)
     {
         emplace_back(t);
@@ -1912,10 +1911,19 @@ ctrl_end   →
         emplace_back(std::move(t));
     }
 
-    template <class... V>
+    template <typename... V>
     constexpr T &emplace_front(V &&...v)
     {
-        return emplace_front_inner(1uz, std::forward<V>(v)...);
+        auto const block_size = block_elem_size();
+        if ((block_size != 0uz) && (elem_begin_begin != elem_begin_first))
+        {
+            return emplace_front_pre(block_size, std::forward<V>(v)...);
+        }
+        else
+        {
+            reserve_front(1uz);
+            return emplace_front_post(block_size, std::forward<V>(v)...);
+        }
     }
 
     constexpr void push_front(const T &value)
@@ -2051,9 +2059,6 @@ ctrl_end   →
     }
 
     template <bool back>
-    friend struct partial_guard;
-
-    template <bool back>
     struct partial_guard
     {
         deque *d;
@@ -2063,7 +2068,7 @@ ctrl_end   →
         constexpr partial_guard(deque &dq, std::size_t old_size) noexcept : d(&dq), pre_size(old_size)
         {
         }
-        
+
         constexpr void release() noexcept
         {
             d = nullptr;
@@ -2090,24 +2095,63 @@ ctrl_end   →
         }
     };
 
+    // 调用该版本之前必须保证block_size不为0或elem_begin_first是有意义的
+    // 也就是说不允许block_size==0和elem_begin_begin==elem_begin_first同时成立
+    // 该函数不分配内存
+    template <typename... V>
+    constexpr T &emplace_front_uncheck(std::size_t block_size, V &&...v)
+    {
+        assert(block_size != 0uz || elem_begin_begin != elem_begin_first);
+        if (elem_begin_begin != elem_begin_first)
+        {
+            return emplace_front_pre(block_size, std::forward<V>(v)...);
+        }
+        else
+        {
+            return emplace_front_post(block_size, std::forward<V>(v)...);
+        }
+    }
+
+    // 见emplace_front_uncheck
+    template <typename... V>
+    constexpr T &emplace_back_uncheck(std::size_t block_size, V &&...v)
+    {
+        assert(block_size != 0uz || elem_end_end != elem_end_last);
+        if (elem_end_end != elem_end_last)
+        {
+            return emplace_back_pre(block_size, std::forward<V>(v)...);
+        }
+        else
+        {
+            return emplace_back_post(block_size, std::forward<V>(v)...);
+        }
+    }
+
   public:
     template <typename R>
     constexpr void append_range(R &&rg)
     {
-        partial_guard<true> guard(*this, size());
+        auto const old_size = size();
+        // 保护后面的unchecked函数
+        if (old_size == 0uz)
+        {
+            elem_end(nullptr, nullptr, nullptr);
+        }
+        partial_guard<true> guard(*this, old_size);
         if constexpr (std::ranges::sized_range<R>)
         {
+            auto const block_size = block_elem_size();
             reserve_back(std::ranges::size(rg));
             for (auto &&i : rg)
             {
-                emplace_back_inner(0uz, std::forward<decltype(i)>(i));
+                emplace_back_uncheck(block_size, std::forward<decltype(i)>(i));
             }
         }
         else
         {
             for (auto &&i : rg)
             {
-                emplace_back_inner(1uz, std::forward<decltype(i)>(i));
+                emplace_back(std::forward<decltype(i)>(i));
             }
         }
         guard.release();
@@ -2117,24 +2161,31 @@ ctrl_end   →
     constexpr void prepend_range(R &&rg)
     {
         auto const old_size = size();
+        // 保护后面的unchecked函数
+        if (old_size == 0uz)
+        {
+            elem_begin(nullptr, nullptr, nullptr);
+        }
         partial_guard<false> guard(*this, old_size);
         if constexpr (std::ranges::sized_range<R> && std::ranges::bidirectional_range<R>)
         {
+            auto const block_size = block_elem_size();
             reserve_front(std::ranges::size(rg));
             auto begin = std::ranges::begin(rg);
             auto end = std::ranges::end(rg);
             for (; begin != end;)
             {
                 --end;
-                emplace_front_inner(0uz, *end);
+                emplace_front_uncheck(block_size, *end);
             }
         }
         else if constexpr (std::ranges::sized_range<R>)
         {
+            auto const block_size = block_elem_size();
             reserve_front(std::ranges::size(rg));
             for (auto &&i : rg)
             {
-                emplace_front_inner(0uz, std::forward<decltype(i)>(i));
+                emplace_front_uncheck(block_size, std::forward<decltype(i)>(i));
             }
             std::ranges::reverse(begin(), begin() + (old_size - size()));
         }
@@ -2142,7 +2193,7 @@ ctrl_end   →
         {
             for (auto &&i : rg)
             {
-                emplace_front_inner(1uz, std::forward<decltype(i)>(i));
+                emplace_front(std::forward<decltype(i)>(i));
             }
             std::ranges::reverse(begin(), begin() + (old_size - size()));
         }
@@ -2151,14 +2202,10 @@ ctrl_end   →
 
   private:
     template <typename... Ts>
-    constexpr void resize_inner(std::size_t new_size, Ts... ts)
+    constexpr void resize_unified(std::size_t new_size, Ts... ts)
     {
         auto const old_size = size();
-        if (new_size == old_size)
-        {
-            return;
-        }
-        else if (new_size < old_size)
+        if (new_size <= old_size)
         {
             for (auto i = 0uz; i != old_size - new_size; ++i)
             {
@@ -2167,12 +2214,17 @@ ctrl_end   →
         }
         else
         {
+            auto const block_size = block_elem_size();
+            if (block_size == 0uz)
+            {
+                elem_end(nullptr, nullptr, nullptr);
+            }
             partial_guard<true> guard(*this, old_size);
             auto const diff = new_size - old_size;
             reserve_back(diff);
             for (auto i = 0uz; i != diff; ++i)
             {
-                emplace_back_inner(0uz, ts...);
+                emplace_back_uncheck(block_size, std::forward<Ts>(ts)...);
             }
             guard.release();
         }
@@ -2181,12 +2233,12 @@ ctrl_end   →
   public:
     constexpr void resize(std::size_t new_size)
     {
-        resize_inner(new_size);
+        resize_unified(new_size);
     }
 
     constexpr void resize(std::size_t new_size, T const &t)
     {
-        resize_inner(new_size, t);
+        resize_unified(new_size, t);
     }
 };
 } // namespace bizwen

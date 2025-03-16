@@ -26,4 +26,4 @@ libstdc++10+, libc++16+, MSVC STL 19.29+
 
 ## Notes
 
-Functional testing with libc++ is not supported, correctness self-testing can be built using libstdc++ and the STL, consistency testing with `std::deque` can currently only using the STL, due to libc++ has not yet implemented `views::enumerate` and libstdc++ lacks `from_ranges` constructors.
+Build tests can currently only using the STL, due to libc++ has not yet implemented `views::enumerate` and libstdc++ lacks `from_ranges` constructors.
