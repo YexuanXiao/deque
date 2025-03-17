@@ -2211,11 +2211,10 @@ ctrl_end   →
     template <typename R>
     constexpr void append_range(R &&rg)
     {
-        auto const old_size = size();
         auto const block_size = block_elem_size();
         // 保护后面的uncheck和construct函数
         try_reset_back(block_size);
-        partial_guard<true> guard(*this, old_size);
+        partial_guard<true> guard(*this, size());
         if constexpr (std::ranges::sized_range<R>)
         {
             reserve_back(std::ranges::size(rg));
@@ -2255,13 +2254,13 @@ ctrl_end   →
         }
         else if constexpr (std::ranges::sized_range<R>)
         {
-            auto const block_size = block_elem_size();
-            reserve_front(std::ranges::size(rg));
+            auto const add_size = std::ranges::size(rg);
+            reserve_front(add_size);
             for (auto &&i : rg)
             {
                 emplace_front_uncheck(std::forward<decltype(i)>(i));
             }
-            std::ranges::reverse(begin(), begin() + (old_size - size()));
+            std::ranges::reverse(begin(), begin() + add_size);
         }
         else
         {
@@ -2275,14 +2274,44 @@ ctrl_end   →
     }
 
   private:
+    constexpr void resize_shrink(std::size_t old_size, std::size_t new_size) noexcept
+    {
+        assert(old_size > new_size);
+        auto const back_size = elem_end_end - elem_end_begin;
+        if (back_size > new_size)
+        {
+#if __has_cpp_attribute(assume)
+            [[assume(elem_begin_end == elem_end_end)]];
+#endif
+            auto const diff = new_size - old_size;
+            elem_begin_end -= diff;
+            elem_end_end -= diff;
+        }
+        else if (back_size < new_size)
+        {
+            auto const [block_step, elem_step] = detail::calc_pos<T>(back_size, new_size - old_size);
+            auto const target_block = block_elem_begin + block_step;
+            auto begin = *target_block;
+            elem_end(begin, begin + elem_step, begin + detail::block_elements_v<T>);
+            block_elem_end = target_block + 1uz;
+        }
+    }
+
     template <typename... Ts>
     constexpr void resize_unified(std::size_t new_size, Ts... ts)
     {
         if (auto const old_size = size(); new_size < old_size)
         {
-            for (auto i = 0uz; i != old_size - new_size; ++i)
+            if constexpr (std::is_trivially_destructible_v<T>)
             {
-                pop_back();
+                resize_shrink(old_size, new_size);
+            }
+            else
+            {
+                for (auto i = 0uz; i != old_size - new_size; ++i)
+                {
+                    pop_back();
+                }
             }
         }
         else if (new_size > old_size)
@@ -2294,7 +2323,7 @@ ctrl_end   →
             reserve_back(diff);
             for (auto i = 0uz; i != diff; ++i)
             {
-                emplace_back_uncheck(std::forward<Ts>(ts)...);
+                emplace_back_uncheck(ts...);
             }
             guard.release();
         }
