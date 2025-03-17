@@ -369,6 +369,19 @@ void test_prep_app_end_range_resize(std::size_t count = 1000uz)
     }
 }
 
+template <typename deque>
+void test_emplace_insert(std::size_t count = 1000uz)
+{
+    {
+        deque d;
+        d.emplace(d.begin());
+    }
+    {
+        deque d;
+        d.insert(d.begin(), typename deque::value_type{});
+    }
+}
+
 template <typename Type>
 void test_all(std::size_t count = 1000uz)
 {
@@ -385,6 +398,7 @@ void test_all(std::size_t count = 1000uz)
         test_emplace_back<std::deque<Type>>(count);
         test_emplace_front<std::deque<Type>>(count);
         test_prep_app_end_range_resize<std::deque<Type>>(count);
+        test_emplace_insert<std::deque<Type>>(count);
     }
 #else
 #error "requires __cpp_lib_containers_ranges"
@@ -402,6 +416,7 @@ void test_all(std::size_t count = 1000uz)
         test_emplace_back<bizwen::deque<Type>>(count);
         test_emplace_front<bizwen::deque<Type>>(count);
         test_prep_app_end_range_resize<bizwen::deque<Type>>(count);
+        test_emplace_insert<bizwen::deque<Type>>(count);
     }
 #endif
 #if !defined(TEST_CONSIS) && !defined(TEST_FUNC)

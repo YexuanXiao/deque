@@ -482,16 +482,19 @@ class basic_bucket_type
 template <typename T>
 class basic_deque_iterator
 {
-    friend deque<std::remove_const_t<T>>;
+    using TC = std::remove_const_t<T>;
+    friend deque<TC>;
 
-    using block = std::add_pointer_t<std::remove_const_t<T>>;
+    friend basic_deque_iterator<TC>;
+
+    using block = TC *;
 
     block *block_elem_begin{};
-    T *elem_begin{};
-    T *elem_curr{};
-    T *elem_end{};
+    TC *elem_begin{};
+    TC *elem_curr{};
+    TC *elem_end{};
 
-    constexpr basic_deque_iterator(block *elem_begin, T *curr, T *begin, T *end) noexcept
+    constexpr basic_deque_iterator(block *elem_begin, TC *curr, TC *begin, TC *end) noexcept
         : block_elem_begin(elem_begin), elem_curr(curr), elem_begin(begin), elem_end(end)
     {
     }
@@ -673,10 +676,10 @@ class basic_deque_iterator
         return at_impl(pos);
     }
 
-    constexpr std::ptrdiff_t operator-(basic_deque_iterator const &other) const noexcept
+    friend constexpr std::ptrdiff_t operator-(basic_deque_iterator const &lhs, basic_deque_iterator const &rhs) noexcept
     {
-        return (block_elem_begin - other.block_elem_begin) * detail::block_elements_v<T> + (elem_curr - elem_begin) -
-               (other.elem_curr - other.elem_begin);
+        return (lhs.block_elem_begin - rhs.block_elem_begin) * detail::block_elements_v<T> +
+               (lhs.elem_curr - lhs.elem_begin) - (rhs.elem_curr - rhs.elem_begin);
     }
 
     constexpr basic_deque_iterator &operator+=(std::ptrdiff_t pos) noexcept
@@ -1610,7 +1613,7 @@ ctrl_end   →
         return *begin;
     }
 
-    // 专用于范围，只有elem_end为空（构造时）或者容器有元素时可以调用
+    // 只有elem_end为空（构造时）或者容器有元素时可以调用
     // 节约判断容器是否为空
     template <typename... V>
     constexpr T &emplace_back_construct(V &&...v)
@@ -2341,27 +2344,26 @@ ctrl_end   →
     }
 
   private:
-    // 调用该函数之前需要尝试emplace_back或者emplace_front
-    // 调用前必须分配1内存，并且等同于try_reset_back
-    constexpr void emplace_uncond_back(block *block_begin, T *elem_curr)
+    // 调用该函数之前需要保证容器不为空
+    constexpr void emplace_uncheck_back(block *block_curr, T *elem_curr)
     {
         auto const block_end = block_elem_end;
-        std::size_t const block_size = block_end - block_begin;
+        std::size_t const block_size = block_end - block_curr;
         auto last_elem = elem_end_begin;
         // if block_size
         {
             auto const end = elem_end_end;
             auto const begin = last_elem;
-            emplace_back_uncheck(std::move(*end));
+            emplace_back_construct(std::move(*end));
             std::ranges::move_backward(begin, end - 1uz, end);
         }
         if (block_size > 2uz)
         {
-            auto const target_block_end = block_end - 1uz;
-            for (; block_end != block_begin + 1uz;)
+            auto target_block_end = block_end - 1uz;
+            for (; target_block_end != block_curr + 1uz;)
             {
-                --block_end;
-                auto const begin = *block_end;
+                --target_block_end;
+                auto const begin = *target_block_end;
                 auto const end = begin + detail::block_elements_v<T>;
                 *last_elem = std::move(*(end - 1uz));
                 last_elem = begin;
@@ -2370,10 +2372,105 @@ ctrl_end   →
         }
         if (block_size > 1uz)
         {
-            auto const end = *block_begin + detail::block_elements_v<T>;
+            auto const end = *block_curr + detail::block_elements_v<T>;
             *last_elem = std::move(*(end - 1uz));
             std::ranges::move_backward(elem_curr, end - 1uz, end);
         }
+    }
+
+    // 调用该函数之前需要保证容器不为空
+    constexpr void emplace_uncheck_front(block *block_curr, T *elem_curr)
+    {
+        auto const block_begin = block_elem_begin;
+        std::size_t const block_size = block_curr - block_begin + 1uz;
+        auto last_elem = elem_begin_end;
+        // if block_size
+        {
+            auto const begin = elem_begin_begin;
+            auto const end = last_elem;
+            emplace_front_construct(std::move(*end));
+            std::ranges::move(begin + 1uz, end, begin);
+        }
+        if (block_size > 2uz)
+        {
+            auto const target_block_begin = block_begin + 1uz;
+            for (; target_block_begin != block_curr - 1uz;)
+            {
+                auto const begin = *target_block_begin;
+                auto const end = begin + detail::block_elements_v<T>;
+                *last_elem = std::move(*begin);
+                last_elem = end - 1uz;
+                std::ranges::move(begin + 1uz, end - 1uz, begin);
+            }
+        }
+        if (block_size > 1uz)
+        {
+            auto const begin = *block_curr;
+            *last_elem = std::move(*begin);
+            std::ranges::move(begin, begin + 1uz, elem_curr);
+        }
+    }
+
+  public:
+    template <class... Args>
+    constexpr iterator emplace(const_iterator pos, Args &&...args)
+    {
+        auto begin = this->begin();
+        auto end = this->end();
+        if (pos == begin)
+        {
+            emplace_front(std::forward<Args>(args)...);
+            return this->begin();
+        }
+        else if (pos == end)
+        {
+            emplace_back(std::forward<Args>(args)...);
+            return this->end() - 1uz;
+        }
+        else
+        {
+            // todo: tag construct_at
+            if constexpr (sizeof...(Args) == 0uz)
+            {
+                T temp;
+                // 此时容器一定不为空
+                if (end - pos > pos - begin)
+                {
+                    emplace_uncheck_back(pos.block_elem_begin, pos.elem_curr);
+                }
+                else
+                {
+                    emplace_uncheck_front(pos.block_elem_begin, pos.elem_curr);
+                }
+                *pos.elem_curr = std::move(temp);
+                return {pos.block_elem_begin, pos.elem_begin, pos.elem_end, pos.elem_curr};
+            }
+            else
+            {
+                T temp = std::move(std::forward<Args>(args)...);
+                // 此时容器一定不为空
+                if (end - pos > pos - begin)
+                {
+                    emplace_uncheck_back(pos.block_elem_begin, pos.elem_curr);
+                }
+                else
+                {
+                    emplace_uncheck_front(pos.block_elem_begin, pos.elem_curr);
+                }
+                *pos.elem_curr = std::move(temp);
+                return {pos.block_elem_begin, pos.elem_begin, pos.elem_end, pos.elem_curr};
+            }
+        }
+    }
+
+    constexpr iterator insert(const_iterator pos, const T &value)
+    {
+        return emplace(pos, value);
+    }
+
+    constexpr iterator insert(const_iterator pos, T &&value)
+    {
+        return emplace(pos, std::move(value));
     }
 };
 } // namespace bizwen
