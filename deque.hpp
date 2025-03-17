@@ -2339,5 +2339,41 @@ ctrl_end   →
     {
         new_size == 0uz ? clear() : resize_unified(new_size, t);
     }
+
+  private:
+    // 调用该函数之前需要尝试emplace_back或者emplace_front
+    // 调用前必须分配1内存，并且等同于try_reset_back
+    constexpr void emplace_uncond_back(block *block_begin, T *elem_curr)
+    {
+        auto const block_end = block_elem_end;
+        std::size_t const block_size = block_end - block_begin;
+        auto last_elem = elem_end_begin;
+        // if block_size
+        {
+            auto const end = elem_end_end;
+            auto const begin = last_elem;
+            emplace_back_uncheck(std::move(*end));
+            std::ranges::move_backward(begin, end - 1uz, end);
+        }
+        if (block_size > 2uz)
+        {
+            auto const target_block_end = block_end - 1uz;
+            for (; block_end != block_begin + 1uz;)
+            {
+                --block_end;
+                auto const begin = *block_end;
+                auto const end = begin + detail::block_elements_v<T>;
+                *last_elem = std::move(*(end - 1uz));
+                last_elem = begin;
+                std::ranges::move_backward(begin, end - 1uz, end);
+            }
+        }
+        if (block_size > 1uz)
+        {
+            auto const end = *block_begin + detail::block_elements_v<T>;
+            *last_elem = std::move(*(end - 1uz));
+            std::ranges::move_backward(elem_curr, end - 1uz, end);
+        }
+    }
 };
 } // namespace bizwen
