@@ -85,6 +85,7 @@ consteval std::size_t calc_block(std::size_t pv) noexcept
     return result;
 }
 
+#if !defined(NDEBUG)
 static_assert(calc_block(1uz) == 4096uz);
 static_assert(calc_block(2uz) == 4096uz);
 static_assert(calc_block(3uz) == 3uz * 4096uz);
@@ -92,6 +93,7 @@ static_assert(calc_block(4uz) == 4096uz);
 static_assert(calc_block(5uz) == 5uz * 4096uz);
 static_assert(calc_block(6uz) == 3uz * 4096uz);
 static_assert(calc_block(7uz) == 7uz * 4096uz);
+#endif
 
 #endif
 
@@ -335,8 +337,10 @@ class basic_bucket_iterator
     }
 };
 
+#if !defined(NDEBUG)
 static_assert(std::random_access_iterator<basic_bucket_iterator<int>>);
 static_assert(std::random_access_iterator<basic_bucket_iterator<const int>>);
+#endif
 
 template <typename T>
 class basic_bucket_type
@@ -504,28 +508,28 @@ class basic_deque_iterator
         if (pos >= 0uz)
         {
             // 几乎等于deque的at，但缺少断言
-            auto const back_size = elem_end - elem_curr;
-            if (back_size > pos)
+            auto const head_size = elem_end - elem_curr;
+            if (head_size > pos)
             {
                 return *(elem_curr + pos);
             }
             else
             {
-                auto const [block_step, elem_step] = detail::calc_pos<T>(back_size, pos);
+                auto const [block_step, elem_step] = detail::calc_pos<T>(head_size, pos);
                 auto const target_block = block_elem_begin + block_step;
                 return *(*target_block + elem_step);
             }
         }
         else
         {
-            auto const front_size = elem_curr - elem_begin;
-            if (front_size > (-pos))
+            auto const tail_size = elem_curr - elem_begin;
+            if (tail_size > (-pos))
             {
                 return *(elem_curr + pos);
             }
             else
             {
-                auto const [block_step, elem_step] = detail::calc_pos<T>(front_size, -pos);
+                auto const [block_step, elem_step] = detail::calc_pos<T>(tail_size, -pos);
                 auto const target_block = block_elem_begin - block_step;
                 return *((*target_block) + detail::block_elements_v<T> - elem_step);
             }
@@ -537,14 +541,14 @@ class basic_deque_iterator
         if (pos >= 0uz)
         {
             // 几乎等于at_impl
-            auto const back_size = elem_end - elem_curr;
-            if (back_size > pos)
+            auto const head_size = elem_end - elem_curr;
+            if (head_size > pos)
             {
                 elem_curr += pos;
             }
             else
             {
-                auto const [block_step, elem_step] = detail::calc_pos<T>(back_size, pos);
+                auto const [block_step, elem_step] = detail::calc_pos<T>(head_size, pos);
                 auto const target_block = block_elem_begin + block_step;
                 block_elem_begin = target_block;
                 elem_begin = *target_block;
@@ -554,14 +558,14 @@ class basic_deque_iterator
         }
         else
         {
-            auto const front_size = elem_curr - elem_begin;
-            if (front_size > (-pos))
+            auto const tail_size = elem_curr - elem_begin;
+            if (tail_size > (-pos))
             {
                 elem_curr += pos;
             }
             else
             {
-                auto const [block_step, elem_step] = detail::calc_pos<T>(front_size, -pos);
+                auto const [block_step, elem_step] = detail::calc_pos<T>(tail_size, -pos);
                 auto const target_block = block_elem_begin - block_step;
                 block_elem_begin = target_block;
                 elem_begin = *target_block;
@@ -728,8 +732,10 @@ class basic_deque_iterator
 template <typename T>
 class deque
 {
+#if !defined(NDEBUG)
     static_assert(std::is_object_v<T>);
     static_assert(not std::is_const_v<T>);
+#endif
 
     using block = T *;
 
@@ -983,9 +989,11 @@ ctrl_end   →
         return std::size_t(-1) / 2uz;
     }
 
+#if !defined(NDEBUG)
     static_assert(std::random_access_iterator<iterator>);
     static_assert(std::output_iterator<iterator, T>);
     static_assert(std::sentinel_for<iterator, iterator>);
+#endif
 
     constexpr iterator begin() noexcept
     {
@@ -2241,8 +2249,8 @@ ctrl_end   →
         auto const diff = new_size - old_size;
         if constexpr (std::is_trivially_destructible_v<T>)
         {
-            auto const back_size = elem_end_end - elem_end_begin;
-            if (back_size > new_size)
+            auto const head_size = elem_end_end - elem_end_begin;
+            if (head_size > new_size)
             {
 #if __has_cpp_attribute(assume)
                 [[assume(elem_begin_end == elem_end_end)]];
@@ -2250,9 +2258,9 @@ ctrl_end   →
                 elem_begin_end -= diff;
                 elem_end_end -= diff;
             }
-            else if (back_size < new_size)
+            else if (head_size < new_size)
             {
-                auto const [block_step, elem_step] = detail::calc_pos<T>(back_size, new_size);
+                auto const [block_step, elem_step] = detail::calc_pos<T>(head_size, new_size);
                 auto const target_block = block_elem_begin + block_step;
                 auto begin = *target_block;
                 elem_end(begin, begin + elem_step, begin + detail::block_elements_v<T>);
@@ -2312,12 +2320,12 @@ ctrl_end   →
         auto last_elem = elem_end_begin;
         // 先记录尾块位置
         auto end = elem_end_end;
-        auto const begin = last_elem;
         // 再emplace_back
-        emplace_back(std::move(back()));
+        emplace_back(std::move(*back()));
         // 如果大于一个块，那么移动整个尾块
         if (block_size > 1uz)
         {
+            auto const begin = last_elem;
             std::ranges::move_backward(begin, end - 1uz, end);
         }
         // 移动中间的块
@@ -2361,7 +2369,7 @@ ctrl_end   →
         {
             auto const begin = elem_begin_begin;
             auto const block_end = block_elem_end;
-            emplace_front(std::move(*begin));
+            emplace_front(std::move(front()));
             // 如果emplace_front之前只有一个块，那么elem_curr就是终点
             if (block_end - block_begin == 1uz)
             {
