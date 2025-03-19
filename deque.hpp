@@ -720,7 +720,7 @@ class basic_deque_iterator
     constexpr operator basic_deque_iterator<const T>() const
         requires(not std::is_const_v<T>)
     {
-        return {block_elem_begin, elem_begin, elem_curr, elem_end};
+        return {block_elem_begin, elem_curr, elem_begin, elem_end};
     }
 };
 } // namespace detail
@@ -2302,18 +2302,25 @@ ctrl_end   →
 
   private:
     // 用于emplace的辅助函数，调用前需要判断方向
+    // 该函数将后半部分向后移动1个位置
+    // 从最后一个块开始
     constexpr void back_emplace(block *block_curr, T *elem_curr)
     {
         auto const block_end = block_elem_end;
         auto const block_size = block_end - block_curr + 0uz;
+        // 每次移动时留下的空位
         auto last_elem = elem_end_begin;
-        // if block_size
+        // 先记录尾块位置
+        auto end = elem_end_end;
+        auto const begin = last_elem;
+        // 再emplace_back
+        emplace_back(std::move(back()));
+        // 如果大于一个块，那么移动整个尾块
+        if (block_size > 1uz)
         {
-            auto const end = elem_end_end;
-            auto const begin = last_elem;
-            emplace_back(std::move(*end));
             std::ranges::move_backward(begin, end - 1uz, end);
         }
+        // 移动中间的块
         if (block_size > 2uz)
         {
             auto target_block_end = block_end - 1uz;
@@ -2327,25 +2334,41 @@ ctrl_end   →
                 std::ranges::move_backward(begin, end - 1uz, end);
             }
         }
-        if (block_size > 1uz)
+        // 移动插入位置所在的块
+        // if block_size
         {
-            auto const end = *block_curr + detail::block_elements_v<T>;
-            *last_elem = std::move(*(end - 1uz));
+            // 如果插入时容器只有一个块，那么采纳之前储存的end作为移动使用的end
+            // 否则使用计算出来的end
+            if (block_end - block_elem_begin != 1uz)
+            {
+                end = *block_curr + detail::block_elements_v<T>;
+                // 只有一个块时的last_elem也无意义
+                *last_elem = std::move(*(end - 1uz));
+            }
+            // 把插入位置所在块整体右移1
             std::ranges::move_backward(elem_curr, end - 1uz, end);
         }
     }
 
+    // 将前半部分向前移动1
     constexpr void front_emplace(block *block_curr, T *elem_curr)
     {
         auto const block_begin = block_elem_begin;
         auto const block_size = block_curr - block_begin + 1uz;
-        auto last_elem = elem_begin_end;
+        // 向前移动后尾部空出来的的后面一个位置
+        auto last_elem_end = elem_begin_end;
         // if block_size
         {
             auto const begin = elem_begin_begin;
-            auto const end = last_elem;
-            emplace_front(std::move(*end));
-            std::ranges::move(begin + 1uz, end, begin);
+            auto const block_end = block_elem_end;
+            emplace_front(std::move(*begin));
+            // 如果emplace_front之前只有一个块，那么elem_curr就是终点
+            if (block_end - block_begin == 1uz)
+            {
+                last_elem_end = elem_curr;
+            }
+            // 否则之前储存的last_elem_end是终点
+            std::ranges::move(begin + 1uz, last_elem_end, begin);
         }
         if (block_size > 2uz)
         {
@@ -2354,16 +2377,16 @@ ctrl_end   →
             {
                 auto const begin = *target_block_begin;
                 auto const end = begin + detail::block_elements_v<T>;
-                *last_elem = std::move(*begin);
-                last_elem = end - 1uz;
-                std::ranges::move(begin + 1uz, end - 1uz, begin);
+                *(last_elem_end - 1uz) = std::move(*begin);
+                last_elem_end = end;
+                std::ranges::move(begin + 1uz, end, begin);
             }
         }
         if (block_size > 1uz)
         {
             auto const begin = *block_curr;
-            *last_elem = std::move(*begin);
-            std::ranges::move(begin, begin + 1uz, elem_curr);
+            *last_elem_end = std::move(*begin);
+            std::ranges::move(begin + 1uz, elem_curr, begin);
         }
     }
 
@@ -2386,36 +2409,20 @@ ctrl_end   →
         else
         {
             // todo: tag construct_at
-            if constexpr (sizeof...(Args) == 0uz)
+            T temp{std::forward<Args>(args)...};
+            auto const end_dis = end - pos;
+            // 此时容器一定不为空
+            if (end - pos <= pos - begin || (block_elem_size() == 1uz && elem_end_end != elem_end_last))
             {
-                T temp;
-                // 此时容器一定不为空
-                if (end - pos > pos - begin)
-                {
-                    back_emplace(pos.block_elem_begin, pos.elem_curr);
-                }
-                else
-                {
-                    front_emplace(pos.block_elem_begin, pos.elem_curr);
-                }
+                back_emplace(pos.block_elem_begin, pos.elem_curr);
                 *pos.elem_curr = std::move(temp);
-                return {pos.block_elem_begin, pos.elem_begin, pos.elem_end, pos.elem_curr};
             }
             else
             {
-                T temp = std::move(std::forward<Args>(args)...);
-                // 此时容器一定不为空
-                if (end - pos > pos - begin)
-                {
-                    back_emplace(pos.block_elem_begin, pos.elem_curr);
-                }
-                else
-                {
-                    front_emplace(pos.block_elem_begin, pos.elem_curr);
-                }
-                *pos.elem_curr = std::move(temp);
-                return {pos.block_elem_begin, pos.elem_begin, pos.elem_end, pos.elem_curr};
+                front_emplace(pos.block_elem_begin, pos.elem_curr);
+                *(--pos).elem_curr = std::move(temp);
             }
+            return {pos.block_elem_begin, pos.elem_curr, pos.elem_begin, pos.elem_end};
         }
     }
 

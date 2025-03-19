@@ -8,7 +8,6 @@ Working in progress.
 
 + `insert`
 + `insert_range`
-+ `emplace`
 + `operator==`
 + `operator<=>`
 + `erase_if`

@@ -375,10 +375,32 @@ void test_emplace_insert(std::size_t count = 1000uz)
     {
         deque d;
         d.emplace(d.begin());
+        assert(d.size() == 1uz);
+        assert(d[0uz] == 0uz);
+        d.emplace(d.end(), 5uz);
+        assert(d.size() == 2uz);
+        assert(d[1uz] == 5uz);
+        d.emplace(d.begin() + 1uz, 1uz);
+        assert(d.size() == 3uz);
+        assert(d[1uz] == 1uz);
+        d.emplace(d.begin() + 2uz, 4uz);
+        assert(d.size() == 4uz);
+        assert(d[2uz] == 4uz);
+        d.emplace(d.begin() + 2uz, 3uz);
+        assert(d.size() == 5uz);
+        assert(d[2uz] == 3uz);
+        d.emplace(d.begin() + 2uz, 2uz);
+        assert(d.size() == 6uz);
+        assert(d[2uz] == 2uz);
     }
     {
         deque d;
         d.insert(d.begin(), typename deque::value_type{});
+    }
+    {
+        deque d;
+        typename deque::value_type v{};
+        d.insert(d.begin(), v);
     }
 }
 
