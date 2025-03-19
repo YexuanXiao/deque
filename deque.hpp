@@ -1486,7 +1486,7 @@ ctrl_end   →
             auto const end = begin + detail::block_elements_v<T>;
             if constexpr (sizeof...(Ts) == 0uz)
             {
-                std::ranges::uninitialized_default_construct(begin, end);
+                std::ranges::uninitialized_value_construct(begin, end);
             }
             else if constexpr (sizeof...(Ts) == 1uz)
             {
@@ -1522,7 +1522,7 @@ ctrl_end   →
                 auto const end = begin + detail::block_elements_v<T>;
                 if constexpr (sizeof...(Ts) == 0uz)
                 {
-                    std::ranges::uninitialized_default_construct(begin, end);
+                    std::ranges::uninitialized_value_construct(begin, end);
                 }
                 else if constexpr (sizeof...(Ts) == 1uz)
                 {
@@ -1558,7 +1558,7 @@ ctrl_end   →
             auto const end = begin + rem_elems;
             if constexpr (sizeof...(Ts) == 0uz)
             {
-                std::ranges::uninitialized_default_construct(begin, end);
+                std::ranges::uninitialized_value_construct(begin, end);
             }
             else if constexpr (sizeof...(Ts) == 1uz)
             {
@@ -2321,7 +2321,7 @@ ctrl_end   →
         // 先记录尾块位置
         auto end = elem_end_end;
         // 再emplace_back
-        emplace_back(std::move(*back()));
+        emplace_back(std::move(back()));
         // 如果大于一个块，那么移动整个尾块
         if (block_size > 1uz)
         {
@@ -2417,7 +2417,7 @@ ctrl_end   →
         else
         {
             // todo: tag construct_at
-            T temp{std::forward<Args>(args)...};
+            T temp(std::forward<Args>(args)...);
             auto const end_dis = end - pos;
             // 此时容器一定不为空
             if (end - pos <= pos - begin || (block_elem_size() == 1uz && elem_end_end != elem_end_last))

@@ -345,7 +345,7 @@ void test_emplace_front(std::size_t count = 1000uz)
 // pop_back/pop_front tests in emplace_back/emplace_front
 
 template <typename deque>
-void test_prep_app_end_range_resize(std::size_t count = 1000uz)
+void test_prep_app_end_range(std::size_t count = 1000uz)
 {
     // equivlent to emplace_back/emplace_front
     {
@@ -358,6 +358,11 @@ void test_prep_app_end_range_resize(std::size_t count = 1000uz)
         d.prepend_range(std::views::iota(0uz, 100uz));
         assert(d.size() == 100uz);
     }
+}
+
+template <typename deque>
+void test_resize(std::size_t count = 1000uz)
+{
     {
         deque d{};
         d.resize(100uz);
@@ -419,7 +424,8 @@ void test_all(std::size_t count = 1000uz)
         test_clear<std::deque<Type>>(count);
         test_emplace_back<std::deque<Type>>(count);
         test_emplace_front<std::deque<Type>>(count);
-        test_prep_app_end_range_resize<std::deque<Type>>(count);
+        test_prep_app_end_range<std::deque<Type>>(count);
+        test_resize<std::deque<Type>>(count);
         test_emplace_insert<std::deque<Type>>(count);
     }
 #else
@@ -437,7 +443,8 @@ void test_all(std::size_t count = 1000uz)
         test_clear<bizwen::deque<Type>>(count);
         test_emplace_back<bizwen::deque<Type>>(count);
         test_emplace_front<bizwen::deque<Type>>(count);
-        test_prep_app_end_range_resize<bizwen::deque<Type>>(count);
+        test_prep_app_end_range<bizwen::deque<Type>>(count);
+        test_resize<bizwen::deque<Type>>(count);
         test_emplace_insert<bizwen::deque<Type>>(count);
     }
 #endif
