@@ -12,7 +12,7 @@
 #include <algorithm>
 // strong_ordering
 #include <compare>
-// iterator concepts/counted_iterator/reverse_iterator/sentinel/iterator tag
+// iterator concepts/reverse_iterator/sentinel/iterator tag
 #include <iterator>
 // construct_at/destroy_at/uninitialized algorithms
 #include <memory>
@@ -1522,8 +1522,8 @@ ctrl_end   →
                 auto &src_begin = std::get<0uz>(x);
                 auto &src_end = std::get<1uz>(x);
 #endif
-                std::ranges::uninitialized_copy(std::counted_iterator(src_begin, detail::block_elements_v<T>),
-                                                std::default_sentinel, begin, std::unreachable_sentinel);
+                std::ranges::uninitialized_copy(src_begin, std::unreachable_sentinel, begin,
+                                                begin + detail::block_elements_v<T>);
                 src_begin += detail::block_elements_v<T>;
             }
             else
@@ -1558,8 +1558,8 @@ ctrl_end   →
                     auto &src_begin = std::get<0uz>(x);
                     auto &src_end = std::get<1uz>(x);
 #endif
-                    std::ranges::uninitialized_copy(std::counted_iterator(src_begin, detail::block_elements_v<T>),
-                                                    std::default_sentinel, begin, std::unreachable_sentinel);
+                    std::ranges::uninitialized_copy(src_begin, std::unreachable_sentinel, begin,
+                                                    begin + detail::block_elements_v<T>);
                     src_begin += detail::block_elements_v<T>;
                 }
                 else
