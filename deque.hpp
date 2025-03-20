@@ -2435,13 +2435,23 @@ ctrl_end   →
             // 此时容器一定不为空
             if (end - pos <= pos - begin || (block_elem_size() == 1uz && elem_end_end != elem_end_last))
             {
+
                 back_emplace(pos.block_elem_begin, pos.elem_curr);
+                if (pos.block_elem_begin + 1uz == block_elem_end)
+                {
+                    ++pos.elem_end;
+                }
                 *pos.elem_curr = std::move(temp);
             }
             else
             {
                 front_emplace(pos.block_elem_begin, pos.elem_curr);
-                *(--pos).elem_curr = std::move(temp);
+                if (pos.block_elem_begin == block_elem_begin)
+                {
+                    --pos.elem_begin;
+                }
+                --pos;
+                *pos.elem_curr = std::move(temp);
             }
             return {pos.block_elem_begin, pos.elem_curr, pos.elem_begin, pos.elem_end};
         }
