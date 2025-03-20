@@ -36,6 +36,14 @@
 #include <tuple>
 #endif
 
+// 代码规范：
+// 使用等号初始化
+// 内部函数可以使用auto返回值
+// 函数参数和常量加const
+// 非API不使用size_t之外的整数
+// const写右侧
+// 不分配内存/构造/移动对象一律noexcept
+
 namespace bizwen
 {
 template <typename T>
@@ -47,42 +55,42 @@ namespace detail
 // 测试时使用固定块大小可用于测试每个块有不同元素数量时的情况
 // 不要定义它，影响ABI
 #if defined(BIZWEN_DEQUE_BASE_BLOCK_SIZE)
-consteval std::size_t calc_block(std::size_t pv) noexcept
+consteval std::size_t calc_block(std::size_t const pv) noexcept
 {
     return BIZWEN_DEQUE_BASE_BLOCK_SIZE;
 }
 #else
 // 返回每个块的大小，一定是4096的整数倍
-consteval std::size_t calc_block(std::size_t pv) noexcept
+consteval std::size_t calc_block(std::size_t const pv) noexcept
 {
     // 块的基本大小
-    auto constexpr base = 4096uz;
+    auto const base = 4096uz;
     // 基本大小下，元素最大大小，至少保证16个
-    auto constexpr sieve = base / 16uz;
+    auto const sieve = base / 16uz;
     auto result = 0uz;
     if (pv < sieve)
     {
         // 在基本大小的1-8倍间找到利用率最高的
-        auto block_sz = 0uz;
+        auto size_block = 0uz;
         auto rmd_pre = std::size_t(-1);
         for (auto i = 0uz; i != 8uz; ++i)
         {
-            block_sz = base * (i + 1uz);
-            auto rmd_cur = block_sz % pv;
+            size_block = base * (i + 1uz);
+            auto const rmd_cur = size_block % pv;
             // 越小利用率越高
             if (rmd_cur < rmd_pre)
             {
                 rmd_pre = rmd_cur;
-                result = block_sz;
+                result = size_block;
             }
         }
+        return result;
     }
     else
     {
         // 寻找y使得y大于16*元素大小，且y为4096整数倍
-        result = (pv * 16uz + base - 1uz) / base * base;
+        return (pv * 16uz + base - 1uz) / base * base;
     }
-    return result;
 }
 
 #if !defined(NDEBUG)
@@ -101,30 +109,30 @@ template <typename T>
 constexpr std::size_t block_elements_v = calc_block(sizeof(T)) / sizeof(T);
 
 template <typename T>
-constexpr auto calc_cap(std::size_t size) noexcept
+constexpr auto calc_cap(std::size_t const size) noexcept
 {
-    auto const block_size = block_elements_v<T>;
-    struct div_t
+    auto const block_elems = block_elements_v<T>;
+    struct cap_t
     {
         std::size_t block_size;
         std::size_t full_blocks;
         std::size_t rem_elems;
     };
-    return div_t{(size + block_size - 1uz) / block_size, size / block_size, size % block_size};
+    return cap_t{(size + block_elems - 1uz) / block_elems, size / block_elems, size % block_elems};
 }
 
 template <typename T>
-constexpr auto calc_pos(std::size_t head_or_tail_size, std::size_t pos) noexcept
+constexpr auto calc_pos(std::size_t const head_or_tail_size, const std::size_t pos) noexcept
 {
     assert(pos < std::size_t(-1) / 2);
-    auto const block_size = block_elements_v<T>;
+    auto const block_elems = block_elements_v<T>;
     auto const new_pos = pos - head_or_tail_size;
-    struct div_t
+    struct pos_t
     {
         std::size_t block_step;
         std::size_t elem_step;
     };
-    return div_t{new_pos / block_size + 1uz, new_pos % block_size};
+    return pos_t{new_pos / block_elems + 1uz, new_pos % block_elems};
 }
 
 template <typename T>
@@ -133,31 +141,34 @@ class basic_bucket_type;
 template <typename T>
 class basic_bucket_iterator
 {
-    friend basic_bucket_type<std::remove_const_t<T>>;
+    using TC = std::remove_const_t<T>;
+
+    friend basic_bucket_type<TC>;
     friend basic_bucket_iterator<std::add_const_t<T>>;
 
-    using block = std::add_pointer_t<std::remove_const_t<T>>;
+    using block = TC *;
 
     block *block_elem_begin{};
     block *block_elem_end{};
     block *block_elem_curr{};
-    T *elem_begin_begin{};
-    T *elem_begin_end{};
-    T *elem_end_begin{};
-    T *elem_end_end{};
-    T *elem_curr_begin{};
-    T *elem_curr_end{};
+    TC *elem_begin_begin{};
+    TC *elem_begin_end{};
+    TC *elem_end_begin{};
+    TC *elem_end_end{};
+    TC *elem_curr_begin{};
+    TC *elem_curr_end{};
 
-    constexpr basic_bucket_iterator(block *block_elem_begin_, block *block_elem_end_, block *block_elem_curr_,
-                                    T *elem_begin_begin_, T *elem_begin_end_, T *elem_end_begin_, T *elem_end_end_,
-                                    T *elem_curr_begin_, T *elem_curr_end_) noexcept
+    constexpr basic_bucket_iterator(block *const block_elem_begin_, block *const block_elem_end_,
+                                    block *const block_elem_curr_, TC *const elem_begin_begin_,
+                                    TC *const elem_begin_end_, TC *const elem_end_begin_, TC *const elem_end_end_,
+                                    TC *const elem_curr_begin_, TC *const elem_curr_end_) noexcept
         : block_elem_begin(block_elem_begin_), block_elem_end(block_elem_end_), block_elem_curr(block_elem_curr_),
           elem_begin_begin(elem_begin_begin_), elem_begin_end(elem_begin_end_), elem_end_begin(elem_end_begin_),
           elem_end_end(elem_end_end_), elem_curr_begin(elem_curr_begin_), elem_curr_end(elem_curr_end_)
     {
     }
 
-    constexpr void plus_and_assign(std::ptrdiff_t pos) noexcept
+    constexpr auto &plus_and_assign(std::ptrdiff_t const pos) noexcept
     {
         block_elem_curr += pos;
         if (block_elem_curr + 1uz == block_elem_end)
@@ -175,6 +186,8 @@ class basic_bucket_iterator
             elem_curr_begin = *block_elem_begin;
             elem_curr_end = elem_begin_begin + block_elements_v<T>;
         }
+        assert(block_elem_curr < block_elem_end && block_elem_curr >= block_elem_begin);
+        return *this;
     }
 
   public:
@@ -205,6 +218,7 @@ class basic_bucket_iterator
             elem_curr_begin = *block_elem_begin;
             elem_curr_end = elem_begin_begin + block_elements_v<T>;
         }
+        assert(block_elem_curr < block_elem_end);
         return *this;
     }
 
@@ -232,6 +246,7 @@ class basic_bucket_iterator
             elem_begin_begin = *(block_elem_begin - 1uz);
             elem_begin_end = elem_begin_begin + block_elements_v<T>;
         }
+        assert(block_elem_curr >= block_elem_begin);
         return *this;
     }
 
@@ -261,7 +276,7 @@ class basic_bucket_iterator
         return block_elem_curr - other.block_elem_curr;
     }
 
-    constexpr std::span<T> operator[](std::ptrdiff_t pos)
+    constexpr std::span<T> operator[](std::ptrdiff_t const pos)
     {
 #if defined(__cpp_auto_cast)
         return *(auto{*this} += pos);
@@ -272,7 +287,7 @@ class basic_bucket_iterator
 #endif
     }
 
-    constexpr std::span<T> operator[](std::ptrdiff_t pos) const noexcept
+    constexpr std::span<T> operator[](std::ptrdiff_t const pos) const noexcept
     {
 #if defined(__cpp_auto_cast)
         return *(auto{*this} += pos);
@@ -285,39 +300,41 @@ class basic_bucket_iterator
 
     constexpr value_type operator*() noexcept
     {
-        return {this->elem_curr_begin, this->elem_curr_end};
+        return {elem_curr_begin, elem_curr_end};
     }
 
     constexpr value_type operator*() const noexcept
     {
-        return {this->elem_curr_begin, this->elem_curr_end};
+        return {elem_curr_begin, elem_curr_end};
     }
 
-    constexpr basic_bucket_iterator &operator+=(std::ptrdiff_t pos) noexcept
+    constexpr basic_bucket_iterator &operator+=(std::ptrdiff_t const pos) noexcept
     {
-        this->plus_and_assign(pos);
-        return *this;
+        return plus_and_assign(pos);
     }
 
-    constexpr basic_bucket_iterator &operator-=(std::ptrdiff_t pos) noexcept
+    constexpr basic_bucket_iterator &operator-=(std::ptrdiff_t const pos) noexcept
     {
-        this->plus_and_assign(-pos);
-        return *this;
+        return plus_and_assign(-pos);
     }
 
-    friend constexpr basic_bucket_iterator operator+(basic_bucket_iterator const &it, std::ptrdiff_t pos) noexcept
+    friend constexpr basic_bucket_iterator operator+(basic_bucket_iterator const &it, std::ptrdiff_t const pos) noexcept
     {
+#if defined(__cpp_auto_cast)
+        return auto{it}.plus_and_assign(pos);
+#else
         auto temp = it;
         temp.plus_and_assign(pos);
         return temp;
+#endif
     }
 
-    friend constexpr basic_bucket_iterator operator+(std::ptrdiff_t pos, basic_bucket_iterator const &it) noexcept
+    friend constexpr basic_bucket_iterator operator+(std::ptrdiff_t const pos, basic_bucket_iterator const &it) noexcept
     {
         return it + pos;
     }
 
-    friend constexpr basic_bucket_iterator operator-(std::ptrdiff_t pos, basic_bucket_iterator const &it) noexcept
+    friend constexpr basic_bucket_iterator operator-(std::ptrdiff_t const pos, basic_bucket_iterator const &it) noexcept
     {
         return it + (-pos);
     }
@@ -327,13 +344,11 @@ class basic_bucket_iterator
         return it + (-pos);
     }
 
-    constexpr operator basic_bucket_iterator<const T>() const
+    constexpr operator basic_bucket_iterator<T const>() const
         requires(not std::is_const_v<T>)
     {
         return {block_elem_begin, block_elem_end, block_elem_curr, elem_begin_begin, elem_begin_end,
-                elem_end_begin,   elem_end_end,   elem_curr_begin, elem_curr_end
-
-        };
+                elem_end_begin,   elem_end_end,   elem_curr_begin, elem_curr_end};
     }
 };
 
@@ -345,20 +360,23 @@ static_assert(std::random_access_iterator<basic_bucket_iterator<const int>>);
 template <typename T>
 class basic_bucket_type
 {
-    friend deque<std::remove_const_t<T>>;
+    using TC = std::remove_const_t<T>;
+
+    friend deque<TC>;
     friend basic_bucket_type<std::remove_const_t<T>>;
 
-    using block = std::add_pointer_t<std::remove_const_t<T>>;
+    using block = TC *;
 
     block *block_elem_begin{};
     block *block_elem_end{};
-    T *elem_begin_begin{};
-    T *elem_begin_end{};
-    T *elem_end_begin{};
-    T *elem_end_end{};
+    TC *elem_begin_begin{};
+    TC *elem_begin_end{};
+    TC *elem_end_begin{};
+    TC *elem_end_end{};
 
-    constexpr basic_bucket_type(block *block_elem_begin_, block *block_elem_end_, T *elem_begin_begin_,
-                                T *elem_begin_end_, T *elem_end_begin_, T *elem_end_end_) noexcept
+    constexpr basic_bucket_type(block *const block_elem_begin_, block *const block_elem_end_,
+                                TC *const elem_begin_begin_, TC *const elem_begin_end_, TC *const elem_end_begin_,
+                                TC *const elem_end_end_) noexcept
         : block_elem_begin(block_elem_begin_), block_elem_end(block_elem_end_), elem_begin_begin(elem_begin_begin_),
           elem_begin_end(elem_begin_end_), elem_end_begin(elem_end_begin_), elem_end_end(elem_end_end_)
     {
@@ -476,7 +494,7 @@ class basic_bucket_type
         return const_reverse_iterator{begin()};
     }
 
-    constexpr operator basic_bucket_type<const T>() const
+    constexpr operator basic_bucket_type<T const>() const
         requires(not std::is_const_v<T>)
     {
         return {block_elem_begin, block_elem_end, elem_begin_begin, elem_begin_end, elem_end_begin, elem_end_end};
@@ -487,8 +505,8 @@ template <typename T>
 class basic_deque_iterator
 {
     using TC = std::remove_const_t<T>;
-    friend deque<TC>;
 
+    friend deque<TC>;
     friend basic_deque_iterator<TC>;
 
     using block = TC *;
@@ -498,12 +516,12 @@ class basic_deque_iterator
     TC *elem_curr{};
     TC *elem_end{};
 
-    constexpr basic_deque_iterator(block *elem_begin, TC *curr, TC *begin, TC *end) noexcept
+    constexpr basic_deque_iterator(block *const elem_begin, TC *const curr, TC *const begin, TC *const end) noexcept
         : block_elem_begin(elem_begin), elem_curr(curr), elem_begin(begin), elem_end(end)
     {
     }
 
-    constexpr T &at_impl(std::ptrdiff_t pos) const noexcept
+    constexpr T &at_impl(std::ptrdiff_t const pos) const noexcept
     {
         if (pos >= 0uz)
         {
@@ -536,7 +554,7 @@ class basic_deque_iterator
         }
     }
 
-    constexpr void plus_and_assign(std::ptrdiff_t pos) noexcept
+    constexpr auto &plus_and_assign(std::ptrdiff_t const pos) noexcept
     {
         if (pos >= 0uz)
         {
@@ -573,6 +591,7 @@ class basic_deque_iterator
                 elem_curr = elem_end - elem_step;
             }
         }
+        return *this;
     }
 
   public:
@@ -670,12 +689,12 @@ class basic_deque_iterator
 #endif
     }
 
-    constexpr T &operator[](std::ptrdiff_t pos) noexcept
+    constexpr T &operator[](std::ptrdiff_t const pos) noexcept
     {
         return at_impl(pos);
     }
 
-    constexpr T &operator[](std::ptrdiff_t pos) const noexcept
+    constexpr T &operator[](std::ptrdiff_t const pos) const noexcept
     {
         return at_impl(pos);
     }
@@ -687,41 +706,43 @@ class basic_deque_iterator
                (lhs.elem_curr - lhs.elem_begin) - (rhs.elem_curr - rhs.elem_begin);
     }
 
-    constexpr basic_deque_iterator &operator+=(std::ptrdiff_t pos) noexcept
+    constexpr basic_deque_iterator &operator+=(std::ptrdiff_t const pos) noexcept
     {
-        plus_and_assign(pos);
-        return *this;
+        return plus_and_assign(pos);
     }
 
-    friend constexpr basic_deque_iterator operator+(basic_deque_iterator const &it, std::ptrdiff_t pos) noexcept
+    friend constexpr basic_deque_iterator operator+(basic_deque_iterator const &it, std::ptrdiff_t const pos) noexcept
     {
+#if defined(__cpp_auto_cast)
+        return auto{it}.plus_and_assign(pos);
+#else
         auto temp = it;
         temp.plus_and_assign(pos);
         return temp;
+#endif
     }
 
-    friend constexpr basic_deque_iterator operator+(std::ptrdiff_t pos, basic_deque_iterator const &it) noexcept
+    friend constexpr basic_deque_iterator operator+(std::ptrdiff_t const pos, basic_deque_iterator const &it) noexcept
     {
         return it + pos;
     }
 
-    constexpr basic_deque_iterator &operator-=(std::ptrdiff_t pos) noexcept
+    constexpr basic_deque_iterator &operator-=(std::ptrdiff_t const pos) noexcept
     {
-        plus_and_assign(-pos);
-        return *this;
+        return plus_and_assign(-pos);
     }
 
-    friend constexpr basic_deque_iterator operator-(basic_deque_iterator const &it, std::ptrdiff_t pos) noexcept
-    {
-        return it + (-pos);
-    }
-
-    friend constexpr basic_deque_iterator operator-(std::ptrdiff_t pos, basic_deque_iterator const &it) noexcept
+    friend constexpr basic_deque_iterator operator-(basic_deque_iterator const &it, std::ptrdiff_t const pos) noexcept
     {
         return it + (-pos);
     }
 
-    constexpr operator basic_deque_iterator<const T>() const
+    friend constexpr basic_deque_iterator operator-(std::ptrdiff_t const pos, basic_deque_iterator const &it) noexcept
+    {
+        return it + (-pos);
+    }
+
+    constexpr operator basic_deque_iterator<T const>() const
         requires(not std::is_const_v<T>)
     {
         return {block_elem_begin, elem_curr, elem_begin, elem_end};
@@ -801,7 +822,7 @@ ctrl_end   →
         return new T[detail::block_elements_v<T>];
     }
 
-    constexpr block *alloc_ctrl(std::size_t size)
+    constexpr block *alloc_ctrl(std::size_t const size)
     {
         return new block[size];
     }
@@ -850,7 +871,7 @@ ctrl_end   →
     }
 
     // 完全等于析构函数
-    constexpr void destruct() noexcept
+    constexpr void destroy() noexcept
     {
         destroy_elems();
         // 清理块数组
@@ -861,14 +882,14 @@ ctrl_end   →
         dealloc_ctrl();
     }
 
-    constexpr void elem_begin(T *begin, T *end, T *first) noexcept
+    constexpr void elem_begin(T *const begin, T *const end, T *const first) noexcept
     {
         elem_begin_begin = begin;
         elem_begin_end = end;
         elem_begin_first = first;
     }
 
-    constexpr void elem_end(T *begin, T *end, T *last) noexcept
+    constexpr void elem_end(T *const begin, T *const end, T *const last) noexcept
     {
         elem_end_begin = begin;
         elem_end_end = end;
@@ -900,10 +921,10 @@ ctrl_end   →
     using difference_type = std::ptrdiff_t;
     using iterator = detail::basic_deque_iterator<T>;
     using reverse_iterator = std::reverse_iterator<detail::basic_deque_iterator<T>>;
-    using const_iterator = detail::basic_deque_iterator<const T>;
-    using const_reverse_iterator = std::reverse_iterator<detail::basic_deque_iterator<const T>>;
+    using const_iterator = detail::basic_deque_iterator<T const>;
+    using const_reverse_iterator = std::reverse_iterator<detail::basic_deque_iterator<T const>>;
     using bucket_type = detail::basic_bucket_type<T>;
-    using const_bucket_type = detail::basic_bucket_type<const T>;
+    using const_bucket_type = detail::basic_bucket_type<T const>;
 
     constexpr bucket_type buckets() noexcept
     {
@@ -917,7 +938,7 @@ ctrl_end   →
 
     constexpr ~deque()
     {
-        destruct();
+        destroy();
     }
 
     constexpr bool empty() const noexcept
@@ -1097,7 +1118,7 @@ ctrl_end   →
         block *block_ctrl_end{};   // D
 
         // 替换块数组到deque
-        // 构造时
+        // 构造函数专用
         // 对空deque安全
         constexpr void replace_ctrl() const noexcept
         {
@@ -1190,7 +1211,7 @@ ctrl_end   →
 
     // ctrl_begin可以是自己或者新ctrl的
     // 对齐控制块所有指针
-    constexpr void align_elem_alloc_as_ctrl_back(block *ctrl_begin) noexcept
+    constexpr void align_elem_alloc_as_ctrl_back(block *const ctrl_begin) noexcept
     {
         auto const alloc_block_size = block_alloc_size();
         auto const elem_block_size = block_elem_size();
@@ -1208,7 +1229,7 @@ ctrl_end   →
 
     // ctrl_end可以是自己或者新ctrl的
     // 对齐控制块所有指针
-    constexpr void align_elem_alloc_as_ctrl_front(block *ctrl_end) noexcept
+    constexpr void align_elem_alloc_as_ctrl_front(block *const ctrl_end) noexcept
     {
         auto const alloc_block_size = block_alloc_size();
         auto const elem_block_size = block_elem_size();
@@ -1257,20 +1278,20 @@ ctrl_end   →
         }
         // 计算现有头尾是否够用
         // 头部块的cap
-        auto const head_block_alloc_cap = (block_elem_begin - block_alloc_begin) * detail::block_elements_v<T>;
+        auto const head_block_cap = (block_elem_begin - block_alloc_begin) * detail::block_elements_v<T>;
         // 尾部块的cap
-        auto const tail_block_alloc_cap = (block_alloc_end - block_elem_end) * detail::block_elements_v<T>;
+        auto const tail_block_cap = (block_alloc_end - block_elem_end) * detail::block_elements_v<T>;
         // 尾块的已使用大小
         auto const tail_cap = block_elem_size() ? elem_end_last - elem_end_end : 0uz;
         // non_move_cap为尾部-尾部已用，不移动块时cap
-        auto const non_move_cap = tail_block_alloc_cap + tail_cap;
+        auto const non_move_cap = tail_block_cap + tail_cap;
         // 首先如果cap足够，则不需要分配新block
         if (non_move_cap >= add_elem_size)
         {
             return;
         }
         // move_cap为头部+尾部-尾部已用，移动已分配块的cap
-        auto const move_cap = head_block_alloc_cap + non_move_cap;
+        auto const move_cap = head_block_cap + non_move_cap;
         // 如果move_cap够则移动
         if (move_cap >= add_elem_size)
         {
@@ -1292,8 +1313,7 @@ ctrl_end   →
         else
         {
             // 否则扩展控制块
-            auto const new_ctrl_size = block_ctrl_size() + add_block_size;
-            ctrl_alloc const ctrl{*this, new_ctrl_size}; // may throw
+            ctrl_alloc const ctrl{*this, block_alloc_size() + add_block_size}; // may throw
             ctrl.replace_ctrl_back();
         }
         extent_block_back_uncond(add_block_size);
@@ -1343,8 +1363,7 @@ ctrl_end   →
         else
         {
             // 否则扩展控制块
-            auto const new_ctrl_size = block_ctrl_size() + add_block_size;
-            ctrl_alloc const ctrl{*this, new_ctrl_size}; // may throw
+            ctrl_alloc const ctrl{*this, block_alloc_size() + add_block_size}; // may throw
             ctrl.replace_ctrl_front();
         }
         // 必须最后执行
@@ -1357,7 +1376,7 @@ ctrl_end   →
         deque *d;
 
       public:
-        constexpr construct_guard(deque &c) noexcept : d(&c)
+        constexpr construct_guard(deque *dp) noexcept : d(dp)
         {
         }
 
@@ -1370,14 +1389,14 @@ ctrl_end   →
         {
             if (d)
             {
-                d->destruct();
+                d->destroy();
             }
         }
     };
 
     // 构造函数的辅助函数
     // 调用后可直接填充元素
-    constexpr void construct_block(std::size_t block_size)
+    constexpr void construct_block(std::size_t const block_size)
     {
         ctrl_alloc const ctrl(*this, block_size); // may throw
         ctrl.replace_ctrl();
@@ -1386,15 +1405,15 @@ ctrl_end   →
 
     // 赋值的辅助函数
     // 调用后可直接填充元素
-    constexpr void extent_block(std::size_t new_block_size)
+    constexpr void extent_block(std::size_t const new_block_size)
     {
-        auto const old_alloc_size = block_alloc_size();
-        if (old_alloc_size > new_block_size)
+        auto const alloc_block_size = block_alloc_size();
+        if (alloc_block_size > new_block_size)
         {
             return;
         }
-        auto const old_ctrl_size = block_ctrl_size();
-        if (old_ctrl_size < new_block_size)
+        auto const ctrl_block_size = block_ctrl_size();
+        if (ctrl_block_size < new_block_size)
         {
             ctrl_alloc const ctrl(*this, new_block_size); // may throw
             ctrl.replace_ctrl_back();
@@ -1403,11 +1422,11 @@ ctrl_end   →
         {
             align_alloc_as_ctrl_back();
         }
-        extent_block_back_uncond(new_block_size - old_alloc_size); // may throw
+        extent_block_back_uncond(new_block_size - alloc_block_size); // may throw
     }
 
     // 构造函数和复制赋值的辅助函数，调用前必须分配内存，以及用于构造时使用guard
-    constexpr void copy(const_bucket_type other, std::size_t block_size)
+    constexpr void copy(const_bucket_type const other, std::size_t const block_size)
     {
         if (block_size)
         {
@@ -1461,7 +1480,7 @@ ctrl_end   →
     {
         // todo: alloc propagate
         // alloc = other.alloc;
-        construct_guard guard(*this);
+        construct_guard guard(this);
         auto const block_size = other.block_elem_size();
         construct_block(block_size);
         copy(other.buckets(), block_size);
@@ -1477,7 +1496,8 @@ ctrl_end   →
     // 使用count、count和T、或者随机访问迭代器进行构造
     // 注意异常安全，需要调用者使用guard，并且分配好足够多内存
     template <typename... Ts>
-    constexpr void construct(std::size_t block_size, std::size_t full_blocks, std::size_t rem_elems, Ts &&...ts)
+    constexpr void construct(std::size_t const block_size, std::size_t const full_blocks, std::size_t const rem_elems,
+                             Ts &&...ts)
     {
         // 由于析构优先考虑elem_begin，因此必须独立构造elem_begin
         if (full_blocks)
@@ -1594,7 +1614,7 @@ ctrl_end   →
 
     // 参考emplace_front
     template <typename... V>
-    constexpr T &emplace_back_pre(std::size_t block_size, V &&...v)
+    constexpr T &emplace_back_pre(std::size_t const block_size, V &&...v)
     {
         auto const begin = elem_end_end;
         std::construct_at(begin, std::forward<V>(v)...); // may throw
@@ -1610,7 +1630,7 @@ ctrl_end   →
 
     // 参考emplace_front
     template <typename... V>
-    constexpr T &emplace_back_post(std::size_t block_size, V &&...v)
+    constexpr T &emplace_back_post(std::size_t const block_size, V &&...v)
     {
         auto const begin = *block_elem_end;
         std::construct_at(begin, std::forward<V>(v)...); // may throw
@@ -1640,19 +1660,19 @@ ctrl_end   →
         }
     }
 
-    constexpr deque(std::size_t count)
+    constexpr deque(std::size_t const count)
     {
         auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(count);
-        construct_guard guard(*this);
+        construct_guard guard(this);
         construct_block(block_size);
         construct(block_size, full_blocks, rem_elems);
         guard.release();
     }
 
-    constexpr deque(std::size_t count, T const &t)
+    constexpr deque(std::size_t const count, T const &t)
     {
         auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(count);
-        construct_guard guard(*this);
+        construct_guard guard(this);
         construct_block(block_size);
         construct(block_size, full_blocks, rem_elems, t);
         guard.release();
@@ -1664,7 +1684,7 @@ ctrl_end   →
     {
         if constexpr (requires { is_iterator(begin); })
         {
-            if (begin == end) // 必须
+            if (begin == end) // 必须，保证+1uz合法
             {
                 return;
             }
@@ -1673,16 +1693,15 @@ ctrl_end   →
                                begin.elem_curr,        begin.elem_end,
                                end.elem_begin,         end.elem_curr};
             auto const block_size = bucket.size();
-            construct_guard guard(*this);
+            construct_guard guard(this);
             extent_block(block_size);
             copy(bucket, block_size);
             guard.release();
         }
         else if constexpr (std::random_access_iterator<U>)
         {
-            auto const count = end - begin;
-            auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(count);
-            construct_guard guard(*this);
+            auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(end - begin);
+            construct_guard guard(this);
             construct_block(block_size);
             construct(block_size, full_blocks, rem_elems, begin, end);
             guard.release();
@@ -1708,9 +1727,8 @@ ctrl_end   →
     constexpr deque(std::from_range_t, R &&rg)
         requires std::ranges::sized_range<R>
     {
-        auto const count = rg.size();
-        auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(count);
-        construct_guard guard(*this);
+        auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(rg.size());
+        construct_guard guard(this);
         construct_block(block_size);
         construct(block_size, full_blocks, rem_elems, std::ranges::begin(rg), std::ranges::end(rg));
         guard.release();
@@ -1727,9 +1745,8 @@ ctrl_end   →
 
     constexpr deque(std::initializer_list<T> init)
     {
-        auto const count = init.size();
-        auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(count);
-        construct_guard guard(*this);
+        auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(init.size());
+        construct_guard guard(this);
         construct_block(block_size);
         construct(block_size, full_blocks, rem_elems, std::ranges::begin(init), std::ranges::end(init));
         guard.release();
@@ -1760,8 +1777,7 @@ ctrl_end   →
     constexpr deque &operator=(std::initializer_list<T> ilist)
     {
         assign_clear();
-        auto const count = ilist.size();
-        auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(count);
+        auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(ilist.size());
         construct_block(block_size);
         construct(block_size, full_blocks, rem_elems, std::ranges::begin(ilist), std::ranges::end(ilist));
         return *this;
@@ -1773,7 +1789,7 @@ ctrl_end   →
         return *this;
     }
 
-    constexpr void assign(std::size_t count, const T &value)
+    constexpr void assign(std::size_t const count, T const &value)
     {
         assign_clear();
         auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(count);
@@ -1802,8 +1818,7 @@ ctrl_end   →
         }
         else if constexpr (std::random_access_iterator<U>)
         {
-            auto const count = end - begin;
-            auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(count);
+            auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(end - begin);
             construct_block(block_size);
             construct(block_size, full_blocks, rem_elems, begin, end);
         }
@@ -1820,8 +1835,7 @@ ctrl_end   →
     constexpr void assign(std::initializer_list<T> ilist)
     {
         assign_clear();
-        auto const count = ilist.size();
-        auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(count);
+        auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(ilist.size());
         construct_block(block_size);
         construct(block_size, full_blocks, rem_elems, std::ranges::begin(ilist), std::ranges::end(ilist));
     }
@@ -1835,7 +1849,7 @@ ctrl_end   →
   private:
     // 几乎等于iterator的at，但具有检查和断言
     template <bool throw_exception = false>
-    constexpr T &at_impl(std::size_t pos) const noexcept
+    constexpr T &at_impl(std::size_t const pos) const noexcept
     {
         auto const head_size = elem_begin_end - elem_begin_begin + 0uz;
         if (head_size > pos)
@@ -1846,17 +1860,17 @@ ctrl_end   →
         {
             auto const [block_step, elem_step] = detail::calc_pos<T>(head_size, pos);
             auto const target_block = block_elem_begin + block_step;
-            auto const check1 = target_block < block_elem_end;
-            auto const check2 =
+            auto const check_block = target_block < block_elem_end;
+            auto const check_elem =
                 (target_block + 1uz == block_elem_end) ? (elem_end_begin + elem_step < elem_end_end) : true;
             if constexpr (throw_exception)
             {
-                if (not(check1 && check2))
+                if (not(check_block && check_elem))
                     throw std::out_of_range{"bizwen::deque::at"};
             }
             else
             {
-                assert(check1 && check2);
+                assert(check_block && check_elem);
             }
             return *(*target_block + elem_step);
         }
@@ -1864,9 +1878,8 @@ ctrl_end   →
 
     // 首块有空余时使用
     template <typename... V>
-    constexpr T &emplace_front_pre(std::size_t block_size, V &&...v)
+    constexpr T &emplace_front_pre(std::size_t const block_size, V &&...v)
     {
-
         auto const begin = elem_begin_begin - 1uz;
         std::construct_at(begin, std::forward<V>(v)...); // may throw
         elem_begin_begin = begin;
@@ -1882,7 +1895,7 @@ ctrl_end   →
 
     // 首块没有空余，切换到下一个块
     template <typename... V>
-    constexpr T &emplace_front_post(std::size_t block_size, V &&...v)
+    constexpr T &emplace_front_post(std::size_t const block_size, V &&...v)
     {
         auto const block = block_elem_begin - 1uz;
         auto const first = *block;
@@ -1917,22 +1930,22 @@ ctrl_end   →
         }
     }
 
-    constexpr T &at(std::size_t pos) noexcept
+    constexpr T &at(std::size_t const pos) noexcept
     {
         return at_impl<true>(pos);
     }
 
-    constexpr T const &at(std::size_t pos) const noexcept
+    constexpr T const &at(std::size_t const pos) const noexcept
     {
         return at_impl<true>(pos);
     }
 
-    constexpr T &operator[](std::size_t pos) noexcept
+    constexpr T &operator[](std::size_t const pos) noexcept
     {
         return at_impl(pos);
     }
 
-    constexpr T const &operator[](std::size_t pos) const noexcept
+    constexpr T const &operator[](std::size_t const pos) const noexcept
     {
         return at_impl(pos);
     }
@@ -1967,7 +1980,7 @@ ctrl_end   →
         emplace_back(std::move(t));
     }
 
-    constexpr void push_front(const T &value)
+    constexpr void push_front(T const &value)
     {
         emplace_front(value);
     }
@@ -2016,7 +2029,7 @@ ctrl_end   →
             --block_elem_end;
             auto const first = *(block_elem_end - 1uz);
             auto const last = first + detail::block_elements_v<T>;
-            auto end = last - 1uz;
+            auto const end = last - 1uz;
             std::destroy_at(end);
             if (block_elem_size() == 1uz)
             {
@@ -2117,10 +2130,10 @@ ctrl_end   →
     struct partial_guard
     {
         deque *d;
-        std::size_t size;
+        std::size_t const size;
 
       public:
-        constexpr partial_guard(deque &dq, std::size_t old_size) noexcept : d(&dq), size(old_size)
+        constexpr partial_guard(deque *dp, std::size_t const old_size) noexcept : d(dp), size(old_size)
         {
         }
 
@@ -2153,7 +2166,7 @@ ctrl_end   →
     // 用于范围构造，该函数不分配内存
     // 需要在调用前reserve足够大
     template <typename... V>
-    constexpr T &emplace_front_uncheck(V &&...v)
+    constexpr T &emplace_front_noalloc(V &&...v)
     {
         auto const block_size = block_elem_size();
         if (elem_begin_begin != elem_begin_first)
@@ -2166,9 +2179,9 @@ ctrl_end   →
         }
     }
 
-    // 见emplace_front_uncheck
+    // 见emplace_front_noalloc
     template <typename... V>
-    constexpr T &emplace_back_uncheck(V &&...v)
+    constexpr T &emplace_back_noalloc(V &&...v)
     {
         auto const block_size = block_elem_size();
         if (elem_end_end != elem_end_last)
@@ -2185,13 +2198,13 @@ ctrl_end   →
     template <typename R>
     constexpr void append_range(R &&rg)
     {
-        partial_guard<true> guard(*this, size());
+        partial_guard<true> guard(this, size());
         if constexpr (std::ranges::sized_range<R>)
         {
             reserve_back(std::ranges::size(rg));
             for (auto &&i : rg)
             {
-                emplace_back_uncheck(std::forward<decltype(i)>(i));
+                emplace_back_noalloc(std::forward<decltype(i)>(i));
             }
         }
         else
@@ -2208,7 +2221,7 @@ ctrl_end   →
     constexpr void prepend_range(R &&rg)
     {
         auto const old_size = size();
-        partial_guard<false> guard(*this, old_size);
+        partial_guard<false> guard(this, old_size);
         if constexpr (std::ranges::sized_range<R> && std::ranges::bidirectional_range<R>)
         {
             reserve_front(std::ranges::size(rg));
@@ -2217,7 +2230,7 @@ ctrl_end   →
             for (; begin != end;)
             {
                 --end;
-                emplace_front_uncheck(*end);
+                emplace_front_noalloc(*end);
             }
         }
         else if constexpr (std::ranges::sized_range<R>)
@@ -2226,7 +2239,7 @@ ctrl_end   →
             reserve_front(add_size);
             for (auto &&i : rg)
             {
-                emplace_front_uncheck(std::forward<decltype(i)>(i));
+                emplace_front_noalloc(std::forward<decltype(i)>(i));
             }
             std::ranges::reverse(begin(), begin() + add_size);
         }
@@ -2236,14 +2249,14 @@ ctrl_end   →
             {
                 emplace_front(std::forward<decltype(i)>(i));
             }
-            std::ranges::reverse(begin(), begin() + (old_size - size()));
+            std::ranges::reverse(begin(), begin() + size() - old_size);
         }
         guard.release();
     }
 
   private:
     // 收缩专用
-    constexpr void resize_shrink(std::size_t old_size, std::size_t new_size) noexcept
+    constexpr void resize_shrink(std::size_t const old_size, std::size_t const new_size) noexcept
     {
         assert(old_size > new_size);
         auto const diff = new_size - old_size;
@@ -2262,7 +2275,7 @@ ctrl_end   →
             {
                 auto const [block_step, elem_step] = detail::calc_pos<T>(head_size, new_size);
                 auto const target_block = block_elem_begin + block_step;
-                auto begin = *target_block;
+                auto const begin = *target_block;
                 elem_end(begin, begin + elem_step, begin + detail::block_elements_v<T>);
                 block_elem_end = target_block + 1uz;
             }
@@ -2277,7 +2290,7 @@ ctrl_end   →
     }
 
     template <typename... Ts>
-    constexpr void resize_unified(std::size_t new_size, Ts... ts)
+    constexpr void resize_unified(std::size_t const new_size, Ts... ts)
     {
         if (auto const old_size = size(); new_size < old_size)
         {
@@ -2285,12 +2298,12 @@ ctrl_end   →
         }
         else if (new_size > old_size)
         {
-            partial_guard<true> guard(*this, old_size);
+            partial_guard<true> guard(this, old_size);
             auto const diff = new_size - old_size;
             reserve_back(diff);
             for (auto i = 0uz; i != diff; ++i)
             {
-                emplace_back_uncheck(ts...);
+                emplace_back_noalloc(ts...);
             }
             guard.release();
         }
@@ -2298,12 +2311,12 @@ ctrl_end   →
 
   public:
     // 注意必须调用clear，使得空容器的elem_begin/elem_end都为空指针
-    constexpr void resize(std::size_t new_size)
+    constexpr void resize(std::size_t const new_size)
     {
         new_size == 0uz ? clear() : resize_unified(new_size);
     }
 
-    constexpr void resize(std::size_t new_size, T const &t)
+    constexpr void resize(std::size_t const new_size, T const &t)
     {
         new_size == 0uz ? clear() : resize_unified(new_size, t);
     }
@@ -2312,7 +2325,7 @@ ctrl_end   →
     // 用于emplace的辅助函数，调用前需要判断方向
     // 该函数将后半部分向后移动1个位置
     // 从最后一个块开始
-    constexpr void back_emplace(block *block_curr, T *elem_curr)
+    constexpr void back_emplace(block *const block_curr, T *const elem_curr)
     {
         auto const block_end = block_elem_end;
         auto const block_size = block_end - block_curr + 0uz;
@@ -2359,7 +2372,7 @@ ctrl_end   →
     }
 
     // 将前半部分向前移动1
-    constexpr void front_emplace(block *block_curr, T *elem_curr)
+    constexpr void front_emplace(block *const block_curr, T *const elem_curr)
     {
         auto const block_begin = block_elem_begin;
         auto const block_size = block_curr - block_begin + 1uz;
@@ -2402,8 +2415,8 @@ ctrl_end   →
     template <class... Args>
     constexpr iterator emplace(const_iterator pos, Args &&...args)
     {
-        auto begin = this->begin();
-        auto end = this->end();
+        auto const begin = cbegin();
+        auto const end = cend();
         if (pos == end)
         {
             emplace_back(std::forward<Args>(args)...);
@@ -2416,7 +2429,7 @@ ctrl_end   →
         }
         else
         {
-            // todo: tag construct_at
+            // tag construct_at
             T temp(std::forward<Args>(args)...);
             auto const end_dis = end - pos;
             // 此时容器一定不为空
@@ -2434,7 +2447,7 @@ ctrl_end   →
         }
     }
 
-    constexpr iterator insert(const_iterator pos, const T &value)
+    constexpr iterator insert(const_iterator pos, T const &value)
     {
         return emplace(pos, value);
     }
