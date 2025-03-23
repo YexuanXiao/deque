@@ -1272,10 +1272,6 @@ ctrl_end   →
     // 对空deque安全
     constexpr void reserve_back(std::size_t const add_elem_size)
     {
-        if (add_elem_size == 0uz)
-        {
-            return;
-        }
         // 计算现有头尾是否够用
         // 头部块的cap
         auto const head_block_cap = (block_elem_begin - block_alloc_begin) * detail::block_elements_v<T>;
@@ -1348,10 +1344,6 @@ ctrl_end   →
     // 从front扩展block，空deque安全
     constexpr void reserve_front(std::size_t const add_elem_size)
     {
-        if (add_elem_size == 0uz)
-        {
-            return;
-        }
         // 计算现有头尾是否够用
         // 头部块的cap
         auto const head_block_alloc_cap = (block_elem_begin - block_alloc_begin) * detail::block_elements_v<T>;
@@ -2273,6 +2265,10 @@ ctrl_end   →
     template <typename R>
     constexpr void append_range_noguard(R &&rg)
     {
+        if (std::ranges::empty(rg))
+        {
+            return;
+        }
         if constexpr (std::ranges::sized_range<R>)
         {
             reserve_back(std::ranges::size(rg));
@@ -2293,6 +2289,10 @@ ctrl_end   →
     template <typename R>
     constexpr void prepend_range_noguard_inner(std::size_t old_size, R &&rg)
     {
+        if (std::ranges::empty(rg))
+        {
+            return;
+        }
         if constexpr (std::ranges::sized_range<R> && std::ranges::bidirectional_range<R>)
         {
             reserve_front(std::ranges::size(rg));
