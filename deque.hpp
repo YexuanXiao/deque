@@ -1616,16 +1616,15 @@ ctrl_end   →
     template <typename... V>
     constexpr T &emplace_back_pre(std::size_t const block_size, V &&...v)
     {
-        auto const begin = elem_end_end;
-        std::construct_at(begin, std::forward<V>(v)...); // may throw
-        auto const end = elem_end_end + 1uz;
-        elem_end_end = end;
+        auto const end = elem_end_end;
+        std::construct_at(end, std::forward<V>(v)...); // may throw
+        elem_end_end = end + 1uz;
         // 修正elem_begin
         if (block_size == 1uz)
         {
-            elem_begin_end = end;
+            elem_begin_end = end + 1uz;
         }
-        return *begin;
+        return *end;
     }
 
     // 参考emplace_front
@@ -2194,11 +2193,9 @@ ctrl_end   →
         }
     }
 
-  public:
     template <typename R>
-    constexpr void append_range(R &&rg)
+    constexpr void append_range_noguard(R &&rg)
     {
-        partial_guard<true> guard(this, size());
         if constexpr (std::ranges::sized_range<R>)
         {
             reserve_back(std::ranges::size(rg));
@@ -2214,14 +2211,11 @@ ctrl_end   →
                 emplace_back(std::forward<decltype(i)>(i));
             }
         }
-        guard.release();
     }
 
     template <typename R>
-    constexpr void prepend_range(R &&rg)
+    constexpr void prepend_range_noguard_inner(std::size_t old_size, R &&rg)
     {
-        auto const old_size = size();
-        partial_guard<false> guard(this, old_size);
         if constexpr (std::ranges::sized_range<R> && std::ranges::bidirectional_range<R>)
         {
             reserve_front(std::ranges::size(rg));
@@ -2231,6 +2225,16 @@ ctrl_end   →
             {
                 --end;
                 emplace_front_noalloc(*end);
+            }
+        }
+        if constexpr (std::ranges::bidirectional_range<R>)
+        {
+            auto begin = std::ranges::begin(rg);
+            auto end = std::ranges::end(rg);
+            for (; begin != end;)
+            {
+                --end;
+                emplace_front(*end);
             }
         }
         else if constexpr (std::ranges::sized_range<R>)
@@ -2251,6 +2255,29 @@ ctrl_end   →
             }
             std::ranges::reverse(begin(), begin() + size() - old_size);
         }
+    }
+
+    template <typename R>
+    constexpr void prepend_range_noguard(R &&rg)
+    {
+        prepend_range_noguard_inner(size(), rg);
+    }
+
+  public:
+    template <typename R>
+    constexpr void append_range(R &&rg)
+    {
+        partial_guard<true> guard(this, size());
+        append_range_noguard(rg);
+        guard.release();
+    }
+
+    template <typename R>
+    constexpr void prepend_range(R &&rg)
+    {
+        auto const old_size = size();
+        partial_guard<false> guard(this, old_size);
+        prepend_range_noguard_inner(old_size, rg);
         guard.release();
     }
 
@@ -2412,7 +2439,7 @@ ctrl_end   →
     }
 
   public:
-    template <class... Args>
+    template <typename... Args>
     constexpr iterator emplace(const_iterator pos, Args &&...args)
     {
         auto const begin = cbegin();
@@ -2431,12 +2458,11 @@ ctrl_end   →
         {
             // tag construct_at
             T temp(std::forward<Args>(args)...);
-            auto const end_dis = end - pos;
             // 此时容器一定不为空
             if (end - pos <= pos - begin || (block_elem_size() == 1uz && elem_end_end != elem_end_last))
             {
-
                 back_emplace(pos.block_elem_begin, pos.elem_curr);
+                // 如果向后插入后有效块还是一个，那么调整elem_end
                 if (pos.block_elem_begin + 1uz == block_elem_end)
                 {
                     ++pos.elem_end;
@@ -2446,6 +2472,7 @@ ctrl_end   →
             else
             {
                 front_emplace(pos.block_elem_begin, pos.elem_curr);
+                // 如果向前插入后有效块还是一个，那么调整elem_begin
                 if (pos.block_elem_begin == block_elem_begin)
                 {
                     --pos.elem_begin;
@@ -2465,6 +2492,123 @@ ctrl_end   →
     constexpr iterator insert(const_iterator pos, T &&value)
     {
         return emplace(pos, std::move(value));
+    }
+
+  private:
+    // 把后半部分倒到前面
+    constexpr void move_back_to_front(std::size_t const back_diff)
+    {
+        reserve_front(back_diff);
+        for (auto i = 0uz; i != back_diff; ++i)
+        {
+            emplace_front_noalloc(std::move(back()));
+            pop_back();
+        }
+    }
+
+    // 逆操作
+    constexpr void move_back_to_front_reverse(std::size_t const back_diff)
+    {
+        reserve_back(back_diff);
+        for (auto &i : std::ranges::subrange(begin(), begin() + back_diff) | std::ranges::views::reverse)
+        {
+            emplace_back_noalloc(std::move(i));
+        }
+        for (auto i = 0uz; i != back_diff; ++i)
+        {
+            pop_front();
+        }
+    }
+
+    // 把前半部分倒到前面
+    constexpr void move_front_to_back(std::size_t const front_diff)
+    {
+        reserve_back(front_diff);
+        for (auto i = 0uz; i != front_diff; ++i)
+        {
+            emplace_back_noalloc(std::move(front()));
+            pop_front();
+        }
+    }
+
+    // 逆操作
+    constexpr void move_front_to_back_reverse(std::size_t const front_diff)
+    {
+        reserve_front(front_diff);
+        for (auto &i : std::ranges::subrange(end() - front_diff, end()))
+        {
+            emplace_front_noalloc(std::move(i));
+        }
+        for (auto i = 0uz; i != front_diff; ++i)
+        {
+            pop_back();
+        }
+    }
+
+  private:
+    template <typename R>
+    constexpr iterator insert_range(const_iterator pos, R &&rg)
+    {
+        auto const begin = cbegin();
+        auto const end = cend();
+        if (pos == end)
+        {
+            append_range_noguard(rg);
+            return this->end() - 1uz;
+        }
+        else if (pos == begin)
+        {
+            prepend_range_noguard(rg);
+            return this->begin();
+        }
+        else
+        {
+            auto const back_diff = end - pos + 0uz;
+            auto const front_diff = pos - begin + 0uz;
+            if (back_diff <= front_diff)
+            {
+                // 先把后半部分倒到前面，再插入到后面，最后把前面的倒到后面
+                move_back_to_front(back_diff);
+                append_range_noguard(rg);
+                move_back_to_front_reverse(back_diff);
+                // 如果向后插入后有效块还是一个，那么调整elem_end
+                if (pos.block_elem_begin + 1uz == block_elem_end)
+                {
+                    ++pos.elem_end;
+                }
+            }
+            else
+            {
+                // 先把前半部分倒到后面，再插入到前面，最后把后面的倒到前面
+                move_front_to_back(front_diff);
+                prepend_range_noguard(rg);
+                move_front_to_back_reverse(front_diff);
+                // 如果向前插入后有效块还是一个，那么调整elem_begin
+                if (pos.block_elem_begin == block_elem_begin)
+                {
+                    --pos.elem_begin;
+                }
+                --pos;
+            }
+            return {pos.block_elem_begin, pos.elem_curr, pos.elem_begin, pos.elem_end};
+        }
+    }
+
+    constexpr iterator insert(const_iterator pos, std::initializer_list<T> const ilist)
+    {
+        return insert_range(pos, std::ranges::views::all(ilist));
+    }
+
+    template <typename InputIt, typename Sentinel>
+    constexpr iterator insert(const_iterator pos, InputIt first, Sentinel last)
+        requires std::sentinel_for<Sentinel, InputIt>
+    {
+        return insert_range(pos, std::ranges::subrange(first, last));
+    }
+
+    constexpr iterator insert(const_iterator pos, std::size_t const count, T const &value)
+    {
+        return insert_range(pos, std::ranges::views::repeat(value, count));
     }
 };
 } // namespace bizwen

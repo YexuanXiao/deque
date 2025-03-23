@@ -6,14 +6,12 @@ Working in progress.
 
 ## Roadmap
 
-+ `insert`
-+ `insert_range`
 + `operator==`
 + `operator<=>`
 + `erase_if`
 + allocator support
 + performance benchmark
-+ tests of the above functions and bucket and iterator
++ tests of `insert`, `insert_range`, the above functions and bucket and iterator
 
 ## Compiler Portability
 
