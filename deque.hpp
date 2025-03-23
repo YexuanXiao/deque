@@ -1677,16 +1677,34 @@ ctrl_end   →
         guard.release();
     }
 
-    template <typename U, typename V>
-        requires std::input_iterator<U> && std::sentinel_for<V, U>
-    constexpr deque(U begin, V end)
+  private:
+    // 由于标准库实现from_range_t太慢，因此目前用自定义的tag实现消歧
+    struct from_range_tag_t
     {
-        if constexpr (requires { is_iterator(begin); })
+    };
+
+    static inline constexpr from_range_tag_t from_range_tag{};
+
+    constexpr deque(from_range_tag_t, deque &&rg) : deque(std::move(rg))
+    {
+    }
+
+    constexpr deque(from_range_tag_t, deque const &rg) : deque(rg)
+    {
+    }
+
+    template <typename R>
+    constexpr deque(from_range_tag_t, R &&rg)
+    {
+        // 必须，保证+1uz合法
+        if (std::ranges::empty(rg))
         {
-            if (begin == end) // 必须，保证+1uz合法
-            {
-                return;
-            }
+            return;
+        }
+        if constexpr (requires { is_iterator(std::ranges::begin(rg)); })
+        {
+            auto const begin = rg.begin();
+            auto const end = rg.end();
             // iterator begin, end
             bucket_type bucket{begin.block_elem_begin, end.block_elem_begin + 1uz,
                                begin.elem_curr,        begin.elem_end,
@@ -1697,17 +1715,29 @@ ctrl_end   →
             copy(bucket, block_size);
             guard.release();
         }
-        else if constexpr (std::random_access_iterator<U>)
+        else if constexpr (std::ranges::sized_range<R>)
         {
+            auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(std::ranges::size(rg));
+            construct_guard guard(this);
+            construct_block(block_size);
+            construct(block_size, full_blocks, rem_elems, std::ranges::begin(rg), std::ranges::end(rg));
+            guard.release();
+        }
+        else if constexpr (std::random_access_iterator<decltype(std::ranges::begin(rg))>)
+        {
+            auto begin = std::ranges::begin(rg);
+            auto end = std::ranges::end(rg);
             auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(end - begin);
             construct_guard guard(this);
             construct_block(block_size);
-            construct(block_size, full_blocks, rem_elems, begin, end);
+            construct(block_size, full_blocks, rem_elems, std::move(begin), std::move(end));
             guard.release();
         }
         else
         {
             construct_guard guard{*this};
+            auto begin = std::ranges::begin(rg);
+            auto end = std::ranges::end(rg);
             for (; begin != end; ++begin)
             {
                 emplace_back(*begin);
@@ -1716,56 +1746,31 @@ ctrl_end   →
         }
     }
 
+  public:
+    template <typename U, typename V>
+        requires std::input_iterator<U> && std::sentinel_for<V, U>
+    constexpr deque(U begin, V end) : deque(from_range_tag, std::ranges::subrange(std::move(begin), std::move(end)))
+    {
+    }
+
 #if defined(__cpp_lib_containers_ranges)
     template <typename R>
-    constexpr deque(std::from_range_t, R &&rg) : deque(std::ranges::begin(rg), std::ranges::end(rg))
-    {
-    }
-
-    template <typename R>
-    constexpr deque(std::from_range_t, R &&rg)
-        requires std::ranges::sized_range<R>
-    {
-        auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(rg.size());
-        construct_guard guard(this);
-        construct_block(block_size);
-        construct(block_size, full_blocks, rem_elems, std::ranges::begin(rg), std::ranges::end(rg));
-        guard.release();
-    }
-
-    constexpr deque(std::from_range_t, deque const &rg) : deque(rg)
-    {
-    }
-
-    constexpr deque(std::from_range_t, deque &&rg) : deque(std::move(rg))
+    constexpr deque(std::from_range_t, R &&rg) : deque(from_range_tag, rg)
     {
     }
 #endif
 
-    constexpr deque(std::initializer_list<T> init)
+    constexpr deque(std::initializer_list<T> const ilist) : deque(from_range_tag, std::ranges::views::all(ilist))
     {
-        auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(init.size());
-        construct_guard guard(this);
-        construct_block(block_size);
-        construct(block_size, full_blocks, rem_elems, std::ranges::begin(init), std::ranges::end(init));
-        guard.release();
     }
 
   private:
-    // 赋值的辅助函数，几乎等于clear，但做更少的事
-    void assign_clear() noexcept
-    {
-        destroy_elems();
-        block_elem_end = block_elem_begin;
-        elem_end(nullptr, nullptr, nullptr);
-    }
-
   public:
     constexpr deque &operator=(const deque &other)
     {
         if (this != &other)
         {
-            assign_clear();
+            clear();
             auto const block_size = other.block_elem_size();
             extent_block(block_size);
             copy(other.buckets(), block_size);
@@ -1775,7 +1780,7 @@ ctrl_end   →
 
     constexpr deque &operator=(std::initializer_list<T> ilist)
     {
-        assign_clear();
+        clear();
         auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(ilist.size());
         construct_block(block_size);
         construct(block_size, full_blocks, rem_elems, std::ranges::begin(ilist), std::ranges::end(ilist));
@@ -1788,25 +1793,28 @@ ctrl_end   →
         return *this;
     }
 
-    constexpr void assign(std::size_t const count, T const &value)
+    constexpr void assign_range(deque &&d)
     {
-        assign_clear();
-        auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(count);
-        construct_block(block_size);
-        construct(block_size, full_blocks, rem_elems, value);
+        *this = std::move(d);
     }
 
-    template <typename U, typename V>
-    constexpr void assign(U begin, V end)
-        requires std::input_iterator<U> && std::sentinel_for<V, U>
+    constexpr void assign_range(deque const &d)
     {
-        assign_clear();
-        if constexpr (requires { is_iterator(begin); })
+        *this = d;
+    }
+
+    template <typename R>
+    constexpr void assign_range(R &&rg)
+    {
+        clear();
+        if (std::ranges::empty(rg))
         {
-            if (begin == end) // 必须
-            {
-                return;
-            }
+            return;
+        }
+        if constexpr (requires { is_iterator(std::ranges::begin(rg)); })
+        {
+            auto begin = std::ranges::begin(rg);
+            auto end = std::ranges::end(rg);
             // iterator begin, end
             bucket_type bucket{begin.block_elem_begin, end.block_elem_begin + 1uz,
                                begin.elem_curr,        begin.elem_end,
@@ -1815,14 +1823,24 @@ ctrl_end   →
             extent_block(block_size);
             copy(bucket, block_size);
         }
-        else if constexpr (std::random_access_iterator<U>)
+        else if constexpr (std::ranges::sized_range<R>)
         {
+            auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(std::ranges::size(rg));
+            construct_block(block_size);
+            construct(block_size, full_blocks, rem_elems, std::ranges::begin(rg), std::ranges::end(rg));
+        }
+        else if constexpr (std::random_access_iterator<decltype(std::ranges::begin(rg))>)
+        {
+            auto begin = std::ranges::begin(rg);
+            auto end = std::ranges::end(rg);
             auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(end - begin);
             construct_block(block_size);
-            construct(block_size, full_blocks, rem_elems, begin, end);
+            construct(block_size, full_blocks, rem_elems, std::move(begin), std::move(end));
         }
         else
         {
+            auto begin = std::ranges::begin(rg);
+            auto end = std::ranges::end(rg);
             elem_end(nullptr, nullptr, nullptr);
             for (; begin != end; ++begin)
             {
@@ -1831,18 +1849,27 @@ ctrl_end   →
         }
     }
 
-    constexpr void assign(std::initializer_list<T> ilist)
+    constexpr void assign(std::size_t const count, T const &value)
     {
-        assign_clear();
-        auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(ilist.size());
+        clear();
+        auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(count);
         construct_block(block_size);
-        construct(block_size, full_blocks, rem_elems, std::ranges::begin(ilist), std::ranges::end(ilist));
+        construct(block_size, full_blocks, rem_elems, value);
+        /*
+        assign_range(std::ranges::views::repeat(value, count));
+        */
     }
 
-    template <typename R>
-    constexpr void assign_range(R &&rg)
+    template <typename U, typename V>
+    constexpr void assign(U begin, V end)
+        requires std::input_iterator<U> && std::sentinel_for<V, U>
     {
-        assign(std::ranges::begin(rg), std::ranges::end(rg));
+        assign_range(std::ranges::subrange(std::move(begin), std::move(end)));
+    }
+
+    constexpr void assign(std::initializer_list<T> const ilist)
+    {
+        assign_range(std::ranges::views::all(ilist));
     }
 
   private:
@@ -2227,7 +2254,7 @@ ctrl_end   →
                 emplace_front_noalloc(*end);
             }
         }
-        if constexpr (std::ranges::bidirectional_range<R>)
+        else if constexpr (std::ranges::bidirectional_range<R>)
         {
             auto begin = std::ranges::begin(rg);
             auto end = std::ranges::end(rg);
@@ -2599,11 +2626,11 @@ ctrl_end   →
         return insert_range(pos, std::ranges::views::all(ilist));
     }
 
-    template <typename InputIt, typename Sentinel>
-    constexpr iterator insert(const_iterator pos, InputIt first, Sentinel last)
-        requires std::sentinel_for<Sentinel, InputIt>
+    template <typename U, typename V>
+    constexpr iterator insert(const_iterator pos, U first, V last)
+        requires std::input_iterator<U> && std::sentinel_for<V, U>
     {
-        return insert_range(pos, std::ranges::subrange(first, last));
+        return insert_range(pos, std::ranges::subrange(std::move(first), std::move(last)));
     }
 
     constexpr iterator insert(const_iterator pos, std::size_t const count, T const &value)
