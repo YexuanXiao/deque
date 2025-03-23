@@ -1282,7 +1282,7 @@ ctrl_end   →
         // 尾部块的cap
         auto const tail_block_cap = (block_alloc_end - block_elem_end) * detail::block_elements_v<T>;
         // 尾块的已使用大小
-        auto const tail_cap = block_elem_size() ? elem_end_last - elem_end_end : 0uz;
+        auto const tail_cap = elem_end_last - elem_end_end;
         // non_move_cap为尾部-尾部已用，不移动块时cap
         auto const non_move_cap = tail_block_cap + tail_cap;
         // 首先如果cap足够，则不需要分配新block
@@ -1319,6 +1319,32 @@ ctrl_end   →
         extent_block_back_uncond(add_block_size);
     }
 
+    // 向back扩展
+    // 对空deque安全
+    constexpr void reserve_one_back()
+    {
+        if (block_alloc_end != block_elem_end)
+        {
+            return;
+        }
+        if (block_elem_begin != block_alloc_begin)
+        {
+            align_elem_as_alloc_back();
+            return;
+        }
+        if ((block_alloc_begin - block_ctrl_begin) + (block_ctrl_end - block_alloc_end) != 0uz)
+        {
+            align_elem_alloc_as_ctrl_back(block_ctrl_begin);
+        }
+        else
+        {
+            // 否则扩展控制块
+            ctrl_alloc const ctrl{*this, block_alloc_size() + 1uz}; // may throw
+            ctrl.replace_ctrl_back();
+        }
+        extent_block_back_uncond(1uz);
+    }
+
     // 从front扩展block，空deque安全
     constexpr void reserve_front(std::size_t const add_elem_size)
     {
@@ -1332,7 +1358,7 @@ ctrl_end   →
         // 尾部块的cap
         auto const tail_block_alloc_cap = (block_alloc_end - block_elem_end) * detail::block_elements_v<T>;
         // 头块的已使用大小
-        auto const head_cap = block_elem_size() ? elem_begin_begin - elem_begin_first : 0uz;
+        auto const head_cap = elem_begin_begin - elem_begin_first;
         // non_move_cap为头部-头部已用，不移动块时cap
         auto const non_move_cap = head_block_alloc_cap + head_cap;
         // 首先如果cap足够，则不需要分配新block
@@ -1355,7 +1381,6 @@ ctrl_end   →
         auto const ctrl_cap = ((block_alloc_begin - block_ctrl_begin) + (block_ctrl_end - block_alloc_end)) *
                                   detail::block_elements_v<T> +
                               move_cap;
-
         if (ctrl_cap >= add_elem_size)
         {
             align_elem_alloc_as_ctrl_front(block_ctrl_end);
@@ -1368,6 +1393,32 @@ ctrl_end   →
         }
         // 必须最后执行
         extent_block_front_uncond(add_block_size);
+    }
+
+    // 向back扩展
+    // 对空deque安全
+    constexpr void reserve_one_front()
+    {
+        if (block_elem_begin != block_alloc_begin)
+        {
+            return;
+        }
+        if (block_alloc_end != block_elem_end)
+        {
+            align_elem_as_alloc_front();
+            return;
+        }
+        if ((block_alloc_begin - block_ctrl_begin) + (block_ctrl_end - block_alloc_end) != 0uz)
+        {
+            align_elem_alloc_as_ctrl_front(block_ctrl_end);
+        }
+        else
+        {
+            // 否则扩展控制块
+            ctrl_alloc const ctrl{*this, block_alloc_size() + 1uz}; // may throw
+            ctrl.replace_ctrl_front();
+        }
+        extent_block_front_uncond(1uz);
     }
 
     struct construct_guard
@@ -1654,7 +1705,7 @@ ctrl_end   →
         }
         else
         {
-            reserve_back(1uz);
+            reserve_one_back();
             return emplace_back_post(block_size, v...);
         }
     }
@@ -1951,7 +2002,7 @@ ctrl_end   →
         }
         else
         {
-            reserve_front(1uz);
+            reserve_one_front();
             return emplace_front_post(block_size, std::forward<V>(v)...);
         }
     }
@@ -2170,20 +2221,19 @@ ctrl_end   →
 
         constexpr ~partial_guard()
         {
-            if (d == nullptr)
+            if (d != nullptr)
             {
-                return;
-            }
-            auto const diff = d->size() - size;
-            for (auto i = 0uz; i != diff; ++i)
-            {
-                if constexpr (back)
+                auto const diff = d->size() - size;
+                for (auto i = 0uz; i != diff; ++i)
                 {
-                    d->pop_back();
-                }
-                else
-                {
-                    d->pop_front();
+                    if constexpr (back)
+                    {
+                        d->pop_back();
+                    }
+                    else
+                    {
+                        d->pop_front();
+                    }
                 }
             }
         }
@@ -2636,6 +2686,16 @@ ctrl_end   →
     constexpr iterator insert(const_iterator pos, std::size_t const count, T const &value)
     {
         return insert_range(pos, std::ranges::views::repeat(value, count));
+    }
+
+    constexpr bool operator==(deque const &other) const noexcept
+    {
+        return size() != other.size() ? false : lexicographical_compare(begin(), end(), other.begin(), other.end());
+    }
+
+    constexpr auto operator<=>(deque const &other) const noexcept
+    {
+        return lexicographical_compare_three_way(begin(), end(), other.begin(), other.end());
     }
 };
 } // namespace bizwen

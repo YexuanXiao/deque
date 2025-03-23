@@ -6,8 +6,6 @@ Working in progress.
 
 ## Roadmap
 
-+ `operator==`
-+ `operator<=>`
 + `erase_if`
 + allocator support
 + performance benchmark
