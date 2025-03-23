@@ -100,8 +100,11 @@ void test_constructor(std::size_t count = 1000uz)
         }
         // (6) equivalent to (4), (5) and operator= (1)
         {
-            std::vector<typename deque::value_type> v{};
+            std::vector<typename deque::value_type> v{std::from_range, std::ranges::iota_view(0uz, count)};
             deque d(std::from_range, v);
+            assert(d.size() == count);
+            deque d1(std::from_range, std::ranges::subrange(v.begin(),v.end()));
+            assert(d1.size() == count);
         }
         // (7) equivalent to (5)
         {
