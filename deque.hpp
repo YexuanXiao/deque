@@ -18,7 +18,7 @@
 #include <memory>
 // add_pointer/remove_pointer/remove_const/add_const/is_const/is_object
 #include <type_traits>
-// views::all/ranges::subrange/sized_range/from_range_t/begin/end/swap/size/empty
+// ranges::view_interface/subrange/sized_range/from_range_t/begin/end/swap/size/empty/views::all
 #include <ranges>
 // out_of_range
 #include <stdexcept>
@@ -144,6 +144,7 @@ class basic_bucket_iterator
     using TC = std::remove_const_t<T>;
 
     friend basic_bucket_type<TC>;
+    friend basic_bucket_type<T>;
     friend basic_bucket_iterator<std::add_const_t<T>>;
 
     using block = TC *;
@@ -358,7 +359,7 @@ static_assert(std::random_access_iterator<basic_bucket_iterator<const int>>);
 #endif
 
 template <typename T>
-class basic_bucket_type
+class basic_bucket_type : public std::ranges::view_interface<basic_bucket_type<T>>
 {
     using TC = std::remove_const_t<T>;
 
@@ -380,6 +381,24 @@ class basic_bucket_type
         : block_elem_begin(block_elem_begin_), block_elem_end(block_elem_end_), elem_begin_begin(elem_begin_begin_),
           elem_begin_end(elem_begin_end_), elem_end_begin(elem_end_begin_), elem_end_end(elem_end_end_)
     {
+    }
+
+    constexpr std::span<T> at_impl(std::size_t const pos) const noexcept
+    {
+        assert(block_elem_begin + pos <= block_elem_end);
+        if (pos == 0uz)
+        {
+            return front();
+        }
+        else if (block_elem_begin + pos == block_elem_end)
+        {
+            return back();
+        }
+        else
+        {
+            auto const begin = *(block_elem_begin + pos);
+            return {begin, begin + block_elements_v<T>};
+        }
     }
 
   public:
@@ -408,19 +427,51 @@ class basic_bucket_type
         return block_elem_end - block_elem_begin;
     }
 
-    constexpr bool empty() const noexcept
+    // empty and operator bool provided by view_interface
+
+    constexpr void data() const noexcept = delete;
+
+    constexpr std::span<T> front() const noexcept
     {
-        return size();
+        return {elem_begin_begin, elem_begin_end};
     }
 
-  public:
-    iterator begin() noexcept
+    constexpr std::span<T const> front() noexcept
+        requires(not std::is_const_v<T>)
+    {
+        return {elem_begin_begin, elem_begin_end};
+    }
+
+    constexpr std::span<T> back() const noexcept
+    {
+        return {elem_end_begin, elem_end_end};
+    }
+
+    constexpr std::span<T const> back() noexcept
+        requires(not std::is_const_v<T>)
+    {
+        return {elem_end_begin, elem_end_end};
+    }
+
+    constexpr std::span<T> at(std::size_t const pos) noexcept
+    {
+        return at_impl(pos);
+    }
+
+    constexpr std::span<const T> at(std::size_t const pos) const noexcept
+        requires(not std::is_const_v<T>)
+    {
+        auto const s = at_impl(pos);
+        return {s.data(), s.size()};
+    }
+
+    constexpr iterator begin() noexcept
     {
         return {block_elem_begin, block_elem_end, block_elem_begin, elem_begin_begin, elem_begin_end,
                 elem_end_begin,   elem_end_end,   elem_begin_begin, elem_begin_end};
     }
 
-    iterator end() noexcept
+    constexpr iterator end() noexcept
     {
         if (block_elem_begin == block_elem_end)
         {
@@ -434,13 +485,13 @@ class basic_bucket_type
         }
     }
 
-    const_iterator begin() const noexcept
+    constexpr const_iterator begin() const noexcept
     {
         return {block_elem_begin, block_elem_end, block_elem_begin, elem_begin_begin, elem_begin_end,
                 elem_end_begin,   elem_end_end,   elem_begin_begin, elem_begin_end};
     }
 
-    const_iterator end() const noexcept
+    constexpr const_iterator end() const noexcept
     {
         if (block_elem_begin == block_elem_end)
         {
@@ -454,12 +505,12 @@ class basic_bucket_type
         }
     }
 
-    const_iterator cbegin() const noexcept
+    constexpr const_iterator cbegin() const noexcept
     {
         return begin();
     }
 
-    const_iterator cend() const noexcept
+    constexpr const_iterator cend() const noexcept
     {
         return end();
     }
