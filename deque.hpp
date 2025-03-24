@@ -8,9 +8,9 @@
 #include <cassert>
 // ptrdiff_t/size_t
 #include <cstddef>
-// ranges::copy/copy_back_ward/rotate
+// ranges::copy/copy_back_ward/rotate/move/move_backward/remove/remove_if
 #include <algorithm>
-// strong_ordering
+// strong_ordering/lexicographical_compare/lexicographical_compare_three_way
 #include <compare>
 // iterator concepts/reverse_iterator/sentinel/iterator tag
 #include <iterator>
@@ -18,7 +18,7 @@
 #include <memory>
 // add_pointer/remove_pointer/remove_const/add_const/is_const/is_object
 #include <type_traits>
-// ranges::subrange/sized_range/from_range_t/begin/end/swap
+// views::all/ranges::subrange/sized_range/from_range_t/begin/end/swap/size/empty
 #include <ranges>
 // out_of_range
 #include <stdexcept>
@@ -2706,4 +2706,22 @@ ctrl_end   →
         }
     }
 };
+
+template <typename T, typename U = T>
+constexpr deque<T>::size_type erase(deque<T> &c, const U &value)
+{
+    auto it = std::ranges::remove(c.begin(), c.end(), value);
+    auto r = c.end() - it;
+    c.resize(c.size() - r);
+    return r;
+}
+
+template <typename T, typename Pred>
+constexpr deque<T>::size_type erase_if(deque<T> &c, Pred pred)
+{
+    auto it = std::ranges::remove_if(c.begin(), c.end(), pred);
+    auto r = c.end() - it;
+    c.resize(c.size() - r);
+    return r;
+}
 } // namespace bizwen

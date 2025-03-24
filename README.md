@@ -6,10 +6,9 @@ Working in progress.
 
 ## Roadmap
 
-+ `erase_if`
++ tests of some functions
 + allocator support
 + performance benchmark
-+ tests of `insert`, `insert_range`, the above functions and bucket and iterator
 
 ## Compiler Portability
 
