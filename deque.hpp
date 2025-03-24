@@ -122,9 +122,9 @@ constexpr auto calc_cap(std::size_t const size) noexcept
 }
 
 template <typename T>
-constexpr auto calc_pos(std::size_t const head_or_tail_size, const std::size_t pos) noexcept
+constexpr auto calc_pos(std::size_t const head_or_tail_size, std::size_t const pos) noexcept
 {
-    assert(pos < std::size_t(-1) / 2);
+    assert(pos < std::size_t(-1) / 2uz);
     auto const block_elems = block_elements_v<T>;
     auto const new_pos = pos - head_or_tail_size;
     struct pos_t
@@ -519,6 +519,12 @@ class basic_deque_iterator
     constexpr basic_deque_iterator(block *const elem_begin, TC *const curr, TC *const begin, TC *const end) noexcept
         : block_elem_begin(elem_begin), elem_curr(curr), elem_begin(begin), elem_end(end)
     {
+    }
+
+    constexpr basic_deque_iterator<TC> remove_const() const noexcept
+        requires(std::is_const_v<T>)
+    {
+        return {block_elem_begin, elem_curr, elem_begin, elem_end};
     }
 
     constexpr T &at_impl(std::ptrdiff_t const pos) const noexcept
@@ -2064,51 +2070,31 @@ ctrl_end   →
     constexpr void pop_back() noexcept
     {
         assert(not empty());
-        if (elem_end_begin != elem_end_end)
-        {
-            --elem_end_end;
-            std::destroy_at(elem_end_end);
-            if (elem_end_end == elem_end_begin)
-            {
-                --block_elem_end;
-                auto const block_size = block_elem_size();
-                if (block_size == 1uz)
-                {
-                    elem_end(elem_begin_begin, elem_begin_end, elem_begin_end);
-                }
-                else if (block_size)
-                {
-                    auto const begin = *(block_elem_end - 1uz);
-                    auto const last = begin + detail::block_elements_v<T>;
-                    elem_end(begin, last, last);
-                }
-                else
-                {
-                    elem_begin(nullptr, nullptr, nullptr);
-                    elem_end(nullptr, nullptr, nullptr);
-                }
-            }
-            else if (block_elem_size() == 1uz)
-            {
-                --elem_begin_end;
-            }
-        }
-        else
+        --elem_end_end;
+        std::destroy_at(elem_end_end);
+        if (elem_end_end == elem_end_begin)
         {
             --block_elem_end;
-            auto const first = *(block_elem_end - 1uz);
-            auto const last = first + detail::block_elements_v<T>;
-            auto const end = last - 1uz;
-            std::destroy_at(end);
-            if (block_elem_size() == 1uz)
+            auto const block_size = block_elem_size();
+            if (block_size == 1uz)
             {
-                --elem_begin_end;
                 elem_end(elem_begin_begin, elem_begin_end, elem_begin_end);
+            }
+            else if (block_size)
+            {
+                auto const begin = *(block_elem_end - 1uz);
+                auto const last = begin + detail::block_elements_v<T>;
+                elem_end(begin, last, last);
             }
             else
             {
-                elem_end(first, end, last);
+                elem_begin(nullptr, nullptr, nullptr);
+                elem_end(nullptr, nullptr, nullptr);
             }
+        }
+        else if (block_elem_size() == 1uz)
+        {
+            --elem_begin_end;
         }
     }
 
@@ -2116,51 +2102,32 @@ ctrl_end   →
     constexpr void pop_front() noexcept
     {
         assert(not empty());
-        if (elem_begin_begin != elem_begin_end)
-        {
-            std::destroy_at(elem_begin_begin);
-            ++elem_begin_begin;
-            if (elem_begin_end == elem_begin_begin)
-            {
-                ++block_elem_begin;
-                auto const block_size = block_elem_size();
-                // 注意，如果就剩最后一个block，那么应该采用end的位置而不是计算得到
-                if (block_size == 1uz)
-                {
-                    elem_begin(elem_end_begin, elem_end_end, elem_end_begin);
-                }
-                else if (block_size)
-                {
-                    auto const begin = *block_elem_begin;
-                    auto const last = begin + detail::block_elements_v<T>;
-                    elem_begin(begin, last, begin);
-                }
-                else
-                {
-                    elem_begin(nullptr, nullptr, nullptr);
-                    elem_end(nullptr, nullptr, nullptr);
-                }
-            }
-            else if (block_elem_size() == 1uz)
-            {
-                ++elem_end_begin;
-            }
-        }
-        else
+        std::destroy_at(elem_begin_begin);
+        ++elem_begin_begin;
+        if (elem_begin_end == elem_begin_begin)
         {
             ++block_elem_begin;
-            auto const begin = *block_elem_begin;
-            auto const end = begin + detail::block_elements_v<T>;
-            std::destroy_at(begin);
-            if (block_elem_size() == 1uz)
+            auto const block_size = block_elem_size();
+            // 注意，如果就剩最后一个block，那么应该采用end的位置而不是计算得到
+            if (block_size == 1uz)
             {
-                ++elem_end_begin;
                 elem_begin(elem_end_begin, elem_end_end, elem_end_begin);
+            }
+            else if (block_size)
+            {
+                auto const begin = *block_elem_begin;
+                auto const last = begin + detail::block_elements_v<T>;
+                elem_begin(begin, last, begin);
             }
             else
             {
-                elem_begin(begin + 1uz, end, begin);
+                elem_begin(nullptr, nullptr, nullptr);
+                elem_end(nullptr, nullptr, nullptr);
             }
+        }
+        else if (block_elem_size() == 1uz)
+        {
+            ++elem_end_begin;
         }
     }
 
@@ -2189,6 +2156,21 @@ ctrl_end   →
     }
 
   private:
+    constexpr void pop_back_n(std::size_t const count) noexcept
+    {
+        for (auto i = 0uz; i != count; ++i)
+        {
+            pop_back();
+        }
+    }
+
+    constexpr void pop_front_n(std::size_t const count) noexcept
+    {
+        for (auto i = 0uz; i != count; ++i)
+        {
+            pop_front();
+        }
+    }
     // 用来判断类型是否是deque
     consteval void is_deque(deque const &) noexcept
     {
@@ -2215,17 +2197,13 @@ ctrl_end   →
         {
             if (d != nullptr)
             {
-                auto const diff = d->size() - size;
-                for (auto i = 0uz; i != diff; ++i)
+                if constexpr (back)
                 {
-                    if constexpr (back)
-                    {
-                        d->pop_back();
-                    }
-                    else
-                    {
-                        d->pop_front();
-                    }
+                    d->pop_back_n(d->size() - size);
+                }
+                else
+                {
+                    d->pop_front_n(d->size() - size);
                 }
             }
         }
@@ -2386,10 +2364,7 @@ ctrl_end   →
         }
         else
         {
-            for (auto i = 0uz; i != diff; ++i)
-            {
-                pop_back();
-            }
+            pop_back_n(diff);
         }
     }
 
@@ -2400,7 +2375,7 @@ ctrl_end   →
         {
             resize_shrink(old_size, new_size);
         }
-        else if (new_size > old_size)
+        else
         {
             partial_guard<true> guard(this, old_size);
             auto const diff = new_size - old_size;
@@ -2517,56 +2492,47 @@ ctrl_end   →
 
   public:
     template <typename... Args>
-    constexpr iterator emplace(const_iterator pos, Args &&...args)
+    constexpr iterator emplace(const_iterator const pos, Args &&...args)
     {
-        auto const begin = cbegin();
-        auto const end = cend();
-        if (pos == end)
+        auto const begin_pre = begin();
+        auto const end_pre = end();
+        if (pos == end_pre)
         {
             emplace_back(std::forward<Args>(args)...);
-            return this->end() - 1uz;
+            return end() - 1uz;
         }
-        else if (pos == begin)
+        if (pos == begin_pre)
         {
             emplace_front(std::forward<Args>(args)...);
-            return this->begin();
+            return begin();
+        }
+        // tag construct_at
+        T temp(std::forward<Args>(args)...);
+        // 此时容器一定不为空
+        auto const back_diff = end_pre - pos + 0uz;
+        auto const front_diff = pos - begin_pre + 0uz;
+        if (back_diff <= front_diff || (block_elem_size() == 1uz && elem_end_end != elem_end_last))
+        {
+            back_emplace(pos.block_elem_begin, pos.elem_curr);
+            auto target = begin() + front_diff;
+            *target = std::move(temp);
+            return target;
         }
         else
         {
-            // tag construct_at
-            T temp(std::forward<Args>(args)...);
-            // 此时容器一定不为空
-            if (end - pos <= pos - begin || (block_elem_size() == 1uz && elem_end_end != elem_end_last))
-            {
-                back_emplace(pos.block_elem_begin, pos.elem_curr);
-                // 如果向后插入后有效块还是一个，那么调整elem_end
-                if (pos.block_elem_begin + 1uz == block_elem_end)
-                {
-                    ++pos.elem_end;
-                }
-                *pos.elem_curr = std::move(temp);
-            }
-            else
-            {
-                front_emplace(pos.block_elem_begin, pos.elem_curr);
-                // 如果向前插入后有效块还是一个，那么调整elem_begin
-                if (pos.block_elem_begin == block_elem_begin)
-                {
-                    --pos.elem_begin;
-                }
-                --pos;
-                *pos.elem_curr = std::move(temp);
-            }
-            return {pos.block_elem_begin, pos.elem_curr, pos.elem_begin, pos.elem_end};
+            front_emplace(pos.block_elem_begin, pos.elem_curr);
+            auto target = begin() + front_diff;
+            *target = std::move(temp);
+            return target;
         }
     }
 
-    constexpr iterator insert(const_iterator pos, T const &value)
+    constexpr iterator insert(const_iterator const pos, T const &value)
     {
         return emplace(pos, value);
     }
 
-    constexpr iterator insert(const_iterator pos, T &&value)
+    constexpr iterator insert(const_iterator const pos, T &&value)
     {
         return emplace(pos, std::move(value));
     }
@@ -2591,10 +2557,7 @@ ctrl_end   →
         {
             emplace_back_noalloc(std::move(i));
         }
-        for (auto i = 0uz; i != back_diff; ++i)
-        {
-            pop_front();
-        }
+        pop_front_n(back_diff);
     }
 
     // 把前半部分倒到前面
@@ -2616,74 +2579,59 @@ ctrl_end   →
         {
             emplace_front_noalloc(std::move(i));
         }
-        for (auto i = 0uz; i != front_diff; ++i)
-        {
-            pop_back();
-        }
+        pop_back_n(front_diff);
     }
 
   private:
     template <typename R>
-    constexpr iterator insert_range(const_iterator pos, R &&rg)
+    constexpr iterator insert_range(const_iterator const pos, R &&rg)
     {
-        auto const begin = cbegin();
-        auto const end = cend();
-        if (pos == end)
+        auto const begin_pre = begin();
+        auto const end_pre = end();
+        if (pos == end_pre)
         {
+            auto const old_size = size();
             append_range_noguard(rg);
-            return this->end() - 1uz;
+            return begin() + old_size;
         }
-        else if (pos == begin)
+        if (pos == begin_pre)
         {
             prepend_range_noguard(rg);
-            return this->begin();
+            return begin();
+        }
+        auto const back_diff = end_pre - pos + 0uz;
+        auto const front_diff = pos - begin_pre + 0uz;
+        if (back_diff <= front_diff)
+        {
+            // 先把后半部分倒到前面，再插入到后面，最后把前面的倒到后面
+            move_back_to_front(back_diff);
+            append_range_noguard(rg);
+            move_back_to_front_reverse(back_diff);
+            return begin() + front_diff;
         }
         else
         {
-            auto const back_diff = end - pos + 0uz;
-            auto const front_diff = pos - begin + 0uz;
-            if (back_diff <= front_diff)
-            {
-                // 先把后半部分倒到前面，再插入到后面，最后把前面的倒到后面
-                move_back_to_front(back_diff);
-                append_range_noguard(rg);
-                move_back_to_front_reverse(back_diff);
-                // 如果向后插入后有效块还是一个，那么调整elem_end
-                if (pos.block_elem_begin + 1uz == block_elem_end)
-                {
-                    ++pos.elem_end;
-                }
-            }
-            else
-            {
-                // 先把前半部分倒到后面，再插入到前面，最后把后面的倒到前面
-                move_front_to_back(front_diff);
-                prepend_range_noguard(rg);
-                move_front_to_back_reverse(front_diff);
-                // 如果向前插入后有效块还是一个，那么调整elem_begin
-                if (pos.block_elem_begin == block_elem_begin)
-                {
-                    --pos.elem_begin;
-                }
-                --pos;
-            }
-            return {pos.block_elem_begin, pos.elem_curr, pos.elem_begin, pos.elem_end};
+            // 先把前半部分倒到后面，再插入到前面，最后把后面的倒到前面
+            move_front_to_back(front_diff);
+            prepend_range_noguard(rg);
+            move_front_to_back_reverse(front_diff);
+            return begin() + front_diff;
         }
     }
 
-    constexpr iterator insert(const_iterator pos, std::initializer_list<T> const ilist)
+    constexpr iterator insert(const_iterator const pos, std::initializer_list<T> const ilist)
     {
         return insert_range(pos, std::ranges::views::all(ilist));
     }
 
     template <typename U, typename V>
-    constexpr iterator insert(const_iterator pos, U first, V last)
+    constexpr iterator insert(const_iterator const pos, U first, V last)
         requires std::input_iterator<U> && std::sentinel_for<V, U>
     {
         return insert_range(pos, std::ranges::subrange(std::move(first), std::move(last)));
     }
 
-    constexpr iterator insert(const_iterator pos, std::size_t const count, T const &value)
+    constexpr iterator insert(const_iterator const pos, std::size_t const count, T const &value)
     {
         return insert_range(pos, std::ranges::views::repeat(value, count));
     }
@@ -2696,6 +2644,66 @@ ctrl_end   →
     constexpr auto operator<=>(deque const &other) const noexcept
     {
         return lexicographical_compare_three_way(begin(), end(), other.begin(), other.end());
+    }
+
+    constexpr iterator erase(const_iterator const pos)
+    {
+        auto const begin_pre = begin();
+        auto const end_pre = end();
+        if (pos == begin_pre)
+        {
+            pop_front();
+            return begin();
+        }
+        if (pos + 1uz == end_pre)
+        {
+            pop_back();
+            return end();
+        }
+        auto const back_diff = end_pre - pos + 0uz;
+        auto const front_diff = pos - begin_pre + 0uz;
+        if (back_diff <= front_diff)
+        {
+            std::ranges::move((pos + 1uz).remove_const(), end(), pos.remove_const());
+            pop_back();
+            return begin() + front_diff;
+        }
+        else
+        {
+            std::ranges::move_backward(begin(), pos.remove_const(), (pos + 1uz).remove_const());
+            pop_front();
+            return begin() + front_diff;
+        }
+    }
+
+    constexpr iterator erase(const_iterator const first, const_iterator const last)
+    {
+        auto const begin_pre = begin();
+        auto const end_pre = end();
+        if (first == begin_pre)
+        {
+            pop_front_n(last - first);
+            return begin();
+        }
+        if (last == end_pre)
+        {
+            pop_back_n(last - first);
+            return end();
+        }
+        auto const back_diff = end_pre - last + 0uz;
+        auto const front_diff = first - begin_pre + 0uz;
+        if (back_diff <= front_diff)
+        {
+            std::ranges::move(last, end(), first.remove_const());
+            pop_back();
+            return begin() + front_diff;
+        }
+        else
+        {
+            std::ranges::move_backward(begin(), first.remove_const(), last);
+            pop_front();
+            return begin() + front_diff;
+        }
     }
 };
 } // namespace bizwen
