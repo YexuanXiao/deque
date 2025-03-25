@@ -429,7 +429,9 @@ class basic_bucket_type : public std::ranges::view_interface<basic_bucket_type<T
 
     // empty and operator bool provided by view_interface
 
-    constexpr void data() const noexcept = delete;
+    // Since bucket_iterator is not a continuous iterator,
+    // view_interface does not provide the member function data
+    // constexpr void data() const noexcept = delete;
 
     constexpr std::span<T> front() const noexcept
     {
