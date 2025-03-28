@@ -2032,6 +2032,20 @@ ctrl_end   →
             construct(block_size, full_blocks, rem_elems, std::move(begin), std::move(end));
             guard.release();
         }
+#if defined(__cpp_lib_ranges_reserve_hint) && __cpp_lib_ranges_reserve_hint >= 202502L
+        else if constexpr (std::ranges::approximately_sized_range<R>)
+        {
+            construct_guard guard{*this};
+            reserve_back(std::ranges::reserve_hint(rg));
+            auto begin = std::ranges::begin(rg);
+            auto end = std::ranges::end(rg);
+            for (; begin != end; ++begin)
+            {
+                emplace_back_noalloc(*begin);
+            }
+            guard.release();
+        }
+#endif
         else
         {
             construct_guard guard{*this};
@@ -2136,11 +2150,22 @@ ctrl_end   →
             construct_block(block_size);
             construct(block_size, full_blocks, rem_elems, std::move(begin), std::move(end));
         }
+#if defined(__cpp_lib_ranges_reserve_hint) && __cpp_lib_ranges_reserve_hint >= 202502L
+        else if constexpr (std::ranges::approximately_sized_range<R>)
+        {
+            reserve_back(std::ranges::reserve_hint(rg));
+            auto begin = std::ranges::begin(rg);
+            auto end = std::ranges::end(rg);
+            for (; begin != end; ++begin)
+            {
+                emplace_back_noalloc(*begin);
+            }
+        }
+#endif
         else
         {
             auto begin = std::ranges::begin(rg);
             auto end = std::ranges::end(rg);
-            elem_end(nullptr, nullptr, nullptr);
             for (; begin != end; ++begin)
             {
                 emplace_back(*begin);
@@ -2427,9 +2452,15 @@ ctrl_end   →
         {
             return;
         }
+#if defined(__cpp_lib_ranges_reserve_hint) && __cpp_lib_ranges_reserve_hint >= 202502L
+        if constexpr (std::ranges::approximately_sized_range<R>)
+        {
+            reserve_back(std::ranges::reserve_hint(rg));
+#else
         if constexpr (std::ranges::sized_range<R>)
         {
             reserve_back(std::ranges::size(rg));
+#endif
             for (auto &&i : rg)
             {
                 emplace_back_noalloc(std::forward<decltype(i)>(i));
@@ -2451,9 +2482,15 @@ ctrl_end   →
         {
             return;
         }
+#if defined(__cpp_lib_ranges_reserve_hint) && __cpp_lib_ranges_reserve_hint >= 202502L
+        if constexpr (std::ranges::approximately_sized_range<R> && std::ranges::bidirectional_range<R>)
+        {
+            reserve_front(std::ranges::reserve_hint(rg));
+#else
         if constexpr (std::ranges::sized_range<R> && std::ranges::bidirectional_range<R>)
         {
             reserve_front(std::ranges::size(rg));
+#endif
             auto begin = std::ranges::begin(rg);
             auto end = std::ranges::end(rg);
             for (; begin != end;)
@@ -2472,15 +2509,28 @@ ctrl_end   →
                 emplace_front(*end);
             }
         }
+#if defined(__cpp_lib_ranges_reserve_hint) && __cpp_lib_ranges_reserve_hint >= 202502L
+        else if constexpr (std::ranges::approximately_sized_range<R>)
+        {
+            reserve_front(std::ranges::reserve_hint(rg));
+            auto count = 0uz;
+            for (auto &&i : rg)
+            {
+                emplace_front_noalloc(std::forward<decltype(i)>(i));
+                ++count;
+            }
+            std::ranges::reverse(begin(), begin() + count);
+        }
+#endif
         else if constexpr (std::ranges::sized_range<R>)
         {
-            auto const add_size = std::ranges::size(rg);
-            reserve_front(add_size);
+            auto const count = std::ranges::size(rg);
+            reserve_front(count);
             for (auto &&i : rg)
             {
                 emplace_front_noalloc(std::forward<decltype(i)>(i));
             }
-            std::ranges::reverse(begin(), begin() + add_size);
+            std::ranges::reverse(begin(), begin() + count);
         }
         else
         {
