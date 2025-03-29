@@ -7,7 +7,6 @@ Working in progress.
 ## Roadmap
 
 + tests of some functions
-+ allocator support
 + performance benchmark
 
 ## Compiler Portability
