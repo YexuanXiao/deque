@@ -105,6 +105,42 @@ static_assert(calc_block(7uz) == 7uz * 4096uz);
 
 #endif
 
+// 用于从参数包中获得前两个对象（只有两个）的引用的辅助函数
+#if not defined(__cpp_pack_indexing)
+template <typename Tuple>
+auto get(Tuple args) noexcept
+{
+    auto &first = std::get<0uz>(args);
+    auto &second = std::get<1uz>(args);
+    struct iter_ref_pair
+    {
+        decltype(first) &begin;
+        decltype(second) &end;
+    };
+    return iter_ref_pair{first, second};
+}
+#else
+#if defined(__clang__) // make clang happy
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc++26-extensions"
+#endif
+template <typename... Args>
+auto get(Args &&...args) noexcept
+{
+    auto &first = args...[0uz];
+    auto &second = args...[1uz];
+    struct iter_ref_pair
+    {
+        decltype(first) &begin;
+        decltype(second) &end;
+    };
+    return iter_ref_pair{first, second};
+}
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+#endif
+
 // 根据T的大小计算每个block有多少元素
 template <typename T>
 constexpr std::size_t block_elements_v = calc_block(sizeof(T)) / sizeof(T);
@@ -1814,12 +1850,9 @@ ctrl_end   →
             else if constexpr (sizeof...(Ts) == 2uz)
             {
 #if defined(__cpp_pack_indexing)
-                auto &src_begin = ts...[0uz];
-                auto &src_end = ts...[1uz];
+                auto [src_begin, src_end] = detail::get(ts...);
 #else
-                auto const x = std::tuple<Ts &...>(ts...);
-                auto &src_begin = std::get<0uz>(x);
-                auto &src_end = std::get<1uz>(x);
+                auto [src_begin, src_end] = detail::get(std::forward_as_tuple(ts...));
 #endif
                 std::ranges::uninitialized_copy(src_begin, std::unreachable_sentinel, begin,
                                                 begin + detail::block_elements_v<T>);
@@ -1850,12 +1883,9 @@ ctrl_end   →
                 else if constexpr (sizeof...(Ts) == 2uz)
                 {
 #if defined(__cpp_pack_indexing)
-                    auto &src_begin = ts...[0uz];
-                    auto &src_end = ts...[1uz];
+                    auto [src_begin, src_end] = detail::get(ts...);
 #else
-                    auto const x = std::tuple<Ts &...>(ts...);
-                    auto &src_begin = std::get<0uz>(x);
-                    auto &src_end = std::get<1uz>(x);
+                    auto [src_begin, src_end] = detail::get(std::forward_as_tuple(ts...));
 #endif
                     std::ranges::uninitialized_copy(src_begin, std::unreachable_sentinel, begin,
                                                     begin + detail::block_elements_v<T>);
@@ -1886,12 +1916,9 @@ ctrl_end   →
             else if constexpr (sizeof...(Ts) == 2uz)
             {
 #if defined(__cpp_pack_indexing)
-                auto &src_begin = ts...[0uz];
-                auto &src_end = ts...[1uz];
+                auto [src_begin, src_end] = detail::get(ts...);
 #else
-                auto const x = std::tuple<Ts &...>(ts...);
-                auto &src_begin = std::get<0uz>(x);
-                auto &src_end = std::get<1uz>(x);
+                auto [src_begin, src_end] = detail::get(std::forward_as_tuple(ts...));
 #endif
                 std::ranges::uninitialized_copy(src_begin, src_end, begin, std::unreachable_sentinel);
             }
