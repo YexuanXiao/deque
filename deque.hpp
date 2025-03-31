@@ -1055,7 +1055,6 @@ struct deque_proxy
         /*
         traits_t::destroy(a,elem_begin_begin);
         */
-        ++elem_begin_begin;
         if (elem_begin_end == elem_begin_begin)
         {
             ++block_elem_begin;
@@ -1300,9 +1299,9 @@ ctrl_end   →
 
   public:
     using value_type = T;
-    using pointer = value_type *;
+    using pointer = traits_t::pointer;
     using reference = value_type &;
-    using const_pointer = value_type const *;
+    using const_pointer = traits_t::const_pointer;
     using const_reference = value_type const &;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
@@ -2604,6 +2603,7 @@ ctrl_end   →
     {
         assert(not empty());
         traits_t::destroy(a, elem_begin_begin);
+        ++elem_begin_begin;
         to_proxy().pop_front_post();
     }
 
