@@ -3035,7 +3035,7 @@ class deque
         pop_back_n(front_diff);
     }
 
-  private:
+  public:
     template <typename R>
     constexpr iterator insert_range(const_iterator const pos, R &&rg)
     {
@@ -3091,12 +3091,12 @@ class deque
 
     constexpr bool operator==(deque const &other) const noexcept
     {
-        return size() != other.size() ? false : lexicographical_compare(begin(), end(), other.begin(), other.end());
+        return size() != other.size() ? false : std::lexicographical_compare(begin(), end(), other.begin(), other.end());
     }
 
     constexpr auto operator<=>(deque const &other) const noexcept
     {
-        return lexicographical_compare_three_way(begin(), end(), other.begin(), other.end());
+        return std::lexicographical_compare_three_way(begin(), end(), other.begin(), other.end());
     }
 
     constexpr iterator erase(const_iterator const pos)
