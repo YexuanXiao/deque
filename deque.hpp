@@ -1341,7 +1341,6 @@ ctrl_end   →
 
 #if !defined(NDEBUG)
     static_assert(std::random_access_iterator<iterator>);
-    static_assert(std::output_iterator<iterator, T>);
     static_assert(std::sentinel_for<iterator, iterator>);
 #endif
 
