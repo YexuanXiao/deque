@@ -857,8 +857,6 @@ struct deque_proxy
     using CBlockP = std::conditional_t<std::is_const_v<T>, Block *const, Block *>;
     using CConstTP = std::conditional_t<std::is_const_v<T>, RConstT *const, RConstT *>;
 
-    CBlockP block_ctrl_begin{};
-    CBlockP block_ctrl_end{};
     CBlockP &block_alloc_begin{};
     CBlockP &block_alloc_end{};
     CBlockP &block_elem_begin{};
@@ -873,11 +871,6 @@ struct deque_proxy
     constexpr std::size_t block_elem_size() const noexcept
     {
         return block_elem_end - block_elem_begin;
-    }
-
-    constexpr std::size_t block_ctrl_size() const noexcept
-    {
-        return block_ctrl_end - block_ctrl_begin;
     }
 
     constexpr std::size_t block_alloc_size() const noexcept
@@ -916,77 +909,6 @@ struct deque_proxy
         elem_end_begin = begin;
         elem_end_end = end;
         elem_end_last = last;
-    }
-
-    constexpr void fill_block_alloc_end() noexcept
-    {
-        *block_alloc_end = nullptr;
-    }
-
-    constexpr void align_alloc_as_ctrl_back() noexcept
-    {
-        std::ranges::copy(block_alloc_begin, block_alloc_end, block_ctrl_begin);
-        auto const block_size = block_alloc_size();
-        block_alloc_begin = block_ctrl_begin;
-        block_alloc_end = block_ctrl_begin + block_size;
-        fill_block_alloc_end();
-    }
-
-    constexpr void align_alloc_as_ctrl_front() noexcept
-    {
-        std::ranges::copy_backward(block_alloc_begin, block_alloc_end, block_ctrl_end);
-        auto const block_size = block_alloc_size();
-        block_alloc_end = block_ctrl_end;
-        block_alloc_begin = block_ctrl_end - block_size;
-        fill_block_alloc_end();
-    }
-
-    constexpr void align_elem_as_alloc_back() noexcept
-    {
-        std::ranges::rotate(block_alloc_begin, block_elem_begin, block_elem_end);
-        auto const block_size = block_elem_size();
-        block_elem_begin = block_alloc_begin;
-        block_elem_end = block_alloc_begin + block_size;
-    }
-
-    constexpr void align_elem_as_alloc_front() noexcept
-    {
-        std::ranges::rotate(block_elem_begin, block_elem_end, block_alloc_end);
-        auto const block_size = block_elem_size();
-        block_elem_end = block_alloc_end;
-        block_elem_begin = block_alloc_end - block_size;
-    }
-
-    constexpr void align_elem_alloc_as_ctrl_back(CBlockP const ctrl_begin) noexcept
-    {
-        auto const alloc_block_size = block_alloc_size();
-        auto const elem_block_size = block_elem_size();
-        auto const alloc_elem_offset_front = block_elem_begin - block_alloc_begin;
-        // 将elem_begin和alloc_begin都对齐到ctrl_begin
-        std::ranges::copy(block_elem_begin, block_elem_end, ctrl_begin);
-        std::ranges::copy(block_alloc_begin, block_elem_begin, ctrl_begin + elem_block_size);
-        std::ranges::copy(block_elem_end, block_alloc_end, ctrl_begin + elem_block_size + alloc_elem_offset_front);
-        block_alloc_begin = ctrl_begin;
-        block_alloc_end = ctrl_begin + alloc_block_size;
-        block_elem_begin = ctrl_begin;
-        block_elem_end = ctrl_begin + elem_block_size;
-        fill_block_alloc_end();
-    }
-
-    constexpr void align_elem_alloc_as_ctrl_front(CBlockP const ctrl_end) noexcept
-    {
-        auto const alloc_block_size = block_alloc_size();
-        auto const elem_block_size = block_elem_size();
-        auto const alloc_elem_offset_front = block_elem_begin - block_alloc_begin;
-        std::ranges::copy_backward(block_elem_begin, block_elem_end, ctrl_end);
-        std::ranges::copy_backward(block_alloc_begin, block_elem_begin, ctrl_end - elem_block_size);
-        std::ranges::copy_backward(block_elem_end, block_alloc_end,
-                                   ctrl_end - elem_block_size - alloc_elem_offset_front);
-        block_alloc_end = ctrl_end;
-        block_alloc_begin = ctrl_end - alloc_block_size;
-        block_elem_end = ctrl_end;
-        block_elem_begin = ctrl_end - elem_block_size;
-        fill_block_alloc_end();
     }
 
     template <bool throw_exception = false>
@@ -1090,14 +1012,11 @@ class deque
 #if !defined(NDEBUG)
     static_assert(std::is_object_v<T>);
     static_assert(not std::is_const_v<T>);
+    static_assert(std::is_same_v<T,typename Allocator::value_type>);
 #endif
-
-    using Block = T *;
-
     using traits_t = std::allocator_traits<Allocator>;
 
     static constexpr bool is_default_operation = requires(Allocator &a) { a.construct(static_cast<T *>(nullptr)); };
-
     static constexpr bool is_ator_stateless = traits_t::is_always_equal::value;
     static constexpr bool is_pocca = traits_t::propagate_on_container_copy_assignment::value;
     static constexpr bool is_pocma = traits_t::propagate_on_container_move_assignment::value;
@@ -1109,10 +1028,11 @@ class deque
     [[no_unique_address]] Allocator a{};
 #endif
 
-    using fancy_pointer = typename traits_t::template rebind_traits<Block>::pointer;
+    using Block = typename traits_t::pointer;
+    using BlockFP = typename traits_t::template rebind_traits<Block>::pointer;
 
     // 块数组的起始地址
-    fancy_pointer block_ctrl_begin_fancy{};
+    BlockFP block_ctrl_begin_fancy{};
     // 块数组的结束地址
     Block *block_ctrl_end{};
     // 已分配块的起始地址
@@ -1136,23 +1056,23 @@ class deque
     // 有效末尾块的结束分配地址
     T *elem_end_last{};
     /*
-ctrl_begin→ □
+  ctrl_begin→ □
              □
-alloc_begin→■ → □□□□□□□□□□□□□□□□□□□□□□□□□□
+  alloc_begin→■ → □□□□□□□□□□□□□□□□□□□□□□□□□□
              ■ → □□□□□□□□□□□□□□□□□□□□□□□□□□
-elem_begin →■ → □□□□□□□□□■■■■■■■■■■■■■■■■■■
+  elem_begin →■ → □□□□□□□□□■■■■■■■■■■■■■■■■■■
                  ↑          ↑                   ↑
             first      begin                end
              ■ → ■■■■■■■■■■■■■■■■■■■■■■■■■■■■
              ■ → ■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-elem_end   →■ → ■■■■■■■■■■■■■□□□□□□□□□□□□□□
+  elem_end   →■ → ■■■■■■■■■■■■■□□□□□□□□□□□□□□
                  ↑              ↑               ↑
              begin           end            last
              ■ → □□□□□□□□□□□□□□□□□□□□□□□□□□
              ■ → □□□□□□□□□□□□□□□□□□□□□□□□□□
-alloc_end  →□
+  alloc_end  →□
              □
-ctrl_end   →
+  ctrl_end   →
     */
     /*
     迭代器的++在走到last时会主动走到下一个块，由于block_alloc_end的保证，使得最终走到*block_elem_end得到0
@@ -1165,16 +1085,14 @@ ctrl_end   →
 
     constexpr detail::deque_proxy<T> to_proxy() noexcept
     {
-        return {block_ctrl_begin(), block_ctrl_end, block_alloc_begin, block_alloc_end,
-                block_elem_begin,   block_elem_end, elem_begin_first,  elem_begin_begin,
-                elem_begin_end,     elem_end_begin, elem_end_end,      elem_end_last};
+        return {block_alloc_begin, block_alloc_end, block_elem_begin, block_elem_end, elem_begin_first,
+                elem_begin_begin,  elem_begin_end,  elem_end_begin,   elem_end_end,   elem_end_last};
     }
 
     constexpr detail::deque_proxy<T const> to_proxy() const noexcept
     {
-        return {block_ctrl_begin(), block_ctrl_end, block_alloc_begin, block_alloc_end,
-                block_elem_begin,   block_elem_end, elem_begin_first,  elem_begin_begin,
-                elem_begin_end,     elem_end_begin, elem_end_end,      elem_end_last};
+        return {block_alloc_begin, block_alloc_end, block_elem_begin, block_elem_end, elem_begin_first,
+                elem_begin_begin,  elem_begin_end,  elem_end_begin,   elem_end_end,   elem_end_last};
     }
 
     constexpr void dealloc_block(Block b) noexcept
@@ -1187,7 +1105,7 @@ ctrl_end   →
         return traits_t::allocate(a, detail::block_elements_v<T>);
     }
 
-    constexpr fancy_pointer alloc_ctrl(std::size_t const size)
+    constexpr BlockFP alloc_ctrl(std::size_t const size)
     {
         return typename traits_t::template rebind_alloc<Block>(a).allocate(size);
     }
@@ -1493,8 +1411,8 @@ ctrl_end   →
     struct ctrl_alloc
     {
         deque &d;
-        fancy_pointer block_ctrl_begin_fancy{}; // A
-        Block *block_ctrl_end{};                // D
+        BlockFP block_ctrl_begin_fancy{}; // A
+        Block *block_ctrl_end{};               // D
 
         // 替换块数组到deque
         // 构造函数专用
@@ -1549,46 +1467,82 @@ ctrl_end   →
     // 对齐alloc和ctrl的begin
     constexpr void align_alloc_as_ctrl_back() noexcept
     {
-        to_proxy().align_alloc_as_ctrl_back();
+        std::ranges::copy(block_alloc_begin, block_alloc_end, block_ctrl_begin());
+        auto const block_size = block_alloc_size();
+        block_alloc_begin = block_ctrl_begin();
+        block_alloc_end = block_ctrl_begin() + block_size;
+        fill_block_alloc_end();
     }
 
     // 对齐控制块
     // 对齐alloc和ctrl的end
     constexpr void align_alloc_as_ctrl_front() noexcept
     {
-        to_proxy().align_alloc_as_ctrl_front();
+        std::ranges::copy_backward(block_alloc_begin, block_alloc_end, block_ctrl_end);
+        auto const block_size = block_alloc_size();
+        block_alloc_end = block_ctrl_end;
+        block_alloc_begin = block_ctrl_end - block_size;
+        fill_block_alloc_end();
     }
 
     // 对齐控制块
     // 对齐elem和alloc的begin
     constexpr void align_elem_as_alloc_back() noexcept
     {
-        to_proxy().align_elem_as_alloc_back();
+        std::ranges::rotate(block_alloc_begin, block_elem_begin, block_elem_end);
+        auto const block_size = block_elem_size();
+        block_elem_begin = block_alloc_begin;
+        block_elem_end = block_alloc_begin + block_size;
     }
 
     // 对齐控制块
     // 对齐elem和alloc的end
     constexpr void align_elem_as_alloc_front() noexcept
     {
-        to_proxy().align_elem_as_alloc_front();
+        std::ranges::rotate(block_elem_begin, block_elem_end, block_alloc_end);
+        auto const block_size = block_elem_size();
+        block_elem_end = block_alloc_end;
+        block_elem_begin = block_alloc_end - block_size;
     }
 
     // ctrl_begin可以是自己或者新ctrl的
     // 对齐控制块所有指针
     constexpr void align_elem_alloc_as_ctrl_back(Block *const ctrl_begin) noexcept
     {
-        to_proxy().align_elem_alloc_as_ctrl_back(ctrl_begin);
+        auto const alloc_block_size = block_alloc_size();
+        auto const elem_block_size = block_elem_size();
+        auto const alloc_elem_offset_front = block_elem_begin - block_alloc_begin;
+        // 将elem_begin和alloc_begin都对齐到ctrl_begin
+        std::ranges::copy(block_elem_begin, block_elem_end, ctrl_begin);
+        std::ranges::copy(block_alloc_begin, block_elem_begin, ctrl_begin + elem_block_size);
+        std::ranges::copy(block_elem_end, block_alloc_end, ctrl_begin + elem_block_size + alloc_elem_offset_front);
+        block_alloc_begin = ctrl_begin;
+        block_alloc_end = ctrl_begin + alloc_block_size;
+        block_elem_begin = ctrl_begin;
+        block_elem_end = ctrl_begin + elem_block_size;
+        fill_block_alloc_end();
     }
 
     // ctrl_end可以是自己或者新ctrl的
     // 对齐控制块所有指针
     constexpr void align_elem_alloc_as_ctrl_front(Block *const ctrl_end) noexcept
     {
-        to_proxy().align_elem_alloc_as_ctrl_front(ctrl_end);
+        auto const alloc_block_size = block_alloc_size();
+        auto const elem_block_size = block_elem_size();
+        auto const alloc_elem_offset_front = block_elem_begin - block_alloc_begin;
+        std::ranges::copy_backward(block_elem_begin, block_elem_end, ctrl_end);
+        std::ranges::copy_backward(block_alloc_begin, block_elem_begin, ctrl_end - elem_block_size);
+        std::ranges::copy_backward(block_elem_end, block_alloc_end,
+                                   ctrl_end - elem_block_size - alloc_elem_offset_front);
+        block_alloc_end = ctrl_end;
+        block_alloc_begin = ctrl_end - alloc_block_size;
+        block_elem_end = ctrl_end;
+        block_elem_begin = ctrl_end - elem_block_size;
+        fill_block_alloc_end();
     }
 
-    // 向前分配新block，需要block_size小于等于(block_alloc_begin - block_ctrl_begin)
-    // 且不block_alloc_X不是空指针
+    // 向前分配新block，需要block_size小于等于(block_alloc_begin -
+    // block_ctrl_begin) 且不block_alloc_X不是空指针
     constexpr void extent_block_front_uncond(std::size_t const block_size)
     {
         for (auto i = 0uz; i != block_size; ++i)
