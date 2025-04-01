@@ -2840,6 +2840,19 @@ ctrl_end   →
         pop_back_n(front_diff);
     }
 
+    static inline constexpr auto synth_three_way = []<class U, class V>(const U &u, const V &v) {
+        if constexpr (std::three_way_comparable_with<U, V>)
+            return u <=> v;
+        else
+        {
+            if (u < v)
+                return std::weak_ordering::less;
+            if (v < u)
+                return std::weak_ordering::greater;
+            return std::weak_ordering::equivalent;
+        }
+    };
+
   public:
     template <typename R>
     constexpr iterator insert_range(const_iterator const pos, R &&rg)
@@ -2900,8 +2913,11 @@ ctrl_end   →
     }
 
     constexpr auto operator<=>(deque const &other) const noexcept
+        requires requires(T const &t, T const &t1) {
+            { t < t1 } -> std::convertible_to<bool>;
+        }
     {
-        return std::lexicographical_compare_three_way(begin(), end(), other.begin(), other.end());
+        return std::lexicographical_compare_three_way(begin(), end(), other.begin(), other.end(), synth_three_way);
     }
 
     constexpr iterator erase(const_iterator const pos)
