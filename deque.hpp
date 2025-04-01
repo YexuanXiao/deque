@@ -598,6 +598,7 @@ class basic_deque_iterator
 
     friend deque<RConstT>;
     friend basic_deque_iterator<RConstT>;
+    friend basic_deque_iterator<T const>;
 
     using Block = RConstT *;
 
