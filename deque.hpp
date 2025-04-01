@@ -108,7 +108,7 @@ static_assert(calc_block(7uz) == 7uz * 4096uz);
 // 用于从参数包中获得前两个对象（只有两个）的引用的辅助函数
 #if not defined(__cpp_pack_indexing)
 template <typename Tuple>
-auto get(Tuple args) noexcept
+inline consexpr auto get(Tuple args) noexcept
 {
     auto &first = std::get<0uz>(args);
     auto &second = std::get<1uz>(args);
@@ -125,7 +125,7 @@ auto get(Tuple args) noexcept
 #pragma clang diagnostic ignored "-Wc++26-extensions"
 #endif
 template <typename... Args>
-auto get(Args &&...args) noexcept
+inline constexpr auto get(Args &&...args) noexcept
 {
     auto &first = args...[0uz];
     auto &second = args...[1uz];
@@ -147,7 +147,7 @@ constexpr std::size_t block_elements_v = calc_block(sizeof(T)) / sizeof(T);
 
 // 构造函数和赋值用，计算如何分配和构造
 template <typename T>
-constexpr auto calc_cap(std::size_t const size) noexcept
+inline constexpr auto calc_cap(std::size_t const size) noexcept
 {
     auto const block_elems = block_elements_v<T>;
     struct cap_t
@@ -161,7 +161,7 @@ constexpr auto calc_cap(std::size_t const size) noexcept
 
 // 当头block的元素数量小于pos时，根据pos计算步数
 template <typename T>
-constexpr auto calc_pos(std::size_t const head_or_tail_size, std::size_t const pos) noexcept
+inline constexpr auto calc_pos(std::size_t const head_or_tail_size, std::size_t const pos) noexcept
 {
     assert(pos < std::size_t(-1) / 2uz);
     auto const block_elems = block_elements_v<T>;
