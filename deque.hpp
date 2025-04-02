@@ -1982,9 +1982,8 @@ ctrl_end   →
 
   private:
     // 由于subrange不接受input_iterator，因此需要额外提供一个函数
-    template <typename U, typename V>
+    template <std::input_iterator U, typename V>
     void from_range(U &&begin, V &&end)
-        requires std::input_iterator<U>
     {
         for (; begin != end; ++begin)
         {
@@ -2059,8 +2058,7 @@ ctrl_end   →
     }
 
   public:
-    template <typename U, typename V>
-        requires std::input_iterator<U>
+    template <std::input_iterator U, typename V>
     constexpr deque(U begin, V end)
     {
         construct_guard guard(this);
@@ -2069,7 +2067,7 @@ ctrl_end   →
     }
 
 #if defined(__cpp_lib_containers_ranges)
-    template <typename R>
+    template <std::ranges::input_range R>  requires std::convertible_to<std::ranges::range_value_t<R>, T>
     constexpr deque(std::from_range_t, R &&rg)
     {
         construct_guard guard(this);
@@ -2138,7 +2136,7 @@ ctrl_end   →
         *this = d;
     }
 
-    template <typename R>
+    template <std::ranges::input_range R>
     constexpr void assign_range(R &&rg)
     {
         clear();
@@ -2156,9 +2154,8 @@ ctrl_end   →
         */
     }
 
-    template <typename U, typename V>
+    template <std::input_iterator U, typename V>
     constexpr void assign(U begin, V end)
-        requires std::input_iterator<U>
     {
         clear();
         from_range(std::move(begin), std::move(end));
@@ -2518,7 +2515,7 @@ ctrl_end   →
     }
 
   public:
-    template <typename R>
+    template <std::ranges::input_range R>
     constexpr void append_range(R &&rg)
     {
         partial_guard<true> guard(this, size());
@@ -2526,7 +2523,7 @@ ctrl_end   →
         guard.release();
     }
 
-    template <typename R>
+    template <std::ranges::input_range R>
     constexpr void prepend_range(R &&rg)
     {
         auto const old_size = size();
@@ -2795,7 +2792,7 @@ ctrl_end   →
     };
 
   public:
-    template <typename R>
+    template <std::ranges::input_range R>
     constexpr iterator insert_range(const_iterator const pos, R &&rg)
     {
         auto const begin_pre = begin();
@@ -2836,9 +2833,8 @@ ctrl_end   →
         return insert_range(pos, std::ranges::views::all(ilist));
     }
 
-    template <typename U, typename V>
+    template <std::input_iterator, typename V>
     constexpr iterator insert(const_iterator const pos, U first, V last)
-        requires std::input_iterator<U>
     {
         return insert_range(pos, std::ranges::subrange(std::move(first), std::move(last)));
     }
