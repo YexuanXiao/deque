@@ -4,11 +4,7 @@ The next-generation deque container for C++, written and designed using modern C
 
 Working in progress.
 
-## Roadmap
-
-+ tests of some functions
-+ allocator support
-+ performance benchmark
+This branch provides an allocator-free version, making the code easier to read and modify.
 
 ## Compiler Portability
 
