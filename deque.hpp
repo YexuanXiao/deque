@@ -1587,25 +1587,23 @@ class deque
         }
     };
 
-    // 构造函数的辅助函数
-    // 调用后可直接填充元素
-    constexpr void construct_block(std::size_t const block_size)
-    {
-        ctrl_alloc const ctrl(*this, block_size); // may throw
-        ctrl.replace_ctrl();
-        extent_block_back_uncond(block_size); // may throw
-    }
-
-    // 赋值的辅助函数
+    // 构造函数和赋值的辅助函数
     // 调用后可直接填充元素
     constexpr void extent_block(std::size_t const new_block_size)
     {
+        auto const ctrl_block_size = block_ctrl_size();
         auto const alloc_block_size = block_alloc_size();
+        if (ctrl_block_size == 0uz)
+        {
+            ctrl_alloc const ctrl(*this, new_block_size); // may throw
+            ctrl.replace_ctrl();
+            extent_block_back_uncond(new_block_size); // may throw
+            return;
+        }
         if (alloc_block_size > new_block_size)
         {
             return;
         }
-        auto const ctrl_block_size = block_ctrl_size();
         if (ctrl_block_size < new_block_size)
         {
             ctrl_alloc const ctrl(*this, new_block_size); // may throw
@@ -1935,7 +1933,7 @@ class deque
     {
         auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(count);
         construct_guard guard(this);
-        construct_block(block_size);
+        extent_block(block_size);
         construct(block_size, full_blocks, rem_elems);
         guard.release();
     }
@@ -1944,7 +1942,7 @@ class deque
     {
         auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(count);
         construct_guard guard(this);
-        construct_block(block_size);
+        extent_block(block_size);
         construct(block_size, full_blocks, rem_elems);
         guard.release();
     }
@@ -1953,7 +1951,7 @@ class deque
     {
         auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(count);
         construct_guard guard(this);
-        construct_block(block_size);
+        extent_block(block_size);
         construct(block_size, full_blocks, rem_elems, t);
         guard.release();
     }
@@ -1962,25 +1960,43 @@ class deque
     {
         auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(count);
         construct_guard guard(this);
-        construct_block(block_size);
+        extent_block(block_size);
         construct(block_size, full_blocks, rem_elems);
         guard.release();
     }
 
   private:
-    template <typename R>
-    constexpr void from_range(R &&rg)
+    // 由于subrange不接受input_iterator，因此需要额外提供一个函数
+    template <typename U, typename V>
+    void from_range(U &&begin, V &&end)
+        requires std::input_iterator<U>
     {
-        // 必须，保证+1uz合法
-        if (std::ranges::empty(rg))
+        construct_guard guard{*this};
+        for (; begin != end; ++begin)
         {
-            return;
+            emplace_back(*begin);
         }
-        if constexpr (requires { is_iterator(std::ranges::begin(rg)); })
+        guard.release();
+    }
+
+    template <typename U>
+    void from_range(U &&begin, U &&end)
+        requires std::random_access_iterator<U>
+    {
+        if (begin != end)
         {
-            auto const begin = rg.begin();
-            auto const end = rg.end();
-            // iterator begin, end
+            auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(end - begin);
+            construct_guard guard(this);
+            extent_block(block_size);
+            construct(block_size, full_blocks, rem_elems, std::move(begin), std::move(end));
+            guard.release();
+        }
+    }
+
+    void from_range(iterator &&begin, iterator &&end)
+    {
+        if (begin != end)
+        {
             bucket_type bucket{begin.block_elem_begin, end.block_elem_begin + 1uz,
                                begin.elem_curr,        begin.elem_end,
                                end.elem_begin,         end.elem_curr};
@@ -1990,48 +2006,50 @@ class deque
             copy(bucket, block_size);
             guard.release();
         }
+    }
+
+    template <typename R>
+    constexpr void from_range(R &&rg)
+    {
+        if constexpr (requires { is_iterator(std::ranges::begin(rg)); })
+        {
+            from_range(std::ranges::begin(rg), std::ranges::end(rg));
+        }
         else if constexpr (std::ranges::sized_range<R>)
         {
-            auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(std::ranges::size(rg));
-            construct_guard guard(this);
-            construct_block(block_size);
-            construct(block_size, full_blocks, rem_elems, std::ranges::begin(rg), std::ranges::end(rg));
-            guard.release();
+            if (auto size = std::ranges::size(rg))
+            {
+                auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(size);
+                construct_guard guard(this);
+                extent_block(block_size);
+                construct(block_size, full_blocks, rem_elems, std::ranges::begin(rg), std::ranges::end(rg));
+                guard.release();
+            }
         }
         else if constexpr (std::random_access_iterator<decltype(std::ranges::begin(rg))>)
         {
-            auto begin = std::ranges::begin(rg);
-            auto end = std::ranges::end(rg);
-            auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(end - begin);
-            construct_guard guard(this);
-            construct_block(block_size);
-            construct(block_size, full_blocks, rem_elems, std::move(begin), std::move(end));
-            guard.release();
+            from_range(std::ranges::begin(rg), std::ranges::end(rg));
         }
 #if defined(__cpp_lib_ranges_reserve_hint) && __cpp_lib_ranges_reserve_hint >= 202502L
         else if constexpr (std::ranges::approximately_sized_range<R>)
         {
-            construct_guard guard{*this};
-            reserve_back(std::ranges::reserve_hint(rg));
-            auto begin = std::ranges::begin(rg);
-            auto end = std::ranges::end(rg);
-            for (; begin != end; ++begin)
+            if (auto size = std::ranges::reserve_hint(rg))
             {
-                emplace_back_noalloc(*begin);
+                construct_guard guard{*this};
+                reserve_back();
+                auto begin = std::ranges::begin(rg);
+                auto end = std::ranges::end(rg);
+                for (; begin != end; ++begin)
+                {
+                    emplace_back_noalloc(*begin);
+                }
+                guard.release();
             }
-            guard.release();
         }
 #endif
         else
         {
-            construct_guard guard{*this};
-            auto begin = std::ranges::begin(rg);
-            auto end = std::ranges::end(rg);
-            for (; begin != end; ++begin)
-            {
-                emplace_back(*begin);
-            }
-            guard.release();
+            from_range(std::ranges::begin(rg), std::ranges::end(rg));
         }
     }
 
@@ -2040,14 +2058,14 @@ class deque
         requires std::input_iterator<U>
     constexpr deque(U begin, V end)
     {
-        from_range(std::ranges::subrange(std::move(begin), std::move(end)));
+        from_range(std::move(begin), std::move(end));
     }
 
     template <typename U, typename V>
         requires std::input_iterator<U>
     constexpr deque(U begin, V end, const Allocator &alloc) : a(alloc)
     {
-        from_range(std::ranges::subrange(std::move(begin), std::move(end)));
+        from_range(std::move(begin), std::move(end));
     }
 
 #if defined(__cpp_lib_containers_ranges)
@@ -2070,7 +2088,7 @@ class deque
     {
         construct_guard guard(this);
         auto const block_size = other.block_elem_size();
-        construct_block(block_size);
+        extent_block(block_size);
         copy(other.buckets(), block_size);
         guard.release();
     }
@@ -2079,7 +2097,7 @@ class deque
     {
         construct_guard guard(this);
         auto const block_size = other.block_elem_size();
-        construct_block(block_size);
+        extent_block(block_size);
         copy(other.buckets(), block_size);
         guard.release();
     }
@@ -2105,7 +2123,7 @@ class deque
             {
                 construct_guard guard(this);
                 auto const block_size = other.block_elem_size();
-                construct_block(block_size);
+                extent_block(block_size);
                 copy<true>(other.buckets(), block_size);
                 guard.release();
                 other.clear();
@@ -2143,7 +2161,7 @@ class deque
     {
         clear();
         auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(ilist.size());
-        construct_block(block_size);
+        extent_block(block_size);
         construct(block_size, full_blocks, rem_elems, std::ranges::begin(ilist), std::ranges::end(ilist));
         return *this;
     }
@@ -2197,64 +2215,14 @@ class deque
     constexpr void assign_range(R &&rg)
     {
         clear();
-        if (std::ranges::empty(rg))
-        {
-            return;
-        }
-        if constexpr (requires { is_iterator(std::ranges::begin(rg)); })
-        {
-            auto begin = std::ranges::begin(rg);
-            auto end = std::ranges::end(rg);
-            // iterator begin, end
-            bucket_type bucket{begin.block_elem_begin, end.block_elem_begin + 1uz,
-                               begin.elem_curr,        begin.elem_end,
-                               end.elem_begin,         end.elem_curr};
-            auto const block_size = bucket.size();
-            extent_block(block_size);
-            copy(bucket, block_size);
-        }
-        else if constexpr (std::ranges::sized_range<R>)
-        {
-            auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(std::ranges::size(rg));
-            construct_block(block_size);
-            construct(block_size, full_blocks, rem_elems, std::ranges::begin(rg), std::ranges::end(rg));
-        }
-        else if constexpr (std::random_access_iterator<decltype(std::ranges::begin(rg))>)
-        {
-            auto begin = std::ranges::begin(rg);
-            auto end = std::ranges::end(rg);
-            auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(end - begin);
-            construct_block(block_size);
-            construct(block_size, full_blocks, rem_elems, std::move(begin), std::move(end));
-        }
-#if defined(__cpp_lib_ranges_reserve_hint) && __cpp_lib_ranges_reserve_hint >= 202502L
-        else if constexpr (std::ranges::approximately_sized_range<R>)
-        {
-            reserve_back(std::ranges::reserve_hint(rg));
-            auto begin = std::ranges::begin(rg);
-            auto end = std::ranges::end(rg);
-            for (; begin != end; ++begin)
-            {
-                emplace_back_noalloc(*begin);
-            }
-        }
-#endif
-        else
-        {
-            auto begin = std::ranges::begin(rg);
-            auto end = std::ranges::end(rg);
-            for (; begin != end; ++begin)
-            {
-                emplace_back(*begin);
-            }
-        }
+        from_range(std::forward<R>(rg));
     }
 
     constexpr void assign(std::size_t const count, T const &value)
     {
         clear();
         auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(count);
-        construct_block(block_size);
+        extent_block(block_size);
         construct(block_size, full_blocks, rem_elems, value);
         /*
         assign_range(std::ranges::views::repeat(value, count));
@@ -2265,7 +2233,8 @@ class deque
     constexpr void assign(U begin, V end)
         requires std::input_iterator<U>
     {
-        assign_range(std::ranges::subrange(std::move(begin), std::move(end)));
+        clear();
+        from_range(std::move(begin),std::move(end));
     }
 
     constexpr void assign(std::initializer_list<T> const ilist)
