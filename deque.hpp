@@ -2515,6 +2515,7 @@ ctrl_end   →
 
   public:
     template <std::ranges::input_range R>
+         requires std::convertible_to<std::ranges::range_value_t<R>, T>
     constexpr void append_range(R &&rg)
     {
         partial_guard<true> guard(this, size());
@@ -2523,6 +2524,7 @@ ctrl_end   →
     }
 
     template <std::ranges::input_range R>
+         requires std::convertible_to<std::ranges::range_value_t<R>, T>
     constexpr void prepend_range(R &&rg)
     {
         auto const old_size = size();
@@ -2792,6 +2794,7 @@ ctrl_end   →
 
   public:
     template <std::ranges::input_range R>
+         requires std::convertible_to<std::ranges::range_value_t<R>, T>
     constexpr iterator insert_range(const_iterator const pos, R &&rg)
     {
         auto const begin_pre = begin();
