@@ -52,6 +52,42 @@ class deque;
 namespace detail
 {
 
+// 用于从参数包中获得前两个对象（只有两个）的引用的辅助函数
+#if not defined(__cpp_pack_indexing)
+template <typename Tuple>
+inline constexpr auto get(Tuple args) noexcept
+{
+    auto &first = std::get<0uz>(args);
+    auto &second = std::get<1uz>(args);
+    struct iter_ref_pair
+    {
+        decltype(first) &begin;
+        decltype(second) &end;
+    };
+    return iter_ref_pair{first, second};
+}
+#else
+#if defined(__clang__) // make clang happy
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc++26-extensions"
+#endif
+template <typename... Args>
+inline constexpr auto get(Args &&...args) noexcept
+{
+    auto &first = args...[0uz];
+    auto &second = args...[1uz];
+    struct iter_ref_pair
+    {
+        decltype(first) &begin;
+        decltype(second) &end;
+    };
+    return iter_ref_pair{first, second};
+}
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+#endif
+
 // 测试时使用固定块大小可用于测试每个块有不同元素数量时的情况
 // 不要定义它，影响ABI
 #if defined(BIZWEN_DEQUE_BASE_BLOCK_SIZE)
@@ -103,42 +139,6 @@ static_assert(calc_block(6uz) == 3uz * 4096uz);
 static_assert(calc_block(7uz) == 7uz * 4096uz);
 #endif
 
-#endif
-
-// 用于从参数包中获得前两个对象（只有两个）的引用的辅助函数
-#if not defined(__cpp_pack_indexing)
-template <typename Tuple>
-inline consexpr auto get(Tuple args) noexcept
-{
-    auto &first = std::get<0uz>(args);
-    auto &second = std::get<1uz>(args);
-    struct iter_ref_pair
-    {
-        decltype(first) &begin;
-        decltype(second) &end;
-    };
-    return iter_ref_pair{first, second};
-}
-#else
-#if defined(__clang__) // make clang happy
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wc++26-extensions"
-#endif
-template <typename... Args>
-inline constexpr auto get(Args &&...args) noexcept
-{
-    auto &first = args...[0uz];
-    auto &second = args...[1uz];
-    struct iter_ref_pair
-    {
-        decltype(first) &begin;
-        decltype(second) &end;
-    };
-    return iter_ref_pair{first, second};
-}
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
 #endif
 
 // 根据T的大小计算每个block有多少元素
@@ -1053,8 +1053,8 @@ struct deque_proxy
     {
         /*
         std::destroy_at(elem_begin_begin);
-        */
         ++elem_begin_begin;
+        */
         if (elem_begin_end == elem_begin_begin)
         {
             ++block_elem_begin;
@@ -1300,8 +1300,6 @@ ctrl_end   →
 
     constexpr void swap(deque &other) noexcept
     {
-        // todo:
-        // std::swap(alloc, other.alloc);
         using std::ranges::swap;
         swap(block_ctrl_begin, other.block_ctrl_begin);
         swap(block_ctrl_end, other.block_ctrl_end);
@@ -1320,12 +1318,6 @@ ctrl_end   →
     friend constexpr void swap(deque &lhs, deque &rhs) noexcept
     {
         lhs.swap(rhs);
-    }
-
-    constexpr deque(deque &&rhs) noexcept
-    {
-        // todo: alloc propagrate
-        rhs.swap(*this);
     }
 
     // 空deque安全
@@ -1807,19 +1799,6 @@ ctrl_end   →
   public:
     constexpr deque() noexcept = default;
 
-    // 复制构造采取按结构复制的方法
-    // 不需要经过extent_block的复杂逻辑
-    constexpr deque(deque const &other)
-    {
-        // todo: alloc propagate
-        // alloc = other.alloc;
-        construct_guard guard(this);
-        auto const block_size = other.block_elem_size();
-        extent_block(block_size);
-        copy(other.buckets(), block_size);
-        guard.release();
-    }
-
   private:
 #if defined(__clang__) // make clang happy
 #pragma clang diagnostic push
@@ -2105,6 +2084,24 @@ ctrl_end   →
     }
 #endif
 
+    // 复制构造采取按结构复制的方法
+    // 不需要经过extent_block的复杂逻辑
+    constexpr deque(deque const &other)
+    {
+        // todo: alloc propagate
+        // alloc = other.alloc;
+        construct_guard guard(this);
+        auto const block_size = other.block_elem_size();
+        extent_block(block_size);
+        copy(other.buckets(), block_size);
+        guard.release();
+    }
+
+    constexpr deque(deque &&rhs) noexcept
+    {
+        rhs.swap(*this);
+    }
+
     constexpr deque(std::initializer_list<T> const ilist)
     {
         from_range(std::ranges::views::all(ilist));
@@ -2315,6 +2312,7 @@ ctrl_end   →
     {
         assert(not empty());
         std::destroy_at(elem_begin_begin);
+        ++elem_begin_begin;
         to_proxy().pop_front_post();
     }
 
@@ -2357,11 +2355,6 @@ ctrl_end   →
         {
             pop_front();
         }
-    }
-    // 用来判断类型是否是deque
-    consteval void is_deque(deque const &) noexcept
-    {
-        /* */
     }
 
     template <bool back>
