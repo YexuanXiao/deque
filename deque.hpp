@@ -1920,12 +1920,12 @@ class deque
         auto const block_size = block_elem_size();
         if (elem_end_end != elem_end_last)
         {
-            return emplace_back_pre(block_size, v...);
+            return emplace_back_pre(block_size, std::forward<V>(v)...);
         }
         else
         {
             reserve_one_back();
-            return emplace_back_post(block_size, v...);
+            return emplace_back_post(block_size, std::forward<V>(v)...);
         }
     }
 
@@ -3085,19 +3085,19 @@ deque(std::from_range_t, R &&) -> deque<std::ranges::range_value_t<R>, std::allo
 template <std::ranges::input_range R, detail::mini_alloc Alloc = std::allocator<std::ranges::range_value_t<R>>>
 deque(std::from_range_t, R &&, Alloc) -> deque<std::ranges::range_value_t<R>, Alloc>;
 
-template <typename T, typename U = T>
-constexpr deque<T>::size_type erase(deque<T> &c, const U &value)
+template <typename T, typename Alloc, typename U = T>
+constexpr std::size_t erase(deque<T, Alloc> &c, const U &value)
 {
-    auto it = std::ranges::remove(c.begin(), c.end(), value);
+    auto it = std::remove(c.begin(), c.end(), value);
     auto r = c.end() - it;
     c.resize(c.size() - r);
     return r;
 }
 
-template <typename T, typename Pred>
-constexpr deque<T>::size_type erase_if(deque<T> &c, Pred pred)
+template <typename T, typename Alloc, typename Pred>
+constexpr std::size_t erase_if(deque<T, Alloc> &c, Pred pred)
 {
-    auto it = std::ranges::remove_if(c.begin(), c.end(), pred);
+    auto it = std::remove_if(c.begin(), c.end(), pred);
     auto r = c.end() - it;
     c.resize(c.size() - r);
     return r;
