@@ -1991,9 +1991,8 @@ ctrl_end   →
         }
     }
 
-    template <typename U>
+    template <std::random_access_iterator U>
     void from_range(U &&begin, U &&end)
-        requires std::random_access_iterator<U>
     {
         if (begin != end)
         {
