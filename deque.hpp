@@ -2063,7 +2063,7 @@ class deque
     }
 
 #if defined(__cpp_lib_containers_ranges)
-    template <typename R>
+    template <std::ranges::input_range R>
     constexpr deque(std::from_range_t, R &&rg)
     {
         construct_guard guard(this);
@@ -2071,7 +2071,7 @@ class deque
         guard.release();
     }
 
-    template <typename R>
+    template <std::ranges::input_range R>
     constexpr deque(std::from_range_t, R &&rg, const Allocator &alloc) : a(alloc)
     {
         construct_guard guard(this);
@@ -2232,7 +2232,7 @@ class deque
         requires std::input_iterator<U>
     {
         clear();
-        from_range(std::move(begin),std::move(end));
+        from_range(std::move(begin), std::move(end));
     }
 
     constexpr void assign(std::initializer_list<T> const ilist)
@@ -3065,6 +3065,29 @@ class deque
         }
     }
 };
+
+namespace detail
+{
+template <typename A>
+concept mini_alloc = requires(A &a) {
+    typename A::value_type;
+    a.allocate(0uz);
+};
+} // namespace detail
+
+template <std::input_iterator U, typename V>
+deque(U, V) -> deque<typename std::iterator_traits<U>::value_type,
+                     typename std::allocator<typename std::iterator_traits<U>::value_type>>;
+
+template <std::input_iterator U, typename V,
+          detail::mini_alloc Alloc = std::allocator<typename std::iterator_traits<U>::value_type>>
+deque(U, V, Alloc) -> deque<typename std::iterator_traits<U>::value_type, Alloc>;
+
+template <std::ranges::input_range R>
+deque(std::from_range_t, R &&) -> deque<std::ranges::range_value_t<R>, std::allocator<std::ranges::range_value_t<R>>>;
+
+template <std::ranges::input_range R, detail::mini_alloc Alloc = std::allocator<std::ranges::range_value_t<R>>>
+deque(std::from_range_t, R &&, Alloc) -> deque<std::ranges::range_value_t<R>, Alloc>;
 
 template <typename T, typename U = T>
 constexpr deque<T>::size_type erase(deque<T> &c, const U &value)
