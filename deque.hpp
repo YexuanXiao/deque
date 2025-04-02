@@ -2923,6 +2923,13 @@ ctrl_end   →
     }
 };
 
+template <std::input_iterator U, typename V>
+deque(U, V) -> deque<typename std::iterator_traits<U>::value_type,
+                     typename std::allocator<typename std::iterator_traits<U>::value_type>>;
+
+template <std::ranges::input_range R>
+deque(std::from_range_t, R &&) -> deque<std::ranges::range_value_t<R>, std::allocator<std::ranges::range_value_t<R>>>;
+
 template <typename T, typename U = T>
 constexpr deque<T>::size_type erase(deque<T> &c, const U &value)
 {
