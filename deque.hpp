@@ -2926,18 +2926,18 @@ template <std::ranges::input_range R>
 deque(std::from_range_t, R &&) -> deque<std::ranges::range_value_t<R>, std::allocator<std::ranges::range_value_t<R>>>;
 
 template <typename T, typename U = T>
-constexpr deque<T>::size_type erase(deque<T> &c, const U &value)
+constexpr std::size_t erase(deque<T> &c, const U &value)
 {
-    auto it = std::ranges::remove(c.begin(), c.end(), value);
+    auto it = std::remove(c.begin(), c.end(), value);
     auto r = c.end() - it;
     c.resize(c.size() - r);
     return r;
 }
 
 template <typename T, typename Pred>
-constexpr deque<T>::size_type erase_if(deque<T> &c, Pred pred)
+constexpr std::size_t erase_if(deque<T> &c, Pred pred)
 {
-    auto it = std::ranges::remove_if(c.begin(), c.end(), pred);
+    auto it = std::remove_if(c.begin(), c.end(), pred);
     auto r = c.end() - it;
     c.resize(c.size() - r);
     return r;
