@@ -1901,8 +1901,8 @@ class deque
     template <typename... V>
     constexpr T &emplace_back_post(std::size_t const block_size, V &&...v)
     {
-        auto const begin = *block_elem_end;
-        traits_t::construct(a, std::to_address(begin), std::forward<V>(v)...); // may throw
+        auto const begin = std::to_address(*block_elem_end);
+        traits_t::construct(a, begin, std::forward<V>(v)...); // may throw
         elem_end(begin, begin + 1uz, begin + detail::block_elements_v<T>);
         ++block_elem_end;
         // 修正elem_begin，如果先前为0，说明现在是1，修正elem_begin等于elem_end
@@ -2272,8 +2272,8 @@ class deque
     template <typename... V>
     constexpr T &emplace_front_pre(std::size_t const block_size, V &&...v)
     {
-        auto const begin = elem_begin_begin - 1uz;
-        traits_t::construct(a, std::to_address(begin), std::forward<V>(v)...); // may throw
+        auto const begin = std::to_address(elem_begin_begin - 1uz);
+        traits_t::construct(a, begin, std::forward<V>(v)...); // may throw
         elem_begin_begin = begin;
         if (block_size == 1uz)
         {
@@ -2290,7 +2290,7 @@ class deque
     constexpr T &emplace_front_post(std::size_t const block_size, V &&...v)
     {
         auto const block = block_elem_begin - 1uz;
-        auto const first = *block;
+        auto const first = std::to_address(*block);
         auto const end = first + detail::block_elements_v<T>;
         traits_t::construct(a, end - 1uz, std::forward<V>(v)...); // may throw
         elem_begin(end - 1uz, end, first);
@@ -2766,7 +2766,7 @@ class deque
             for (; target_block_end != block_curr + 1uz;)
             {
                 --target_block_end;
-                auto const begin = *target_block_end;
+                auto const begin = std::to_address(*target_block_end);
                 auto const end = begin + detail::block_elements_v<T>;
                 *last_elem = std::move(*(end - 1uz));
                 last_elem = begin;
@@ -2780,7 +2780,7 @@ class deque
             // 否则使用计算出来的end
             if (block_end - block_elem_begin != 1uz)
             {
-                end = *block_curr + detail::block_elements_v<T>;
+                end = std::to_address(*block_curr + detail::block_elements_v<T>);
                 // 只有一个块时的last_elem也无意义
                 *last_elem = std::move(*(end - 1uz));
             }
@@ -2814,7 +2814,7 @@ class deque
             auto const target_block_begin = block_begin + 1uz;
             for (; target_block_begin != block_curr - 1uz;)
             {
-                auto const begin = *target_block_begin;
+                auto const begin = std::to_address(*target_block_begin);
                 auto const end = begin + detail::block_elements_v<T>;
                 *(last_elem_end - 1uz) = std::move(*begin);
                 last_elem_end = end;
@@ -2823,7 +2823,7 @@ class deque
         }
         if (block_size > 1uz)
         {
-            auto const begin = *block_curr;
+            auto const begin = std::to_address(*block_curr);
             *last_elem_end = std::move(*begin);
             std::ranges::move(begin + 1uz, elem_curr, begin);
         }
