@@ -1688,7 +1688,7 @@ class deque
     }
 
   public:
-    constexpr deque() noexcept
+    constexpr deque() noexcept(std::is_nothrow_default_constructible_v<Allocator>)
         requires std::default_initializable<Allocator>
     = default;
 
@@ -1967,9 +1967,8 @@ class deque
 
   private:
     // 由于subrange不接受input_iterator，因此需要额外提供一个函数
-    template <typename U, typename V>
+    template <std::input_iterator U, typename V>
     void from_range(U &&begin, V &&end)
-        requires std::input_iterator<U>
     {
         for (; begin != end; ++begin)
         {
@@ -1977,9 +1976,8 @@ class deque
         }
     }
 
-    template <typename U>
+    template <std::random_access_iterator U>
     void from_range(U &&begin, U &&end)
-        requires std::random_access_iterator<U>
     {
         if (begin != end)
         {
@@ -2044,8 +2042,7 @@ class deque
     }
 
   public:
-    template <typename U, typename V>
-        requires std::input_iterator<U>
+    template <std::input_iterator U, typename V>
     constexpr deque(U begin, V end)
     {
         construct_guard guard(this);
@@ -2053,8 +2050,7 @@ class deque
         guard.release();
     }
 
-    template <typename U, typename V>
-        requires std::input_iterator<U>
+    template <std::input_iterator U, typename V>
     constexpr deque(U begin, V end, const Allocator &alloc) : a(alloc)
     {
         construct_guard guard(this);
@@ -2064,6 +2060,7 @@ class deque
 
 #if defined(__cpp_lib_containers_ranges)
     template <std::ranges::input_range R>
+        requires std::convertible_to<std::ranges::range_value_t<R>, T>
     constexpr deque(std::from_range_t, R &&rg)
     {
         construct_guard guard(this);
@@ -2072,6 +2069,7 @@ class deque
     }
 
     template <std::ranges::input_range R>
+        requires std::convertible_to<std::ranges::range_value_t<R>, T>
     constexpr deque(std::from_range_t, R &&rg, const Allocator &alloc) : a(alloc)
     {
         construct_guard guard(this);
@@ -2209,7 +2207,7 @@ class deque
         *this = d;
     }
 
-    template <typename R>
+    template <std::ranges::input_range R>
     constexpr void assign_range(R &&rg)
     {
         clear();
@@ -2227,9 +2225,8 @@ class deque
         */
     }
 
-    template <typename U, typename V>
+    template <std::input_iterator U, typename V>
     constexpr void assign(U begin, V end)
-        requires std::input_iterator<U>
     {
         clear();
         from_range(std::move(begin), std::move(end));
@@ -2658,7 +2655,7 @@ class deque
     }
 
   public:
-    template <typename R>
+    template <std::ranges::input_range R>
     constexpr void append_range(R &&rg)
     {
         partial_guard<true> guard(this, size());
@@ -2666,7 +2663,7 @@ class deque
         guard.release();
     }
 
-    template <typename R>
+    template <std::ranges::input_range R>
     constexpr void prepend_range(R &&rg)
     {
         auto const old_size = size();
@@ -2938,7 +2935,7 @@ class deque
     };
 
   public:
-    template <typename R>
+    template <std::ranges::input_range R>
     constexpr iterator insert_range(const_iterator const pos, R &&rg)
     {
         auto const begin_pre = begin();
@@ -2979,9 +2976,8 @@ class deque
         return insert_range(pos, std::ranges::views::all(ilist));
     }
 
-    template <typename U, typename V>
+    template <std::input_iterator U, typename V>
     constexpr iterator insert(const_iterator const pos, U first, V last)
-        requires std::input_iterator<U>
     {
         return insert_range(pos, std::ranges::subrange(std::move(first), std::move(last)));
     }
