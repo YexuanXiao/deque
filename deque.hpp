@@ -1971,12 +1971,10 @@ class deque
     void from_range(U &&begin, V &&end)
         requires std::input_iterator<U>
     {
-        construct_guard guard{*this};
         for (; begin != end; ++begin)
         {
             emplace_back(*begin);
         }
-        guard.release();
     }
 
     template <typename U>
@@ -1986,10 +1984,8 @@ class deque
         if (begin != end)
         {
             auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(end - begin);
-            construct_guard guard(this);
             extent_block(block_size);
             construct(block_size, full_blocks, rem_elems, std::move(begin), std::move(end));
-            guard.release();
         }
     }
 
@@ -2001,10 +1997,8 @@ class deque
                                begin.elem_curr,        begin.elem_end,
                                end.elem_begin,         end.elem_curr};
             auto const block_size = bucket.size();
-            construct_guard guard(this);
             extent_block(block_size);
             copy(bucket, block_size);
-            guard.release();
         }
     }
 
@@ -2020,10 +2014,8 @@ class deque
             if (auto size = std::ranges::size(rg))
             {
                 auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(size);
-                construct_guard guard(this);
                 extent_block(block_size);
                 construct(block_size, full_blocks, rem_elems, std::ranges::begin(rg), std::ranges::end(rg));
-                guard.release();
             }
         }
         else if constexpr (std::random_access_iterator<decltype(std::ranges::begin(rg))>)
@@ -2035,7 +2027,6 @@ class deque
         {
             if (auto size = std::ranges::reserve_hint(rg))
             {
-                construct_guard guard{*this};
                 reserve_back();
                 auto begin = std::ranges::begin(rg);
                 auto end = std::ranges::end(rg);
@@ -2043,7 +2034,6 @@ class deque
                 {
                     emplace_back_noalloc(*begin);
                 }
-                guard.release();
             }
         }
 #endif
@@ -2058,27 +2048,35 @@ class deque
         requires std::input_iterator<U>
     constexpr deque(U begin, V end)
     {
+        construct_guard guard(this);
         from_range(std::move(begin), std::move(end));
+        guard.release();
     }
 
     template <typename U, typename V>
         requires std::input_iterator<U>
     constexpr deque(U begin, V end, const Allocator &alloc) : a(alloc)
     {
+        construct_guard guard(this);
         from_range(std::move(begin), std::move(end));
+        guard.release();
     }
 
 #if defined(__cpp_lib_containers_ranges)
     template <typename R>
     constexpr deque(std::from_range_t, R &&rg)
     {
+        construct_guard guard(this);
         from_range(rg);
+        guard.release();
     }
 
     template <typename R>
     constexpr deque(std::from_range_t, R &&rg, const Allocator &alloc) : a(alloc)
     {
+        construct_guard guard(this);
         from_range(rg);
+        guard.release();
     }
 #endif
 
