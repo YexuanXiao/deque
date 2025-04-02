@@ -2208,6 +2208,7 @@ class deque
     }
 
     template <std::ranges::input_range R>
+        requires std::convertible_to<std::ranges::range_value_t<R>, T>
     constexpr void assign_range(R &&rg)
     {
         clear();
@@ -2656,6 +2657,7 @@ class deque
 
   public:
     template <std::ranges::input_range R>
+        requires std::convertible_to<std::ranges::range_value_t<R>, T>
     constexpr void append_range(R &&rg)
     {
         partial_guard<true> guard(this, size());
@@ -2664,6 +2666,7 @@ class deque
     }
 
     template <std::ranges::input_range R>
+        requires std::convertible_to<std::ranges::range_value_t<R>, T>
     constexpr void prepend_range(R &&rg)
     {
         auto const old_size = size();
