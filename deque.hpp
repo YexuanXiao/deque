@@ -1953,12 +1953,12 @@ ctrl_end   →
         auto const block_size = block_elem_size();
         if (elem_end_end != elem_end_last)
         {
-            return emplace_back_pre(block_size, v...);
+            return emplace_back_pre(block_size, std::forward<V>(v)...);
         }
         else
         {
             reserve_one_back();
-            return emplace_back_post(block_size, v...);
+            return emplace_back_post(block_size, std::forward<V>(v)...);
         }
     }
 
