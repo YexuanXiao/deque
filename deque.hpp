@@ -1983,32 +1983,32 @@ ctrl_end   →
   private:
     // 由于subrange不接受input_iterator，因此需要额外提供一个函数
     template <std::input_iterator U, typename V>
-    void from_range(U &&begin, V &&end)
+    constexpr void from_range(U &&first, V &&last)
     {
-        for (; begin != end; ++begin)
+        for (; first != last; ++first)
         {
-            emplace_back(*begin);
+            emplace_back(*first);
         }
     }
 
     template <std::random_access_iterator U>
-    void from_range(U &&begin, U &&end)
+    constexpr void from_range(U &&first, U &&last)
     {
-        if (begin != end)
+        if (first != last)
         {
-            auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(end - begin);
+            auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(last - first);
             extent_block(block_size);
-            construct(block_size, full_blocks, rem_elems, std::move(begin), std::move(end));
+            construct(block_size, full_blocks, rem_elems, std::move(first), std::move(last));
         }
     }
 
-    void from_range(iterator &&begin, iterator &&end)
+    constexpr void from_range(iterator &&first, iterator &&last)
     {
-        if (begin != end)
+        if (first != last)
         {
-            bucket_type bucket{begin.block_elem_begin, end.block_elem_begin + 1uz,
-                               begin.elem_curr,        begin.elem_end,
-                               end.elem_begin,         end.elem_curr};
+            bucket_type bucket{first.block_elem_begin, last.block_elem_begin + 1uz,
+                               first.elem_curr,        first.elem_end,
+                               last.elem_begin,        last.elem_curr};
             auto const block_size = bucket.size();
             extent_block(block_size);
             copy(bucket, block_size);
@@ -2058,10 +2058,10 @@ ctrl_end   →
 
   public:
     template <std::input_iterator U, typename V>
-    constexpr deque(U begin, V end)
+    constexpr deque(U first, V last)
     {
         construct_guard guard(this);
-        from_range(std::move(begin), std::move(end));
+        from_range(std::move(first), std::move(last));
         guard.release();
     }
 
@@ -2095,7 +2095,7 @@ ctrl_end   →
     constexpr deque(std::initializer_list<T> const ilist)
     {
         construct_guard guard(this);
-        from_range(std::ranges::views::all(ilist));
+        from_range(ilist.begin(), ilist.end());
         guard.release();
     }
 
@@ -2155,15 +2155,16 @@ ctrl_end   →
     }
 
     template <std::input_iterator U, typename V>
-    constexpr void assign(U begin, V end)
+    constexpr void assign(U first, V last)
     {
         clear();
-        from_range(std::move(begin), std::move(end));
+        from_range(std::move(first), std::move(last));
     }
 
     constexpr void assign(std::initializer_list<T> const ilist)
     {
-        assign_range(std::ranges::views::all(ilist));
+        clear();
+        from_range(ilist.begin(), ilist.end());
     }
 
   private:
@@ -2412,21 +2413,21 @@ ctrl_end   →
     }
 
     template <std::input_iterator U, typename V>
-    constexpr void append_range_noguard(U &&begin, V &&end)
+    constexpr void append_range_noguard(U &&first, V &&last)
     {
-        for (; begin != end; ++begin)
+        for (; first != last; ++first)
         {
-            emplace_front(*begin);
+            emplace_front(*first);
         }
     }
 
     template <std::random_access_iterator U>
-    constexpr void append_range_noguard(U &&begin, U &&end)
+    constexpr void append_range_noguard(U &&first, U &&last)
     {
-        reserve_back(end - begin);
-        for (; begin != end; ++begin)
+        reserve_back(last - first);
+        for (; first != last; ++first)
         {
-            emplace_front_noalloc(*begin);
+            emplace_front_noalloc(*first);
         }
     }
 
@@ -2505,12 +2506,12 @@ ctrl_end   →
         {
             reserve_front(std::ranges::size(rg));
 #endif
-            auto begin = std::ranges::begin(rg);
-            auto end = std::ranges::end(rg);
-            for (; begin != end;)
+            auto first = std::ranges::begin(rg);
+            auto last = std::ranges::end(rg);
+            for (; first != last;)
             {
-                --end;
-                emplace_front_noalloc(*end);
+                --last;
+                emplace_front_noalloc(*last);
             }
         }
         else if constexpr (std::ranges::bidirectional_range<R>)
@@ -2814,7 +2815,9 @@ ctrl_end   →
 
     static inline constexpr auto synth_three_way = []<class U, class V>(const U &u, const V &v) {
         if constexpr (std::three_way_comparable_with<U, V>)
+        {
             return u <=> v;
+        }
         else
         {
             if (u < v)
@@ -2863,11 +2866,6 @@ ctrl_end   →
         }
     }
 
-    constexpr iterator insert(const_iterator const pos, std::initializer_list<T> const ilist)
-    {
-        return insert_range(pos, std::ranges::views::all(ilist));
-    }
-
     // 几乎等于insert_range,但是使用迭代器版本以支持input iterator
     template <std::input_iterator U, typename V>
     constexpr iterator insert(const_iterator const pos, U first, V last)
@@ -2903,6 +2901,11 @@ ctrl_end   →
             move_front_to_back_reverse(front_diff);
             return begin() + front_diff;
         }
+    }
+
+    constexpr iterator insert(const_iterator const pos, std::initializer_list<T> const ilist)
+    {
+        return insert_range(pos, ilist.begin(), ilist.end());
     }
 
     constexpr iterator insert(const_iterator const pos, std::size_t const count, T const &value)
