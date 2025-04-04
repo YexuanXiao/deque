@@ -2117,12 +2117,16 @@ class deque
 
     constexpr deque(std::initializer_list<T> const ilist)
     {
-        from_range(std::ranges::views::all(ilist));
+        construct_guard guard(this);
+        from_range(ilist.begin(), ilist.end());
+        guard.release();
     }
 
     constexpr deque(std::initializer_list<T> const ilist, const Allocator &alloc) : a(alloc)
     {
-        from_range(std::ranges::views::all(ilist));
+        construct_guard guard(this);
+        from_range(ilist.begin(), ilist.end());
+        guard.release();
     }
 
     constexpr deque &operator=(const deque &other)
@@ -2223,7 +2227,8 @@ class deque
 
     constexpr void assign(std::initializer_list<T> const ilist)
     {
-        assign_range(std::ranges::views::all(ilist));
+        clear();
+        from_range(ilist.begin(), ilist.end());
     }
 
   private:
@@ -2995,11 +3000,6 @@ class deque
         }
     }
 
-    constexpr iterator insert(const_iterator const pos, std::initializer_list<T> const ilist)
-    {
-        return insert_range(pos, std::ranges::views::all(ilist));
-    }
-
     // 几乎等于insert_range,但是使用迭代器版本以支持input iterator
     template <std::input_iterator U, typename V>
     constexpr iterator insert(const_iterator const pos, U first, V last)
@@ -3035,6 +3035,11 @@ class deque
             move_front_to_back_reverse(front_diff);
             return begin() + front_diff;
         }
+    }
+
+    constexpr iterator insert(const_iterator const pos, std::initializer_list<T> const ilist)
+    {
+        return insert_range(pos, ilist.begin(), ilist.end());
     }
 
     constexpr iterator insert(const_iterator const pos, std::size_t const count, T const &value)
