@@ -2561,7 +2561,7 @@ ctrl_end   →
     {
         auto const old_size = size();
         partial_guard<false> guard(this, old_size);
-        prepend_range_noguard_inner(old_size, std::forward<R>(rg));
+        prepend_range_noguard(std::forward<R>(rg));
         guard.release();
     }
 
