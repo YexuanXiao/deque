@@ -2066,7 +2066,8 @@ ctrl_end   →
     }
 
 #if defined(__cpp_lib_containers_ranges)
-    template <std::ranges::input_range R>  requires std::convertible_to<std::ranges::range_value_t<R>, T>
+    template <std::ranges::input_range R>
+        requires std::convertible_to<std::ranges::range_value_t<R>, T>
     constexpr deque(std::from_range_t, R &&rg)
     {
         construct_guard guard(this);
@@ -2826,7 +2827,7 @@ ctrl_end   →
 
   public:
     template <std::ranges::input_range R>
-         requires std::convertible_to<std::ranges::range_value_t<R>, T>
+        requires std::convertible_to<std::ranges::range_value_t<R>, T>
     constexpr iterator insert_range(const_iterator const pos, R &&rg)
     {
         auto const begin_pre = begin();
@@ -2985,11 +2986,10 @@ ctrl_end   →
 };
 
 template <std::input_iterator U, typename V>
-deque(U, V) -> deque<typename std::iterator_traits<U>::value_type,
-                     typename std::allocator<typename std::iterator_traits<U>::value_type>>;
+deque(U, V) -> deque<typename std::iterator_traits<U>::value_type>;
 
 template <std::ranges::input_range R>
-deque(std::from_range_t, R &&) -> deque<std::ranges::range_value_t<R>, std::allocator<std::ranges::range_value_t<R>>>;
+deque(std::from_range_t, R &&) -> deque<std::ranges::range_value_t<R>>;
 
 template <typename T, typename U = T>
 constexpr std::size_t erase(deque<T> &c, const U &value)
