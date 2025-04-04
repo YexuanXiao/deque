@@ -1956,7 +1956,7 @@ class deque
   private:
     // 由于subrange不接受input_iterator，因此需要额外提供一个函数
     template <std::input_iterator U, typename V>
-    constexpr void from_range(U &&first, V &&last)
+    constexpr void from_range_noguard(U &&first, V &&last)
     {
         for (; first != last; ++first)
         {
@@ -1965,7 +1965,7 @@ class deque
     }
 
     template <std::random_access_iterator U>
-    constexpr void from_range(U &&first, U &&last)
+    constexpr void from_range_noguard(U &&first, U &&last)
     {
         if (first != last)
         {
@@ -1975,7 +1975,7 @@ class deque
         }
     }
 
-    constexpr void from_range(iterator &&first, iterator &&last)
+    constexpr void from_range_noguard(iterator &&first, iterator &&last)
     {
         if (first != last)
         {
@@ -1989,11 +1989,11 @@ class deque
     }
 
     template <typename R>
-    constexpr void from_range(R &&rg)
+    constexpr void from_range_noguard(R &&rg)
     {
         if constexpr (requires { is_iterator(std::ranges::begin(rg)); })
         {
-            from_range(std::ranges::begin(rg), std::ranges::end(rg));
+            from_range_noguard(std::ranges::begin(rg), std::ranges::end(rg));
         }
         else if constexpr (std::ranges::sized_range<R>)
         {
@@ -2006,7 +2006,7 @@ class deque
         }
         else if constexpr (std::random_access_iterator<decltype(std::ranges::begin(rg))>)
         {
-            from_range(std::ranges::begin(rg), std::ranges::end(rg));
+            from_range_noguard(std::ranges::begin(rg), std::ranges::end(rg));
         }
 #if defined(__cpp_lib_ranges_reserve_hint) && __cpp_lib_ranges_reserve_hint >= 202502L
         else if constexpr (std::ranges::approximately_sized_range<R>)
@@ -2025,7 +2025,7 @@ class deque
 #endif
         else
         {
-            from_range(std::ranges::begin(rg), std::ranges::end(rg));
+            from_range_noguard(std::ranges::begin(rg), std::ranges::end(rg));
         }
     }
 
@@ -2034,7 +2034,7 @@ class deque
     constexpr deque(U first, V last)
     {
         construct_guard guard(this);
-        from_range(std::move(first), std::move(last));
+        from_range_noguard(std::move(first), std::move(last));
         guard.release();
     }
 
@@ -2042,7 +2042,7 @@ class deque
     constexpr deque(U first, V last, const Allocator &alloc) : a(alloc)
     {
         construct_guard guard(this);
-        from_range(std::move(first), std::move(last));
+        from_range_noguard(std::move(first), std::move(last));
         guard.release();
     }
 
@@ -2052,7 +2052,7 @@ class deque
     constexpr deque(std::from_range_t, R &&rg)
     {
         construct_guard guard(this);
-        from_range(rg);
+        from_range_noguard(rg);
         guard.release();
     }
 
@@ -2061,7 +2061,7 @@ class deque
     constexpr deque(std::from_range_t, R &&rg, const Allocator &alloc) : a(alloc)
     {
         construct_guard guard(this);
-        from_range(rg);
+        from_range_noguard(rg);
         guard.release();
     }
 #endif
@@ -2118,14 +2118,14 @@ class deque
     constexpr deque(std::initializer_list<T> const ilist)
     {
         construct_guard guard(this);
-        from_range(ilist.begin(), ilist.end());
+        from_range_noguard(ilist.begin(), ilist.end());
         guard.release();
     }
 
     constexpr deque(std::initializer_list<T> const ilist, const Allocator &alloc) : a(alloc)
     {
         construct_guard guard(this);
-        from_range(ilist.begin(), ilist.end());
+        from_range_noguard(ilist.begin(), ilist.end());
         guard.release();
     }
 
@@ -2204,7 +2204,7 @@ class deque
     constexpr void assign_range(R &&rg)
     {
         clear();
-        from_range(std::forward<R>(rg));
+        from_range_noguard(std::forward<R>(rg));
     }
 
     constexpr void assign(std::size_t const count, T const &value)
@@ -2222,13 +2222,13 @@ class deque
     constexpr void assign(U first, V last)
     {
         clear();
-        from_range(std::move(first), std::move(last));
+        from_range_noguard(std::move(first), std::move(last));
     }
 
     constexpr void assign(std::initializer_list<T> const ilist)
     {
         clear();
-        from_range(ilist.begin(), ilist.end());
+        from_range_noguard(ilist.begin(), ilist.end());
     }
 
   private:
@@ -2338,21 +2338,20 @@ class deque
     // 不会失败且不移动元素
     constexpr void shrink_to_fit() noexcept
     {
-        if (block_alloc_size() == 0uz) // 保证fill_block_alloc_end
+        if (block_alloc_size() != 0uz) // 保证fill_block_alloc_end
         {
-            return;
+            for (auto const i : std::ranges::subrange{block_alloc_begin, block_elem_begin})
+            {
+                dealloc_block(i);
+            }
+            block_alloc_begin = block_elem_begin;
+            for (auto const i : std::ranges::subrange{block_elem_end, block_alloc_end})
+            {
+                dealloc_block(i);
+            }
+            block_alloc_end = block_elem_end;
+            fill_block_alloc_end();
         }
-        for (auto const i : std::ranges::subrange{block_alloc_begin, block_elem_begin})
-        {
-            dealloc_block(i);
-        }
-        block_alloc_begin = block_elem_begin;
-        for (auto const i : std::ranges::subrange{block_elem_end, block_alloc_end})
-        {
-            dealloc_block(i);
-        }
-        block_alloc_end = block_elem_end;
-        fill_block_alloc_end();
     }
 
     constexpr void push_back(T const &t)
