@@ -2561,7 +2561,7 @@ class deque
         }
     }
 
-    template <std::random_access_iterator U, typename V>
+    template <std::random_access_iterator U>
     constexpr void append_range_noguard(U &&begin, U &&end)
     {
         reserve_back(std::ranges::size(end - begin));
@@ -2609,8 +2609,8 @@ class deque
         std::ranges::reverse(begin(), begin() + size() - old_size);
     }
 
-    template <std::bidirectional_iterator U, typename V>
-    constexpr void prepend_range_noguard(U &&first, V &&last)
+    template <std::bidirectional_iterator U>
+    constexpr void prepend_range_noguard(U &&first, U &&last)
     {
         for (; first != last;)
         {
@@ -2619,7 +2619,7 @@ class deque
         }
     }
 
-    template <std::random_access_iterator U, typename V>
+    template <std::random_access_iterator U>
     constexpr void prepend_range_noguard(U &&first, U &&last)
     {
         reserve_front(std::ranges::size(last - first));
@@ -2703,7 +2703,7 @@ class deque
     {
         auto const old_size = size();
         partial_guard<false> guard(this, old_size);
-        prepend_range_noguard_inner(old_size, std::forward<R>(rg));
+        prepend_range_noguard(std::forward<R>(rg));
         guard.release();
     }
 
@@ -2972,6 +2972,7 @@ class deque
   public:
     template <std::ranges::input_range R>
     constexpr iterator insert_range(const_iterator const pos, R &&rg)
+        requires std::convertible_to<std::ranges::range_value_t<R>, T>
     {
         auto const begin_pre = begin();
         auto const end_pre = end();
