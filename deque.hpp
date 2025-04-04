@@ -2552,7 +2552,7 @@ class deque
     template <std::random_access_iterator U>
     constexpr void append_range_noguard(U &&begin, U &&end)
     {
-        reserve_back(std::ranges::size(end - begin));
+        reserve_back(end - begin);
         for (; begin != end; ++begin)
         {
             emplace_front_noalloc(*begin);
@@ -2610,7 +2610,7 @@ class deque
     template <std::random_access_iterator U>
     constexpr void prepend_range_noguard(U &&first, U &&last)
     {
-        reserve_front(std::ranges::size(last - first));
+        reserve_front(last - first);
         for (; first != last;)
         {
             --last;
