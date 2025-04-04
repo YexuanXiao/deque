@@ -2419,7 +2419,7 @@ ctrl_end   →
         }
     }
 
-    template <std::random_access_iterator U, typename V>
+    template <std::random_access_iterator U>
     constexpr void append_range_noguard(U &&begin, U &&end)
     {
         reserve_back(std::ranges::size(end - begin));
@@ -2467,8 +2467,8 @@ ctrl_end   →
         std::ranges::reverse(begin(), begin() + size() - old_size);
     }
 
-    template <std::bidirectional_iterator U, typename V>
-    constexpr void prepend_range_noguard(U &&first, V &&last)
+    template <std::bidirectional_iterator U>
+    constexpr void prepend_range_noguard(U &&first, U &&last)
     {
         for (; first != last;)
         {
@@ -2477,7 +2477,7 @@ ctrl_end   →
         }
     }
 
-    template <std::random_access_iterator U, typename V>
+    template <std::random_access_iterator U>
     constexpr void prepend_range_noguard(U &&first, U &&last)
     {
         reserve_front(std::ranges::size(last - first));
