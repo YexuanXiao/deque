@@ -1108,28 +1108,16 @@ class deque
 
     constexpr void swap(deque &other) noexcept
     {
-        if constexpr (is_ator_stateless)
+        if constexpr (!is_ator_stateless && !is_pocs)
         {
-            swap_trivial(other);
+            // P0178?
+            assert(a == other.a);
         }
-        else if (is_pocs)
+        if constexpr (is_pocs)
         {
-            auto temp = std::move(a);
-            a = std::move(other.a);
-            other.a = std::move(temp);
-            swap_trivial(other);
+            std::ranges::swap(a, other.a);
         }
-        else
-        {
-            if (a == other.a)
-            {
-                swap_trivial(other);
-            }
-            else // P0178?
-            {
-                assert(false);
-            }
-        }
+        swap_trivial(other);
     }
 
     friend constexpr void swap(deque &lhs, deque &rhs) noexcept
