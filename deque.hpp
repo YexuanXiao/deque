@@ -2912,7 +2912,7 @@ ctrl_end   →
     constexpr bool operator==(deque const &other) const noexcept
     {
         return size() != other.size() ? false
-                                      : std::lexicographical_compare(begin(), end(), other.begin(), other.end());
+                                      : std::ranges::equal(begin(), end(), other.begin(), std::unreachable_sentinel);
     }
 
     constexpr auto operator<=>(deque const &other) const noexcept
