@@ -2410,6 +2410,25 @@ ctrl_end   →
         }
     }
 
+    template <std::input_iterator U, typename V>
+    constexpr void append_range_noguard(U &&begin, V &&end)
+    {
+        for (; begin != end; ++begin)
+        {
+            emplace_front(*begin);
+        }
+    }
+
+    template <std::random_access_iterator U, typename V>
+    constexpr void append_range_noguard(U &&begin, U &&end)
+    {
+        reserve_back(std::ranges::size(end - begin));
+        for (; begin != end; ++begin)
+        {
+            emplace_front_noalloc(*begin);
+        }
+    }
+
     template <typename R>
     constexpr void append_range_noguard(R &&rg)
     {
@@ -2433,15 +2452,44 @@ ctrl_end   →
         }
         else
         {
-            for (auto &&i : rg)
-            {
-                emplace_back(std::forward<decltype(i)>(i));
-            }
+            append_range_noguard(std::ranges::begin(rg), std::ranges::end(rg));
+        }
+    }
+
+    template <std::input_iterator U, typename V>
+    constexpr void prepend_range_noguard(U &&first, V &&last)
+    {
+        auto old_size = size();
+        for (; first != last; ++first)
+        {
+            emplace_front(*first);
+        }
+        std::ranges::reverse(begin(), begin() + size() - old_size);
+    }
+
+    template <std::bidirectional_iterator U, typename V>
+    constexpr void prepend_range_noguard(U &&first, V &&last)
+    {
+        for (; first != last;)
+        {
+            --last;
+            emplace_front(*last);
+        }
+    }
+
+    template <std::random_access_iterator U, typename V>
+    constexpr void prepend_range_noguard(U &&first, U &&last)
+    {
+        reserve_front(std::ranges::size(last - first));
+        for (; first != last;)
+        {
+            --last;
+            emplace_front_noalloc(*last);
         }
     }
 
     template <typename R>
-    constexpr void prepend_range_noguard_inner(std::size_t old_size, R &&rg)
+    constexpr void prepend_range_noguard(R &&rg)
     {
         if (std::ranges::empty(rg))
         {
@@ -2466,13 +2514,7 @@ ctrl_end   →
         }
         else if constexpr (std::ranges::bidirectional_range<R>)
         {
-            auto begin = std::ranges::begin(rg);
-            auto end = std::ranges::end(rg);
-            for (; begin != end;)
-            {
-                --end;
-                emplace_front(*end);
-            }
+            prepend_range_noguard(std::ranges::begin(rg), std::ranges::end(rg));
         }
 #if defined(__cpp_lib_ranges_reserve_hint) && __cpp_lib_ranges_reserve_hint >= 202502L
         else if constexpr (std::ranges::approximately_sized_range<R>)
@@ -2499,37 +2541,27 @@ ctrl_end   →
         }
         else
         {
-            for (auto &&i : rg)
-            {
-                emplace_front(std::forward<decltype(i)>(i));
-            }
-            std::ranges::reverse(begin(), begin() + size() - old_size);
+            prepend_range_noguard(std::ranges::begin(rg), std::ranges::end(rg));
         }
-    }
-
-    template <typename R>
-    constexpr void prepend_range_noguard(R &&rg)
-    {
-        prepend_range_noguard_inner(size(), rg);
     }
 
   public:
     template <std::ranges::input_range R>
-         requires std::convertible_to<std::ranges::range_value_t<R>, T>
+        requires std::convertible_to<std::ranges::range_value_t<R>, T>
     constexpr void append_range(R &&rg)
     {
         partial_guard<true> guard(this, size());
-        append_range_noguard(rg);
+        append_range_noguard(std::forward<R>(rg));
         guard.release();
     }
 
     template <std::ranges::input_range R>
-         requires std::convertible_to<std::ranges::range_value_t<R>, T>
+        requires std::convertible_to<std::ranges::range_value_t<R>, T>
     constexpr void prepend_range(R &&rg)
     {
         auto const old_size = size();
         partial_guard<false> guard(this, old_size);
-        prepend_range_noguard_inner(old_size, rg);
+        prepend_range_noguard_inner(old_size, std::forward<R>(rg));
         guard.release();
     }
 
@@ -2802,12 +2834,12 @@ ctrl_end   →
         if (pos == end_pre)
         {
             auto const old_size = size();
-            append_range_noguard(rg);
+            append_range_noguard(std::forward<R>(rg));
             return begin() + old_size;
         }
         if (pos == begin_pre)
         {
-            prepend_range_noguard(rg);
+            prepend_range_noguard(std::forward<R>(rg));
             return begin();
         }
         auto const back_diff = end_pre - pos + 0uz;
@@ -2816,7 +2848,7 @@ ctrl_end   →
         {
             // 先把后半部分倒到前面，再插入到后面，最后把前面的倒到后面
             move_back_to_front(back_diff);
-            append_range_noguard(rg);
+            append_range_noguard(std::forward<R>(rg));
             move_back_to_front_reverse(back_diff);
             return begin() + front_diff;
         }
@@ -2824,7 +2856,7 @@ ctrl_end   →
         {
             // 先把前半部分倒到后面，再插入到前面，最后把后面的倒到前面
             move_front_to_back(front_diff);
-            prepend_range_noguard(rg);
+            prepend_range_noguard(std::forward<R>(rg));
             move_front_to_back_reverse(front_diff);
             return begin() + front_diff;
         }
@@ -2835,10 +2867,41 @@ ctrl_end   →
         return insert_range(pos, std::ranges::views::all(ilist));
     }
 
-    template <std::input_iterator, typename V>
+    // 几乎等于insert_range,但是使用迭代器版本以支持input iterator
+    template <std::input_iterator U, typename V>
     constexpr iterator insert(const_iterator const pos, U first, V last)
     {
-        return insert_range(pos, std::ranges::subrange(std::move(first), std::move(last)));
+        auto const begin_pre = begin();
+        auto const end_pre = end();
+        if (pos == end_pre)
+        {
+            auto const old_size = size();
+            append_range_noguard(std::forward<U>(first), std::forward<V>(last));
+            return begin() + old_size;
+        }
+        if (pos == begin_pre)
+        {
+            prepend_range_noguard(std::forward<U>(first), std::forward<V>(last));
+            return begin();
+        }
+        auto const back_diff = end_pre - pos + 0uz;
+        auto const front_diff = pos - begin_pre + 0uz;
+        if (back_diff <= front_diff)
+        {
+            // 先把后半部分倒到前面，再插入到后面，最后把前面的倒到后面
+            move_back_to_front(back_diff);
+            append_range_noguard(std::forward<U>(first), std::forward<V>(last));
+            move_back_to_front_reverse(back_diff);
+            return begin() + front_diff;
+        }
+        else
+        {
+            // 先把前半部分倒到后面，再插入到前面，最后把后面的倒到前面
+            move_front_to_back(front_diff);
+            prepend_range_noguard(std::forward<U>(first), std::forward<V>(last));
+            move_front_to_back_reverse(front_diff);
+            return begin() + front_diff;
+        }
     }
 
     constexpr iterator insert(const_iterator const pos, std::size_t const count, T const &value)
@@ -2914,7 +2977,7 @@ ctrl_end   →
         }
         else
         {
-            std::ranges::move_backward(begin(), first.remove_const(), last);
+            std::ranges::move_backward(begin(), first.remove_const(), last.remove_const());
             pop_front();
             return begin() + front_diff;
         }
