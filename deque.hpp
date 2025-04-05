@@ -617,8 +617,8 @@ class basic_deque_iterator
 
     template <typename U, typename V>
     constexpr basic_deque_iterator(U const elem_begin, V const curr, V const begin, V const end) noexcept
-        : block_elem_begin(std::to_address(elem_begin)), elem_curr(std::to_address(curr)),
-          elem_begin(std::to_address(begin)), elem_end(std::to_address(end))
+        : block_elem_begin(detail::to_address(elem_begin)), elem_curr(detail::to_address(curr)),
+          elem_begin(detail::to_address(begin)), elem_end(detail::to_address(end))
     {
     }
 
@@ -1155,25 +1155,6 @@ class deque
     static_assert(std::sentinel_for<iterator, iterator>);
 #endif
 
-    constexpr iterator begin() noexcept
-    {
-        return iterator{block_elem_begin, elem_begin_begin, elem_begin_begin, elem_begin_end};
-    }
-
-    constexpr iterator end() noexcept
-    {
-        // 空deque不能迭代所以比较相同
-        // 非空deque应该在尾block是满的情况下，end永远在*block_elem_end的位置
-        if (block_elem_begin == block_elem_end)
-        {
-            return iterator{block_elem_end, elem_end_end, elem_end_begin, elem_end_end};
-        }
-        else
-        {
-            return iterator{block_elem_end - 1uz, elem_end_end, elem_end_begin, elem_end_end};
-        }
-    }
-
     constexpr const_iterator begin() const noexcept
     {
         return const_iterator{block_elem_begin, elem_begin_begin, elem_begin_begin, elem_begin_end};
@@ -1181,14 +1162,33 @@ class deque
 
     constexpr const_iterator end() const noexcept
     {
-        if (block_elem_begin == block_elem_end)
+        // 空deque不能迭代所以比较相同
+        // 非空deque应该在尾block是满的，或者只有一个block的情况下，end永远在*block_elem_end的位置
+        if (block_elem_size() == 0uz)
         {
-            return const_iterator{block_elem_end, elem_end_end, elem_end_begin, elem_end_end};
+            return const_iterator{nullptr, nullptr, nullptr, nullptr};
+        }
+        else if (block_elem_size() == 1uz || elem_end_end == elem_end_last)
+        {
+            // 这两种情况发生时，begin迭代器会积极的切换到下一个块，然后再进行比较
+            // 此时begin要么是已分配的储存，要么是空指针
+            auto begin = *block_elem_end;
+            return const_iterator{block_elem_end, begin, begin, begin};
         }
         else
         {
             return const_iterator{block_elem_end - 1uz, elem_end_end, elem_end_begin, elem_end_end};
         }
+    }
+
+    constexpr iterator begin() noexcept
+    {
+        return static_cast<const deque&>(*this).begin().remove_const();
+    }
+
+    constexpr iterator end() noexcept
+    {
+        return static_cast<const deque&>(*this).end().remove_const();
     }
 
     constexpr const_iterator cbegin() const noexcept
@@ -3050,8 +3050,20 @@ class deque
 
     constexpr bool operator==(deque const &other) const noexcept
     {
-        return size() != other.size() ? false
-                                      : std::ranges::equal(begin(), end(), other.begin(), std::unreachable_sentinel);
+        if (auto s = size(); s != other.size())
+        {
+            return false;
+        }
+        else if (s == 0uz)
+        {
+            return true;
+        }
+        for (auto first = cbegin(), last = cend(), first1 = other.cbegin(); first != last; ++first, ++first1)
+        {
+            if (*first != *first1)
+                return false;
+        }
+        return true;
     }
 
     constexpr auto operator<=>(deque const &other) const noexcept
