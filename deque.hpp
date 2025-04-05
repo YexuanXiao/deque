@@ -2914,8 +2914,20 @@ ctrl_end   →
 
     constexpr bool operator==(deque const &other) const noexcept
     {
-        return size() != other.size() ? false
-                                      : std::ranges::equal(begin(), end(), other.begin(), std::unreachable_sentinel);
+        if (auto s = size(); s != other.size())
+        {
+            return false;
+        }
+        else if (s == 0uz)
+        {
+            return true;
+        }
+        for (auto first = cbegin(), last = cend(), first1 = other.cbegin(); first != last; ++first, ++first1)
+        {
+            if (*first != *first1)
+                return false;
+        }
+        return true;
     }
 
     constexpr auto operator<=>(deque const &other) const noexcept
