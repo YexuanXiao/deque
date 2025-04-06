@@ -1367,11 +1367,11 @@ ctrl_end   →
     {
         // 空deque不能迭代所以比较相同
         // 非空deque应该在尾block是满的，或者只有一个block的情况下，end永远在*block_elem_end的位置
-        if (block_elem_size() == 0uz)
+        if (auto block_size = block_elem_size(); block_size == 0uz)
         {
-            return const_iterator{nullptr, nullptr, nullptr, nullptr};
+            return const_iterator{block_elem_begin, nullptr, nullptr, nullptr};
         }
-        else if (block_elem_size() == 1uz || elem_end_end == elem_end_last)
+        else if (block_size == 1uz || elem_end_end == elem_end_last)
         {
             // 这两种情况发生时，begin迭代器会积极的切换到下一个块，然后再进行比较
             // 此时begin要么是已分配的储存，要么是空指针
