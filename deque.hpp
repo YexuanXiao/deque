@@ -2587,19 +2587,21 @@ ctrl_end   →
     constexpr void resize_shrink(std::size_t const old_size, std::size_t const new_size) noexcept
     {
         assert(old_size > new_size);
-        auto const diff = new_size - old_size;
+        auto const diff = old_size - new_size;
         if constexpr (std::is_trivially_destructible_v<T>)
         {
-            auto const head_size = elem_end_end - elem_end_begin;
+            auto const head_size = elem_begin_end - elem_begin_begin + 0uz;
             if (head_size > new_size)
             {
 #if __has_cpp_attribute(assume)
                 [[assume(elem_begin_end == elem_end_end)]];
 #endif
-                elem_begin_end -= diff;
-                elem_end_end -= diff;
+                auto const block = block_elem_begin;
+                block_elem_end = block + 1uz;
+                elem_begin_end = elem_begin_begin + new_size;
+                elem_end(elem_begin_begin, elem_begin_end, (*block) + detail::block_elements_v<T>);
             }
-            else if (head_size < new_size)
+            else
             {
                 auto const [block_step, elem_step] = detail::calc_pos<T>(head_size, new_size);
                 auto const target_block = block_elem_begin + block_step;
