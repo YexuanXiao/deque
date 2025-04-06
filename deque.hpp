@@ -799,9 +799,31 @@ class basic_deque_iterator
 
     friend constexpr std::ptrdiff_t operator-(basic_deque_iterator const &lhs, basic_deque_iterator const &rhs) noexcept
     {
-        return (lhs.block_elem_begin - rhs.block_elem_begin) *
-                   static_cast<std::ptrdiff_t>(detail::block_elements_v<T>) +
-               (lhs.elem_curr - lhs.elem_begin) - (rhs.elem_curr - rhs.elem_begin);
+        auto result = 0z;
+        auto block_size = lhs.block_elem_begin - rhs.block_elem_begin;
+        if (block_size == 0z)
+        {
+            result += lhs.elem_curr - rhs.elem_curr;
+        }
+        else if (block_size > 0z)
+        {
+            if (block_size > 1z)
+            {
+                result += (block_size - 1z) * static_cast<std::ptrdiff_t>(detail::block_elements_v<T>);
+            }
+            result += lhs.elem_curr - lhs.elem_begin;
+            result += rhs.elem_end - rhs.elem_curr;
+        }
+        else
+        {
+            if (block_size < 1z)
+            {
+                result += (block_size + 1z) * static_cast<std::ptrdiff_t>(detail::block_elements_v<T>);
+            }
+            result += lhs.elem_curr - lhs.elem_end;
+            result += rhs.elem_begin - rhs.elem_curr;
+        }
+        return result;
     }
 
     constexpr basic_deque_iterator &operator+=(std::ptrdiff_t const pos) noexcept
