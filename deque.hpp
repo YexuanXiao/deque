@@ -980,13 +980,10 @@ struct deque_proxy
 
     constexpr void align_elem_alloc_as_ctrl_back(CBlockP const ctrl_begin) noexcept
     {
+        align_elem_as_alloc_back();
         auto const alloc_block_size = block_alloc_size();
         auto const elem_block_size = block_elem_size();
-        auto const alloc_elem_offset_front = block_elem_begin - block_alloc_begin;
-        // 将elem_begin和alloc_begin都对齐到ctrl_begin
-        std::ranges::copy(block_elem_begin, block_elem_end, ctrl_begin);
-        std::ranges::copy(block_alloc_begin, block_elem_begin, ctrl_begin + elem_block_size);
-        std::ranges::copy(block_elem_end, block_alloc_end, ctrl_begin + elem_block_size + alloc_elem_offset_front);
+        std::ranges::copy(block_alloc_begin, block_alloc_end, ctrl_begin);
         block_alloc_begin = ctrl_begin;
         block_alloc_end = ctrl_begin + alloc_block_size;
         block_elem_begin = ctrl_begin;
@@ -996,13 +993,10 @@ struct deque_proxy
 
     constexpr void align_elem_alloc_as_ctrl_front(CBlockP const ctrl_end) noexcept
     {
+        align_elem_as_alloc_front();
         auto const alloc_block_size = block_alloc_size();
         auto const elem_block_size = block_elem_size();
-        auto const alloc_elem_offset_front = block_elem_begin - block_alloc_begin;
-        std::ranges::copy_backward(block_elem_begin, block_elem_end, ctrl_end);
-        std::ranges::copy_backward(block_alloc_begin, block_elem_begin, ctrl_end - elem_block_size);
-        std::ranges::copy_backward(block_elem_end, block_alloc_end,
-                                   ctrl_end - elem_block_size - alloc_elem_offset_front);
+        std::ranges::copy_backward(block_alloc_begin, block_alloc_end, ctrl_end);
         block_alloc_end = ctrl_end;
         block_alloc_begin = ctrl_end - alloc_block_size;
         block_elem_end = ctrl_end;
