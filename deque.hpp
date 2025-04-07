@@ -654,7 +654,7 @@ class basic_deque_iterator
 
     constexpr basic_deque_iterator &plus_and_assign(std::ptrdiff_t const pos) noexcept
     {
-        if (pos >= 0uz)
+        if (pos > 0z)
         {
             // 几乎等于at_impl
             auto const head_size = elem_end - elem_curr;
@@ -672,7 +672,7 @@ class basic_deque_iterator
                 elem_end = elem_begin + detail::block_elements_v<T>;
             }
         }
-        else
+        else if (pos < 0z)
         {
             auto const tail_size = elem_curr - elem_begin;
             if (tail_size > (-pos))
@@ -1284,6 +1284,9 @@ ctrl_end   →
     using const_reverse_iterator = std::reverse_iterator<detail::basic_deque_iterator<T const>>;
     using bucket_type = detail::basic_bucket_type<T>;
     using const_bucket_type = detail::basic_bucket_type<T const>;
+
+    // 给natvis使用，注意不要在其它函数中使用它，以支持使用不完整类型实例化。
+    static inline constexpr std::size_t block_elements = detail::block_elements_v<T>;
 
     constexpr bucket_type buckets() noexcept
     {
@@ -2432,7 +2435,7 @@ ctrl_end   →
     {
         for (; first != last; ++first)
         {
-            emplace_front(*first);
+            emplace_back(*first);
         }
     }
 
@@ -2661,7 +2664,7 @@ ctrl_end   →
         // 先记录尾块位置
         auto end = elem_end_end;
         // 再emplace_back
-        emplace_back(std::move(back()));
+        emplace_back_noalloc(std::move(back()));
         // 如果大于一个块，那么移动整个尾块
         if (block_size > 1uz)
         {
@@ -2709,7 +2712,7 @@ ctrl_end   →
         {
             auto const begin = elem_begin_begin;
             auto const block_end = block_elem_end;
-            emplace_front(std::move(front()));
+            emplace_front_noalloc(std::move(front()));
             // 如果emplace_front之前只有一个块，那么elem_curr就是终点
             if (block_end - block_begin == 1uz)
             {
@@ -2720,8 +2723,8 @@ ctrl_end   →
         }
         if (block_size > 2uz)
         {
-            auto const target_block_begin = block_begin + 1uz;
-            for (; target_block_begin != block_curr - 1uz;)
+            auto target_block_begin = block_begin + 1uz;
+            for (; target_block_begin != block_curr - 1uz; ++target_block_begin)
             {
                 auto const begin = *target_block_begin;
                 auto const end = begin + detail::block_elements_v<T>;
@@ -2733,8 +2736,11 @@ ctrl_end   →
         if (block_size > 1uz)
         {
             auto const begin = *block_curr;
-            *last_elem_end = std::move(*begin);
-            std::ranges::move(begin + 1uz, elem_curr, begin);
+            *(last_elem_end - 1uz) = std::move(*begin);
+            if (elem_curr != begin)
+            {
+                std::ranges::move(begin + 1uz, elem_curr, begin);
+            }
         }
     }
 
@@ -2747,32 +2753,34 @@ ctrl_end   →
         if (pos == end_pre)
         {
             emplace_back(std::forward<Args>(args)...);
-            return end() - 1uz;
+            // NB: end() 返回的迭代器可以做差但不能向前移动
+            return iterator{block_elem_end - 1uz, elem_end_end - 1uz, elem_end_begin, elem_end_end};
         }
         if (pos == begin_pre)
         {
             emplace_front(std::forward<Args>(args)...);
             return begin();
         }
-        // tag construct_at
+        // 注意这里和带分配器版本有一定区别，不要覆盖
         T temp(std::forward<Args>(args)...);
         // 此时容器一定不为空
         auto const back_diff = end_pre - pos + 0uz;
         auto const front_diff = pos - begin_pre + 0uz;
         if (back_diff <= front_diff || (block_elem_size() == 1uz && elem_end_end != elem_end_last))
         {
-            back_emplace(pos.block_elem_begin, pos.elem_curr);
-            auto target = begin() + front_diff;
-            *target = std::move(temp);
-            return target;
+            // back_emplace向后移动1个元素，因此reserve_one_back()后再获得pos的block_elem_begin
+            // 得到一个不失效的block_elem_begin
+            reserve_one_back();
+            back_emplace((begin() + front_diff).block_elem_begin, pos.elem_curr);
         }
         else
         {
-            front_emplace(pos.block_elem_begin, pos.elem_curr);
-            auto target = begin() + front_diff;
-            *target = std::move(temp);
-            return target;
+            reserve_one_front();
+            front_emplace((begin() + front_diff).block_elem_begin, pos.elem_curr);
         }
+        auto target = begin() + front_diff;
+        *target = std::move(temp);
+        return target;
     }
 
     constexpr iterator insert(const_iterator const pos, T const &value)
@@ -2823,7 +2831,8 @@ ctrl_end   →
     constexpr void move_front_to_back_reverse(std::size_t const front_diff)
     {
         reserve_front(front_diff);
-        for (auto &i : std::ranges::subrange(end() - front_diff, end()))
+        // NB: end() 返回的迭代器可以做差但不能向前移动
+        for (auto &i : std::ranges::subrange(begin() + (size() - front_diff), end()))
         {
             emplace_front_noalloc(std::move(i));
         }
