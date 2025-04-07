@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+	<Type Name="bizwen::deque&lt;*&gt;">
+		<DisplayString>
+			size: {((block_elem_end - block_elem_begin) ? (elem_begin_end - elem_begin_begin) : 0)
+			+ ((block_elem_end - block_elem_begin) > 2 ? ((block_elem_end - block_elem_begin) - 2) * block_elements : 0)
+			+ ((block_elem_end - block_elem_begin) > 1 ? (elem_end_end - elem_end_begin) : 0)}
+		</DisplayString>
+		<Expand>
+			<Item Name="block_elem_size">(size_t)(block_elem_end - block_elem_begin)</Item>
+			<Item Name="block_alloc_size">(size_t)(block_alloc_end - block_alloc_begin)</Item>
+			<Item Name="head_block_size">(size_t)(elem_begin_end - elem_begin_begin)</Item>
+			<Item Name="tail_block_size">(size_t)(elem_end_end - elem_end_begin)</Item>
+			<ArrayItems>
+				<Size>block_elem_end - block_elem_begin</Size>
+				<ValuePointer>block_elem_begin</ValuePointer>
+			</ArrayItems>
+		</Expand>
+	</Type>
+</AutoVisualizer>
