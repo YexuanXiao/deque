@@ -2922,7 +2922,7 @@ ctrl_end   →
 
     constexpr iterator insert(const_iterator const pos, std::initializer_list<T> const ilist)
     {
-        return insert_range(pos, ilist.begin(), ilist.end());
+        return insert(pos, ilist.begin(), ilist.end());
     }
 
     constexpr iterator insert(const_iterator const pos, std::size_t const count, T const &value)
