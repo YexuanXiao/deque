@@ -675,7 +675,7 @@ class basic_deque_iterator
         else if (pos < 0z)
         {
             auto const tail_size = elem_curr - elem_begin;
-            if (tail_size > (-pos))
+            if (tail_size >= (-pos))
             {
                 elem_curr += pos;
             }
@@ -1357,27 +1357,31 @@ ctrl_end   →
 
     constexpr const_iterator begin() const noexcept
     {
-        return const_iterator{block_elem_begin, elem_begin_begin, elem_begin_begin, elem_begin_end};
+        if (block_elem_size() == 0uz)
+        {
+            return const_iterator{nullptr, nullptr, nullptr, nullptr};
+        }
+        return const_iterator{block_elem_begin, elem_begin_begin, *block_elem_begin,
+                              (*block_elem_begin) + detail::block_elements_v<T>};
     }
 
     constexpr const_iterator end() const noexcept
     {
-        // 空deque不能迭代所以比较相同
-        // 非空deque应该在尾block是满的，或者只有一个block的情况下，end永远在*block_elem_end的位置
         if (auto block_size = block_elem_size(); block_size == 0uz)
         {
-            return const_iterator{block_elem_begin, nullptr, nullptr, nullptr};
+            return const_iterator{nullptr, nullptr, nullptr, nullptr};
         }
-        else if (block_size == 1uz || elem_end_end == elem_end_last)
+        else if (elem_end_end == elem_end_last)
         {
             // 这两种情况发生时，begin迭代器会积极的切换到下一个块，然后再进行比较
             // 此时begin要么是已分配的储存，要么是空指针
-            auto begin = *block_elem_end;
-            return const_iterator{block_elem_end, begin, begin, begin};
+            return const_iterator{block_elem_end, *block_elem_end, *block_elem_end,
+                                  (*block_elem_end) + detail::block_elements_v<T>};
         }
         else
         {
-            return const_iterator{block_elem_end - 1uz, elem_end_end, elem_end_begin, elem_end_end};
+            return const_iterator{block_elem_end - 1uz, elem_end_end, *(block_elem_end - 1uz),
+                                  (*(block_elem_end - 1uz)) + detail::block_elements_v<T>};
         }
     }
 
@@ -2237,7 +2241,7 @@ ctrl_end   →
     constexpr T &emplace_front(V &&...v)
     {
         auto const block_size = block_elem_size();
-        if ((elem_begin_begin != elem_begin_first))
+        if (elem_begin_begin != elem_begin_first)
         {
             return emplace_front_pre(block_size, std::forward<V>(v)...);
         }
@@ -2445,7 +2449,7 @@ ctrl_end   →
         reserve_back(last - first);
         for (; first != last; ++first)
         {
-            emplace_front_noalloc(*first);
+            emplace_back_noalloc(*first);
         }
     }
 
@@ -2753,8 +2757,7 @@ ctrl_end   →
         if (pos == end_pre)
         {
             emplace_back(std::forward<Args>(args)...);
-            // NB: end() 返回的迭代器可以做差但不能向前移动
-            return iterator{block_elem_end - 1uz, elem_end_end - 1uz, elem_end_begin, elem_end_end};
+            return end() - 1z;
         }
         if (pos == begin_pre)
         {
@@ -2831,8 +2834,7 @@ ctrl_end   →
     constexpr void move_front_to_back_reverse(std::size_t const front_diff)
     {
         reserve_front(front_diff);
-        // NB: end() 返回的迭代器可以做差但不能向前移动
-        for (auto &i : std::ranges::subrange(begin() + (size() - front_diff), end()))
+        for (auto &i : std::ranges::subrange(end() - front_diff, end()))
         {
             emplace_front_noalloc(std::move(i));
         }
@@ -2876,6 +2878,22 @@ ctrl_end   →
         auto const front_diff = pos - begin_pre + 0uz;
         if (back_diff <= front_diff)
         {
+            auto old_size = size();
+            append_range_noguard(std::forward<R>(rg));
+            std::ranges::rotate(begin() + front_diff, begin() + old_size, end());
+            return begin() + front_diff;
+        }
+        else
+        {
+            auto old_size = size();
+            prepend_range_noguard(std::forward<R>(rg));
+            auto count = size() - old_size;
+            std::ranges::rotate(begin(), begin() + count, begin() + (count + front_diff));
+            return begin() + front_diff;
+        }
+        /*
+        if (back_diff <= front_diff)
+        {
             // 先把后半部分倒到前面，再插入到后面，最后把前面的倒到后面
             move_back_to_front(back_diff);
             append_range_noguard(std::forward<R>(rg));
@@ -2890,6 +2908,7 @@ ctrl_end   →
             move_front_to_back_reverse(front_diff);
             return begin() + front_diff;
         }
+        */
     }
 
     // 几乎等于insert_range,但是使用迭代器版本以支持input iterator
@@ -2913,20 +2932,38 @@ ctrl_end   →
         auto const front_diff = pos - begin_pre + 0uz;
         if (back_diff <= front_diff)
         {
-            // 先把后半部分倒到前面，再插入到后面，最后把前面的倒到后面
-            move_back_to_front(back_diff);
+            auto old_size = size();
+
             append_range_noguard(std::forward<U>(first), std::forward<V>(last));
-            move_back_to_front_reverse(back_diff);
+            std::ranges::rotate(begin() + front_diff, begin() + old_size, end());
             return begin() + front_diff;
         }
         else
         {
-            // 先把前半部分倒到后面，再插入到前面，最后把后面的倒到前面
-            move_front_to_back(front_diff);
+            auto old_size = size();
+
             prepend_range_noguard(std::forward<U>(first), std::forward<V>(last));
-            move_front_to_back_reverse(front_diff);
+            auto count = size() - old_size;
+            std::ranges::rotate(begin(), begin() + count, begin() + (count + front_diff));
             return begin() + front_diff;
         }
+        /*
+        if (back_diff <= front_diff)
+        {
+            auto old_size = size();
+            append_range_noguard(std::forward<U>(first), std::forward<V>(last));
+            std::ranges::rotate(begin() + front_diff, begin() + old_size, end());
+            return begin() + front_diff;
+        }
+        else
+        {
+            auto old_size = size();
+            prepend_range_noguard(std::forward<U>(first), std::forward<V>(last));
+            auto count = size() - old_size;
+            std::ranges::rotate(begin(), begin() + count, begin() + (count + front_diff));
+            return begin() + front_diff;
+        }
+        */
     }
 
     constexpr iterator insert(const_iterator const pos, std::initializer_list<T> const ilist)
@@ -2949,7 +2986,7 @@ ctrl_end   →
         {
             return true;
         }
-        for (auto first = cbegin(), last = cend(), first1 = other.cbegin(); first != last; ++first, ++first1)
+        for (auto first = begin(), last = end(), first1 = other.begin(); first != last; ++first, ++first1)
         {
             if (*first != *first1)
                 return false;
@@ -3014,13 +3051,13 @@ ctrl_end   →
         if (back_diff <= front_diff)
         {
             std::ranges::move(last, end(), first.remove_const());
-            pop_back();
+            pop_back_n(last - first);
             return begin() + front_diff;
         }
         else
         {
             std::ranges::move_backward(begin(), first.remove_const(), last.remove_const());
-            pop_front();
+            pop_front_n(last - first);
             return begin() + front_diff;
         }
     }
