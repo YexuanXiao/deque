@@ -159,19 +159,25 @@ inline constexpr auto calc_cap(std::size_t const size) noexcept
     return cap_t{(size + block_elems - 1uz) / block_elems, size / block_elems, size % block_elems};
 }
 
-// 当头block的元素数量小于pos时，根据pos计算步数
 template <typename T>
-inline constexpr auto calc_pos(std::size_t const head_or_tail_size, std::size_t const pos) noexcept
+constexpr auto calc_pos(std::ptrdiff_t const front_size, std::ptrdiff_t const pos) noexcept
 {
-    assert(pos < std::size_t(-1) / 2uz);
-    auto const block_elems = block_elements_v<T>;
-    auto const new_pos = pos - head_or_tail_size;
+    std::ptrdiff_t const block_elems = block_elements_v<T>;
     struct pos_t
     {
-        std::size_t block_step;
-        std::size_t elem_step;
+        std::ptrdiff_t block_step;
+        std::ptrdiff_t elem_step;
     };
-    return pos_t{new_pos / block_elems + 1uz, new_pos % block_elems};
+    if (pos >= 0z) // back_size
+    {
+        auto const new_pos = pos + front_size;
+        return pos_t{new_pos / block_elems, new_pos % block_elems};
+    }
+    else
+    {
+        auto const new_pos = pos + front_size - block_elems + 1z;
+        return pos_t{new_pos / block_elems, new_pos % block_elems - 1z + block_elems};
+    }
 }
 
 template <typename T>
@@ -621,73 +627,24 @@ class basic_deque_iterator
 
     constexpr T &at_impl(std::ptrdiff_t const pos) const noexcept
     {
-        if (pos >= 0uz)
-        {
-            // 几乎等于deque的at，但缺少断言
-            auto const head_size = elem_end - elem_curr;
-            if (head_size > pos)
-            {
-                return *(elem_curr + pos);
-            }
-            else
-            {
-                auto const [block_step, elem_step] = detail::calc_pos<T>(head_size, pos);
-                auto const target_block = block_elem_begin + block_step;
-                return *(*target_block + elem_step);
-            }
-        }
-        else
-        {
-            auto const tail_size = elem_curr - elem_begin;
-            if (tail_size > (-pos))
-            {
-                return *(elem_curr + pos);
-            }
-            else
-            {
-                auto const [block_step, elem_step] = detail::calc_pos<T>(tail_size, -pos);
-                auto const target_block = block_elem_begin - block_step;
-                return *((*target_block) + detail::block_elements_v<T> - elem_step);
-            }
-        }
+        auto const front_size = elem_curr - elem_begin;
+        auto const [block_step, elem_step] = detail::calc_pos<T>(front_size, pos);
+        auto const target_block = block_elem_begin + block_step;
+        return *((*target_block) + elem_step);
     }
 
+    // 几乎等于 at_impl
     constexpr basic_deque_iterator &plus_and_assign(std::ptrdiff_t const pos) noexcept
     {
-        if (pos > 0z)
+        if (pos != 0z)
         {
-            // 几乎等于at_impl
-            auto const head_size = elem_end - elem_curr;
-            if (head_size > pos)
-            {
-                elem_curr += pos;
-            }
-            else
-            {
-                auto const [block_step, elem_step] = detail::calc_pos<T>(head_size, pos);
-                auto const target_block = block_elem_begin + block_step;
-                block_elem_begin = target_block;
-                elem_begin = *target_block;
-                elem_curr = elem_begin + elem_step;
-                elem_end = elem_begin + detail::block_elements_v<T>;
-            }
-        }
-        else if (pos < 0z)
-        {
-            auto const tail_size = elem_curr - elem_begin;
-            if (tail_size >= (-pos))
-            {
-                elem_curr += pos;
-            }
-            else
-            {
-                auto const [block_step, elem_step] = detail::calc_pos<T>(tail_size, -pos);
-                auto const target_block = block_elem_begin - block_step;
-                block_elem_begin = target_block;
-                elem_begin = *target_block;
-                elem_end = elem_begin + detail::block_elements_v<T>;
-                elem_curr = elem_end - elem_step;
-            }
+            auto const front_size = elem_curr - elem_begin;
+            auto const [block_step, elem_step] = detail::calc_pos<T>(front_size, pos);
+            auto const target_block = block_elem_begin + block_step;
+            block_elem_begin = target_block;
+            elem_begin = std::to_address(*target_block);
+            elem_curr = elem_begin + elem_step;
+            elem_end = elem_begin + detail::block_elements_v<T>;
         }
         return *this;
     }
@@ -1007,29 +964,22 @@ struct deque_proxy
     template <bool throw_exception = false>
     constexpr RConstT &at_impl(std::size_t const pos) const noexcept
     {
-        auto const head_size = elem_begin_end - elem_begin_begin + 0uz;
-        if (head_size > pos)
+        auto const front_size = elem_begin_begin - elem_begin_first;
+        auto const [block_step, elem_step] = detail::calc_pos<T>(front_size, pos);
+        auto const target_block = block_elem_begin + block_step;
+        auto const check_block = target_block < block_elem_end;
+        auto const check_elem =
+            (target_block + 1uz == block_elem_end) ? (elem_end_begin + elem_step < elem_end_end) : true;
+        if constexpr (throw_exception)
         {
-            return *(elem_begin_begin + pos);
+            if (not(check_block && check_elem))
+                throw std::out_of_range{"bizwen::deque::at"};
         }
         else
         {
-            auto const [block_step, elem_step] = detail::calc_pos<T>(head_size, pos);
-            auto const target_block = block_elem_begin + block_step;
-            auto const check_block = target_block < block_elem_end;
-            auto const check_elem =
-                (target_block + 1uz == block_elem_end) ? (elem_end_begin + elem_step < elem_end_end) : true;
-            if constexpr (throw_exception)
-            {
-                if (not(check_block && check_elem))
-                    throw std::out_of_range{"bizwen::deque::at"};
-            }
-            else
-            {
-                assert(check_block && check_elem);
-            }
-            return *(*target_block + elem_step);
+            assert(check_block && check_elem);
         }
+        return *((*target_block) + elem_step);
     }
 
     // 该函数不释放对象
@@ -2594,31 +2544,28 @@ ctrl_end   →
     constexpr void resize_shrink(std::size_t const old_size, std::size_t const new_size) noexcept
     {
         assert(old_size > new_size);
-        auto const diff = old_size - new_size;
         if constexpr (std::is_trivially_destructible_v<T>)
         {
-            auto const head_size = elem_begin_end - elem_begin_begin + 0uz;
-            if (head_size > new_size)
+            auto const front_size = elem_begin_begin - elem_begin_first;
+            auto const [block_step, elem_step] = detail::calc_pos<T>(front_size, new_size);
+            if (block_step == 0uz)
             {
-#if __has_cpp_attribute(assume)
-                [[assume(elem_begin_end == elem_end_end)]];
-#endif
-                auto const block = block_elem_begin;
-                block_elem_end = block + 1uz;
-                elem_begin_end = elem_begin_begin + new_size;
-                elem_end(elem_begin_begin, elem_begin_end, (*block) + detail::block_elements_v<T>);
+                auto const begin = elem_begin_first;
+                elem_end(elem_begin_begin, begin + elem_step, begin + detail::block_elements_v<T>);
+                block_elem_end = block_elem_begin + 1uz;
+                elem_begin(elem_begin_begin, begin + elem_step, begin);
             }
             else
             {
-                auto const [block_step, elem_step] = detail::calc_pos<T>(head_size, new_size);
                 auto const target_block = block_elem_begin + block_step;
-                auto const begin = *target_block;
+                auto begin = *target_block;
                 elem_end(begin, begin + elem_step, begin + detail::block_elements_v<T>);
                 block_elem_end = target_block + 1uz;
             }
         }
         else
         {
+            auto const diff = old_size - new_size;
             pop_back_n(diff);
         }
     }
@@ -2662,7 +2609,7 @@ ctrl_end   →
     constexpr void back_emplace(Block *const block_curr, T *const elem_curr)
     {
         auto const block_end = block_elem_end;
-        auto const block_size = block_end - block_curr -1uz;
+        auto const block_size = block_end - block_curr - 1uz;
         // 每次移动时留下的空位
         auto last_elem = elem_end_begin;
         // 先记录尾块块尾位置
@@ -2728,7 +2675,7 @@ ctrl_end   →
         if (block_size > 1uz)
         {
             auto target_block_begin = block_begin + 1uz;
-            for (; target_block_begin != block_curr - 1uz; ++target_block_begin)
+            for (; target_block_begin != block_curr; ++target_block_begin)
             {
                 auto const begin = *target_block_begin;
                 auto const end = begin + detail::block_elements_v<T>;
