@@ -18,10 +18,15 @@
 		</Expand>
 	</Type>
 	<Type Name="bizwen::detail::basic_deque_iterator&lt;*&gt;">
+		<DisplayString Condition="elem_curr == 0">{nullptr}</DisplayString>
+		<DisplayString Condition="elem_curr != 0">{*elem_curr}</DisplayString>
 		<Expand>
-			<Item Name="Value">*elem_curr</Item>
+			<Item Name="block">block_elem_begin</Item>
+			<Item Name="curr">elem_curr</Item>
+			<Item Name="begin">elem_begin</Item>
+			<Item Name="end">elem_end</Item>
 			<ArrayItems>
-				<Size>elem_end-elem_begin</Size>
+				<Size>elem_end - elem_begin</Size>
 				<ValuePointer>elem_begin</ValuePointer>
 			</ArrayItems>
 		</Expand>
