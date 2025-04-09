@@ -748,7 +748,7 @@ class deque_iterator
     {
         auto const block_size = lhs.block_elem_begin - rhs.block_elem_begin;
         return block_size * static_cast<std::ptrdiff_t>(block_elements_v<T>) + lhs.elem_curr - lhs.elem_begin -
-               rhs.elem_curr + rhs.elem_begin;
+               (rhs.elem_curr - rhs.elem_begin);
     }
 
     constexpr deque_iterator &operator+=(std::ptrdiff_t const pos) noexcept
@@ -1234,9 +1234,7 @@ ctrl_end   →
 
     constexpr bool empty() const noexcept
     {
-        assert(elem_begin_begin == elem_begin_end);
-        assert(elem_end_begin == elem_end_end);
-        return elem_begin_begin != nullptr;
+        return elem_begin_begin == nullptr;
     }
 
     constexpr void clear() noexcept
@@ -1712,6 +1710,7 @@ ctrl_end   →
     }
 
     // 构造函数和复制赋值的辅助函数，调用前必须分配内存，以及用于构造时使用guard
+    template <bool move = false>
     constexpr void copy(const_bucket_type const other, std::size_t const block_size)
     {
         if (block_size)
@@ -1722,8 +1721,16 @@ ctrl_end   →
             auto const first = *block_elem_end;
             auto const last = first + detail::block_elements_v<T>;
             auto const begin = last - elem_size;
-            std::ranges::uninitialized_copy(other.elem_begin_begin, other.elem_begin_end, begin,
-                                            std::unreachable_sentinel);
+            if constexpr (move)
+            {
+                std::ranges::uninitialized_move(other.elem_begin_begin, other.elem_begin_end, begin,
+                                                std::unreachable_sentinel);
+            }
+            else
+            {
+                std::ranges::uninitialized_copy(other.elem_begin_begin, other.elem_begin_end, begin,
+                                                std::unreachable_sentinel);
+            }
             elem_begin(begin, last, first);
             elem_end(begin, last, last);
             ++block_elem_end;
@@ -1735,10 +1742,17 @@ ctrl_end   →
             {
                 auto const begin = *block_elem_end;
                 auto const src_begin = block_begin;
-                std::ranges::uninitialized_copy(src_begin, src_begin + detail::block_elements_v<T>, begin,
-                                                std::unreachable_sentinel);
-                elem_end_begin = begin;
-                elem_end_end = begin + detail::block_elements_v<T>;
+                if constexpr (move)
+                {
+                    std::ranges::uninitialized_move(src_begin, src_begin + detail::block_elements_v<T>, begin,
+                                                    std::unreachable_sentinel);
+                }
+                else
+                {
+                    std::ranges::uninitialized_copy(src_begin, src_begin + detail::block_elements_v<T>, begin,
+                                                    std::unreachable_sentinel);
+                }
+                elem_end(begin, begin + detail::block_elements_v<T>, elem_end_last);
                 ++block_elem_end;
             }
             elem_end_last = elem_end_end;
@@ -1746,7 +1760,16 @@ ctrl_end   →
         if (block_size > 1uz)
         {
             auto const begin = *block_elem_end;
-            std::ranges::uninitialized_copy(other.elem_end_begin, other.elem_end_end, begin, std::unreachable_sentinel);
+            if constexpr (move)
+            {
+                std::ranges::uninitialized_move(other.elem_end_begin, other.elem_end_end, begin,
+                                                std::unreachable_sentinel);
+            }
+            else
+            {
+                std::ranges::uninitialized_copy(other.elem_end_begin, other.elem_end_end, begin,
+                                                std::unreachable_sentinel);
+            }
             elem_end(begin, begin + (other.elem_end_end - other.elem_end_begin), begin + detail::block_elements_v<T>);
             ++block_elem_end;
         }
@@ -1761,10 +1784,6 @@ ctrl_end   →
     constexpr deque() noexcept = default;
 
   private:
-#if defined(__clang__) // make clang happy
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wc++26-extensions"
-#endif
     // 万能构造
     // 使用count、count和T、或者随机访问迭代器进行构造
     // 注意异常安全，需要调用者使用guard，并且分配好足够多内存
@@ -1872,9 +1891,6 @@ ctrl_end   →
             ++block_elem_end;
         }
     }
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
 
     // 参考emplace_front
     template <typename... V>
@@ -1923,7 +1939,7 @@ ctrl_end   →
         }
     }
 
-    constexpr deque(std::size_t const count)
+    explicit constexpr deque(std::size_t const count)
     {
         auto const [block_size, full_blocks, rem_elems] = detail::calc_cap<T>(count);
         construct_guard guard(this);
@@ -2071,7 +2087,7 @@ ctrl_end   →
 
     constexpr deque &operator=(const deque &other)
     {
-        if (this != &other)
+        if (this != std::addressof(other))
         {
             clear();
             if (!other.empty())
