@@ -2553,8 +2553,7 @@ ctrl_end   →
         assert(old_size > new_size);
         if constexpr (std::is_trivially_destructible_v<T>)
         {
-            auto const front_size = elem_begin_begin - elem_begin_first;
-            auto const [block_step, elem_step] = detail::calc_pos<T>(front_size, new_size);
+            auto const [block_step, elem_step] = detail::calc_pos<T>(elem_begin_begin - elem_begin_first, new_size);
             if (block_step == 0uz)
             {
                 auto const begin = elem_begin_first;
