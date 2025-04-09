@@ -2662,21 +2662,21 @@ ctrl_end   →
     constexpr void back_emplace(Block *const block_curr, T *const elem_curr)
     {
         auto const block_end = block_elem_end;
-        auto const block_size = block_end - block_curr + 0uz;
+        auto const block_size = block_end - block_curr -1uz;
         // 每次移动时留下的空位
         auto last_elem = elem_end_begin;
-        // 先记录尾块位置
+        // 先记录尾块块尾位置
         auto end = elem_end_end;
         // 再emplace_back
         emplace_back_noalloc(std::move(back()));
         // 如果大于一个块，那么移动整个尾块
-        if (block_size > 1uz)
+        if (block_size > 0uz)
         {
             auto const begin = last_elem;
             std::ranges::move_backward(begin, end - 1uz, end);
         }
         // 移动中间的块
-        if (block_size > 2uz)
+        if (block_size > 1uz)
         {
             auto target_block_end = block_end - 1uz;
             for (; target_block_end != block_curr + 1uz;)
@@ -2692,12 +2692,12 @@ ctrl_end   →
         // 移动插入位置所在的块
         // if block_size
         {
-            // 如果插入时容器只有一个块，那么采纳之前储存的end作为移动使用的end
-            // 否则使用计算出来的end
-            if (block_end - block_elem_begin != 1uz)
+            // 如果插入位置就是尾块，那么采纳之前储存的end作为移动使用的end
+            if (block_end - 1uz != block_curr)
             {
+                // 否则使用计算出来的end
                 end = *block_curr + detail::block_elements_v<T>;
-                // 只有一个块时的last_elem也无意义
+                // 将当前块的最后一个移动到上一个块的第一个
                 *last_elem = std::move(*(end - 1uz));
             }
             // 把插入位置所在块整体右移1
@@ -2709,23 +2709,23 @@ ctrl_end   →
     constexpr void front_emplace(Block *const block_curr, T *const elem_curr)
     {
         auto const block_begin = block_elem_begin;
-        auto const block_size = block_curr - block_begin + 1uz;
+        auto const block_size = block_curr - block_begin + 0uz;
         // 向前移动后尾部空出来的的后面一个位置
         auto last_elem_end = elem_begin_end;
         // if block_size
         {
             auto const begin = elem_begin_begin;
-            auto const block_end = block_elem_end;
+            auto const block_begin = block_elem_begin;
             emplace_front_noalloc(std::move(front()));
-            // 如果emplace_front之前只有一个块，那么elem_curr就是终点
-            if (block_end - block_begin == 1uz)
+            // 如果block_curr是首个块，那么elem_curr就是终点
+            if (block_begin == block_curr)
             {
                 last_elem_end = elem_curr;
             }
             // 否则之前储存的last_elem_end是终点
             std::ranges::move(begin + 1uz, last_elem_end, begin);
         }
-        if (block_size > 2uz)
+        if (block_size > 1uz)
         {
             auto target_block_begin = block_begin + 1uz;
             for (; target_block_begin != block_curr - 1uz; ++target_block_begin)
@@ -2737,7 +2737,7 @@ ctrl_end   →
                 std::ranges::move(begin + 1uz, end, begin);
             }
         }
-        if (block_size > 1uz)
+        if (block_size > 0uz)
         {
             auto const begin = *block_curr;
             *(last_elem_end - 1uz) = std::move(*begin);
@@ -2765,25 +2765,26 @@ ctrl_end   →
             return begin();
         }
         // 注意这里和带分配器版本有一定区别，不要覆盖
-        T temp(std::forward<Args>(args)...);
         // 此时容器一定不为空
         auto const back_diff = end_pre - pos + 0uz;
         auto const front_diff = pos - begin_pre + 0uz;
         if (back_diff <= front_diff || (block_elem_size() == 1uz && elem_end_end != elem_end_last))
         {
-            // back_emplace向后移动1个元素，因此reserve_one_back()后再获得pos的block_elem_begin
-            // 得到一个不失效的block_elem_begin
             reserve_one_back();
-            back_emplace((begin() + front_diff).block_elem_begin, pos.elem_curr);
+            // back_emplace向后移动1个元素并插入，因此先reserve以获得一个不失效的pos
+            auto new_pos = begin() + front_diff;
+            back_emplace(new_pos.block_elem_begin, new_pos.elem_curr);
+            *new_pos = T(std::forward<Args>(args)...);
+            return new_pos;
         }
         else
         {
             reserve_one_front();
-            front_emplace((begin() + front_diff).block_elem_begin, pos.elem_curr);
+            auto new_pos = end() - back_diff;
+            front_emplace(new_pos.block_elem_begin, new_pos.elem_curr);
+            *(--new_pos) = T(std::forward<Args>(args)...);
+            return new_pos;
         }
-        auto target = begin() + front_diff;
-        *target = std::move(temp);
-        return target;
     }
 
     constexpr iterator insert(const_iterator const pos, T const &value)
