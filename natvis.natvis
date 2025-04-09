@@ -17,4 +17,13 @@
 			</ArrayItems>
 		</Expand>
 	</Type>
+	<Type Name="bizwen::detail::basic_deque_iterator&lt;*&gt;">
+		<Expand>
+			<Item Name="Value">*elem_curr</Item>
+			<ArrayItems>
+				<Size>elem_end-elem_begin</Size>
+				<ValuePointer>elem_begin</ValuePointer>
+			</ArrayItems>
+		</Expand>
+	</Type>
 </AutoVisualizer>
