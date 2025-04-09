@@ -181,16 +181,16 @@ constexpr auto calc_pos(std::ptrdiff_t const front_size, std::ptrdiff_t const po
 }
 
 template <typename T>
-class basic_bucket_type;
+class bucket_type;
 
 template <typename T>
-class basic_bucket_iterator
+class bucket_iterator
 {
     using RConstT = std::remove_const_t<T>;
 
-    friend basic_bucket_type<RConstT>;
-    friend basic_bucket_type<T>;
-    friend basic_bucket_iterator<T const>;
+    friend bucket_type<RConstT>;
+    friend bucket_type<T>;
+    friend bucket_iterator<T const>;
 
     using Block = RConstT *;
 
@@ -204,7 +204,7 @@ class basic_bucket_iterator
     RConstT *elem_curr_begin{};
     RConstT *elem_curr_end{};
 
-    constexpr basic_bucket_iterator(Block *const block_elem_begin_, Block *const block_elem_end_,
+    constexpr bucket_iterator(Block *const block_elem_begin_, Block *const block_elem_end_,
                                     Block *const block_elem_curr_, RConstT *const elem_begin_begin_,
                                     RConstT *const elem_begin_end_, RConstT *const elem_end_begin_,
                                     RConstT *const elem_end_end_, RConstT *const elem_curr_begin_,
@@ -215,14 +215,14 @@ class basic_bucket_iterator
     {
     }
 
-    constexpr basic_bucket_iterator<RConstT> remove_const() const
+    constexpr bucket_iterator<RConstT> remove_const() const
         requires(std::is_const_v<T>)
     {
         return {block_elem_begin, block_elem_end, block_elem_curr, elem_begin_begin, elem_begin_end,
                 elem_end_begin,   elem_end_end,   elem_curr_begin, elem_curr_end};
     }
 
-    constexpr basic_bucket_iterator &plus_and_assign(std::ptrdiff_t const pos) noexcept
+    constexpr bucket_iterator &plus_and_assign(std::ptrdiff_t const pos) noexcept
     {
         block_elem_curr += pos;
         if (block_elem_curr + 1uz == block_elem_end)
@@ -251,15 +251,15 @@ class basic_bucket_iterator
     using reference = value_type &;
     using iterator_category = std::random_access_iterator_tag;
 
-    constexpr basic_bucket_iterator() noexcept = default;
+    constexpr bucket_iterator() noexcept = default;
 
-    constexpr basic_bucket_iterator(basic_bucket_iterator const &other) noexcept = default;
+    constexpr bucket_iterator(bucket_iterator const &other) noexcept = default;
 
-    constexpr basic_bucket_iterator &operator=(basic_bucket_iterator const &other) noexcept = default;
+    constexpr bucket_iterator &operator=(bucket_iterator const &other) noexcept = default;
 
-    constexpr ~basic_bucket_iterator() = default;
+    constexpr ~bucket_iterator() = default;
 
-    constexpr basic_bucket_iterator &operator++() noexcept
+    constexpr bucket_iterator &operator++() noexcept
     {
         ++block_elem_curr;
         if (block_elem_curr + 1uz == block_elem_end)
@@ -276,7 +276,7 @@ class basic_bucket_iterator
         return *this;
     }
 
-    constexpr basic_bucket_iterator operator++(int) noexcept
+    constexpr bucket_iterator operator++(int) noexcept
     {
 #if defined(__cpp_auto_cast)
         return ++auto{*this};
@@ -287,7 +287,7 @@ class basic_bucket_iterator
 #endif
     }
 
-    constexpr basic_bucket_iterator &operator--() noexcept
+    constexpr bucket_iterator &operator--() noexcept
     {
         --block_elem_curr;
         if (block_elem_curr == block_elem_begin)
@@ -304,7 +304,7 @@ class basic_bucket_iterator
         return *this;
     }
 
-    constexpr basic_bucket_iterator operator--(int) noexcept
+    constexpr bucket_iterator operator--(int) noexcept
     {
 #if defined(__cpp_auto_cast)
         return --auto{*this};
@@ -315,17 +315,17 @@ class basic_bucket_iterator
 #endif
     }
 
-    constexpr bool operator==(basic_bucket_iterator const &other) const noexcept
+    constexpr bool operator==(bucket_iterator const &other) const noexcept
     {
         return block_elem_curr == other.block_elem_curr;
     }
 
-    constexpr std::strong_ordering operator<=>(basic_bucket_iterator const &other) const noexcept
+    constexpr std::strong_ordering operator<=>(bucket_iterator const &other) const noexcept
     {
         return block_elem_curr <=> other.block_elem_curr;
     }
 
-    constexpr std::ptrdiff_t operator-(basic_bucket_iterator const &other) const noexcept
+    constexpr std::ptrdiff_t operator-(bucket_iterator const &other) const noexcept
     {
         return block_elem_curr - other.block_elem_curr;
     }
@@ -362,17 +362,17 @@ class basic_bucket_iterator
         return {elem_curr_begin, elem_curr_end};
     }
 
-    constexpr basic_bucket_iterator &operator+=(std::ptrdiff_t const pos) noexcept
+    constexpr bucket_iterator &operator+=(std::ptrdiff_t const pos) noexcept
     {
         return plus_and_assign(pos);
     }
 
-    constexpr basic_bucket_iterator &operator-=(std::ptrdiff_t const pos) noexcept
+    constexpr bucket_iterator &operator-=(std::ptrdiff_t const pos) noexcept
     {
         return plus_and_assign(-pos);
     }
 
-    friend constexpr basic_bucket_iterator operator+(basic_bucket_iterator const &it, std::ptrdiff_t const pos) noexcept
+    friend constexpr bucket_iterator operator+(bucket_iterator const &it, std::ptrdiff_t const pos) noexcept
     {
 #if defined(__cpp_auto_cast)
         return auto{it}.plus_and_assign(pos);
@@ -383,22 +383,22 @@ class basic_bucket_iterator
 #endif
     }
 
-    friend constexpr basic_bucket_iterator operator+(std::ptrdiff_t const pos, basic_bucket_iterator const &it) noexcept
+    friend constexpr bucket_iterator operator+(std::ptrdiff_t const pos, bucket_iterator const &it) noexcept
     {
         return it + pos;
     }
 
-    friend constexpr basic_bucket_iterator operator-(std::ptrdiff_t const pos, basic_bucket_iterator const &it) noexcept
+    friend constexpr bucket_iterator operator-(std::ptrdiff_t const pos, bucket_iterator const &it) noexcept
     {
         return it + (-pos);
     }
 
-    friend constexpr basic_bucket_iterator operator-(basic_bucket_iterator const &it, std::ptrdiff_t pos) noexcept
+    friend constexpr bucket_iterator operator-(bucket_iterator const &it, std::ptrdiff_t pos) noexcept
     {
         return it + (-pos);
     }
 
-    constexpr operator basic_bucket_iterator<T const>() const
+    constexpr operator bucket_iterator<T const>() const
         requires(not std::is_const_v<T>)
     {
         return {block_elem_begin, block_elem_end, block_elem_curr, elem_begin_begin, elem_begin_end,
@@ -407,17 +407,17 @@ class basic_bucket_iterator
 };
 
 #if !defined(NDEBUG)
-static_assert(std::random_access_iterator<basic_bucket_iterator<int>>);
-static_assert(std::random_access_iterator<basic_bucket_iterator<const int>>);
+static_assert(std::random_access_iterator<bucket_iterator<int>>);
+static_assert(std::random_access_iterator<bucket_iterator<const int>>);
 #endif
 
 template <typename T>
-class basic_bucket_type : public std::ranges::view_interface<basic_bucket_type<T>>
+class bucket_type : public std::ranges::view_interface<bucket_type<T>>
 {
     using RConstT = std::remove_const_t<T>;
 
     friend deque<RConstT>;
-    friend basic_bucket_type<std::remove_const_t<T>>;
+    friend bucket_type<std::remove_const_t<T>>;
 
     using Block = RConstT *;
 
@@ -428,7 +428,7 @@ class basic_bucket_type : public std::ranges::view_interface<basic_bucket_type<T
     RConstT *elem_end_begin{};
     RConstT *elem_end_end{};
 
-    constexpr basic_bucket_type(Block *const block_elem_begin_, Block *const block_elem_end_,
+    constexpr bucket_type(Block *const block_elem_begin_, Block *const block_elem_end_,
                                 RConstT *const elem_begin_begin_, RConstT *const elem_begin_end_,
                                 RConstT *const elem_end_begin_, RConstT *const elem_end_end_) noexcept
         : block_elem_begin(block_elem_begin_), block_elem_end(block_elem_end_), elem_begin_begin(elem_begin_begin_),
@@ -462,18 +462,18 @@ class basic_bucket_type : public std::ranges::view_interface<basic_bucket_type<T
     using const_reference = value_type const &;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
-    using iterator = basic_bucket_iterator<T>;
-    using const_iterator = basic_bucket_iterator<T const>;
+    using iterator = bucket_iterator<T>;
+    using const_iterator = bucket_iterator<T const>;
     using reverse_iterator = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
-    constexpr basic_bucket_type() = default;
+    constexpr bucket_type() = default;
 
-    constexpr ~basic_bucket_type() = default;
+    constexpr ~bucket_type() = default;
 
-    constexpr basic_bucket_type(basic_bucket_type const &) = default;
+    constexpr bucket_type(bucket_type const &) = default;
 
-    constexpr basic_bucket_type &operator=(basic_bucket_type const &) = default;
+    constexpr bucket_type &operator=(bucket_type const &) = default;
 
     constexpr std::size_t size() const noexcept
     {
@@ -542,12 +542,12 @@ class basic_bucket_type : public std::ranges::view_interface<basic_bucket_type<T
 
     constexpr iterator begin() noexcept
     {
-        return static_cast<basic_bucket_type const &>(*this).begin().remove_const();
+        return static_cast<bucket_type const &>(*this).begin().remove_const();
     }
 
     constexpr iterator end() noexcept
     {
-        static_cast<basic_bucket_type const &>(*this).end().remove_const();
+        static_cast<bucket_type const &>(*this).end().remove_const();
     }
 
     constexpr const_iterator cbegin() const noexcept
@@ -590,7 +590,7 @@ class basic_bucket_type : public std::ranges::view_interface<basic_bucket_type<T
         return const_reverse_iterator{begin()};
     }
 
-    constexpr operator basic_bucket_type<T const>() const
+    constexpr operator bucket_type<T const>() const
         requires(not std::is_const_v<T>)
     {
         return {block_elem_begin, block_elem_end, elem_begin_begin, elem_begin_end, elem_end_begin, elem_end_end};
@@ -598,13 +598,13 @@ class basic_bucket_type : public std::ranges::view_interface<basic_bucket_type<T
 };
 
 template <typename T>
-class basic_deque_iterator
+class deque_iterator
 {
     using RConstT = std::remove_const_t<T>;
 
     friend deque<RConstT>;
-    friend basic_deque_iterator<RConstT>;
-    friend basic_deque_iterator<T const>;
+    friend deque_iterator<RConstT>;
+    friend deque_iterator<T const>;
 
     using Block = RConstT *;
 
@@ -613,13 +613,13 @@ class basic_deque_iterator
     RConstT *elem_curr{};
     RConstT *elem_end{};
 
-    constexpr basic_deque_iterator(Block *const elem_begin, RConstT *const curr, RConstT *const begin,
+    constexpr deque_iterator(Block *const elem_begin, RConstT *const curr, RConstT *const begin,
                                    RConstT *const end) noexcept
         : block_elem_begin(elem_begin), elem_curr(curr), elem_begin(begin), elem_end(end)
     {
     }
 
-    constexpr basic_deque_iterator<RConstT> remove_const() const noexcept
+    constexpr deque_iterator<RConstT> remove_const() const noexcept
         requires(std::is_const_v<T>)
     {
         return {block_elem_begin, elem_curr, elem_begin, elem_end};
@@ -634,7 +634,7 @@ class basic_deque_iterator
     }
 
     // 几乎等于 at_impl
-    constexpr basic_deque_iterator &plus_and_assign(std::ptrdiff_t const pos) noexcept
+    constexpr deque_iterator &plus_and_assign(std::ptrdiff_t const pos) noexcept
     {
         if (pos != 0z)
         {
@@ -656,20 +656,20 @@ class basic_deque_iterator
     using reference = T &;
     using iterator_category = std::random_access_iterator_tag;
 
-    constexpr basic_deque_iterator() noexcept = default;
+    constexpr deque_iterator() noexcept = default;
 
-    constexpr basic_deque_iterator(basic_deque_iterator const &other) noexcept = default;
+    constexpr deque_iterator(deque_iterator const &other) noexcept = default;
 
-    constexpr basic_deque_iterator &operator=(basic_deque_iterator const &other) noexcept = default;
+    constexpr deque_iterator &operator=(deque_iterator const &other) noexcept = default;
 
-    constexpr ~basic_deque_iterator() = default;
+    constexpr ~deque_iterator() = default;
 
-    constexpr bool operator==(basic_deque_iterator const &other) const noexcept
+    constexpr bool operator==(deque_iterator const &other) const noexcept
     {
         return elem_curr == other.elem_curr;
     }
 
-    constexpr std::strong_ordering operator<=>(basic_deque_iterator const &other) const noexcept
+    constexpr std::strong_ordering operator<=>(deque_iterator const &other) const noexcept
     {
         if (block_elem_begin < other.block_elem_begin)
             return std::strong_ordering::less;
@@ -692,7 +692,7 @@ class basic_deque_iterator
         return *elem_curr;
     }
 
-    constexpr basic_deque_iterator &operator++() noexcept
+    constexpr deque_iterator &operator++() noexcept
     {
         // 空deque的迭代器不能自增，不需要考虑
         ++elem_curr;
@@ -706,7 +706,7 @@ class basic_deque_iterator
         return *this;
     }
 
-    constexpr basic_deque_iterator operator++(int) noexcept
+    constexpr deque_iterator operator++(int) noexcept
     {
 #if defined(__cpp_auto_cast)
         return ++auto{*this};
@@ -717,7 +717,7 @@ class basic_deque_iterator
 #endif
     }
 
-    constexpr basic_deque_iterator &operator--() noexcept
+    constexpr deque_iterator &operator--() noexcept
     {
         if (elem_curr != elem_begin)
         {
@@ -733,7 +733,7 @@ class basic_deque_iterator
         return *this;
     }
 
-    constexpr basic_deque_iterator operator--(int) noexcept
+    constexpr deque_iterator operator--(int) noexcept
     {
 #if defined(__cpp_auto_cast)
         return --auto{*this};
@@ -754,7 +754,7 @@ class basic_deque_iterator
         return at_impl(pos);
     }
 
-    friend constexpr std::ptrdiff_t operator-(basic_deque_iterator const &lhs, basic_deque_iterator const &rhs) noexcept
+    friend constexpr std::ptrdiff_t operator-(deque_iterator const &lhs, deque_iterator const &rhs) noexcept
     {
         auto result = 0z;
         auto block_size = lhs.block_elem_begin - rhs.block_elem_begin;
@@ -783,12 +783,12 @@ class basic_deque_iterator
         return result;
     }
 
-    constexpr basic_deque_iterator &operator+=(std::ptrdiff_t const pos) noexcept
+    constexpr deque_iterator &operator+=(std::ptrdiff_t const pos) noexcept
     {
         return plus_and_assign(pos);
     }
 
-    friend constexpr basic_deque_iterator operator+(basic_deque_iterator const &it, std::ptrdiff_t const pos) noexcept
+    friend constexpr deque_iterator operator+(deque_iterator const &it, std::ptrdiff_t const pos) noexcept
     {
 #if defined(__cpp_auto_cast)
         return auto{it}.plus_and_assign(pos);
@@ -799,27 +799,27 @@ class basic_deque_iterator
 #endif
     }
 
-    friend constexpr basic_deque_iterator operator+(std::ptrdiff_t const pos, basic_deque_iterator const &it) noexcept
+    friend constexpr deque_iterator operator+(std::ptrdiff_t const pos, deque_iterator const &it) noexcept
     {
         return it + pos;
     }
 
-    constexpr basic_deque_iterator &operator-=(std::ptrdiff_t const pos) noexcept
+    constexpr deque_iterator &operator-=(std::ptrdiff_t const pos) noexcept
     {
         return plus_and_assign(-pos);
     }
 
-    friend constexpr basic_deque_iterator operator-(basic_deque_iterator const &it, std::ptrdiff_t const pos) noexcept
+    friend constexpr deque_iterator operator-(deque_iterator const &it, std::ptrdiff_t const pos) noexcept
     {
         return it + (-pos);
     }
 
-    friend constexpr basic_deque_iterator operator-(std::ptrdiff_t const pos, basic_deque_iterator const &it) noexcept
+    friend constexpr deque_iterator operator-(std::ptrdiff_t const pos, deque_iterator const &it) noexcept
     {
         return it + (-pos);
     }
 
-    constexpr operator basic_deque_iterator<T const>() const
+    constexpr operator deque_iterator<T const>() const
         requires(not std::is_const_v<T>)
     {
         return {block_elem_begin, elem_curr, elem_begin, elem_end};
@@ -1228,12 +1228,12 @@ ctrl_end   →
     using const_reference = value_type const &;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
-    using iterator = detail::basic_deque_iterator<T>;
-    using reverse_iterator = std::reverse_iterator<detail::basic_deque_iterator<T>>;
-    using const_iterator = detail::basic_deque_iterator<T const>;
-    using const_reverse_iterator = std::reverse_iterator<detail::basic_deque_iterator<T const>>;
-    using bucket_type = detail::basic_bucket_type<T>;
-    using const_bucket_type = detail::basic_bucket_type<T const>;
+    using iterator = detail::deque_iterator<T>;
+    using reverse_iterator = std::reverse_iterator<detail::deque_iterator<T>>;
+    using const_iterator = detail::deque_iterator<T const>;
+    using const_reverse_iterator = std::reverse_iterator<detail::deque_iterator<T const>>;
+    using bucket_type = detail::bucket_type<T>;
+    using const_bucket_type = detail::bucket_type<T const>;
 
     // 给natvis使用，注意不要在其它函数中使用它，以支持使用不完整类型实例化。
     static inline constexpr std::size_t block_elements = detail::block_elements_v<T>;
