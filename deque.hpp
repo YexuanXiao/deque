@@ -748,7 +748,7 @@ class deque_iterator
     {
         auto const block_size = lhs.block_elem_begin - rhs.block_elem_begin;
         return block_size * static_cast<std::ptrdiff_t>(block_elements_v<T>) + lhs.elem_curr - lhs.elem_begin -
-               rhs.elem_curr + rhs.elem_begin;
+                              (rhs.elem_curr - rhs.elem_begin);
     }
 
     constexpr deque_iterator &operator+=(std::ptrdiff_t const pos) noexcept
@@ -1234,9 +1234,7 @@ ctrl_end   →
 
     constexpr bool empty() const noexcept
     {
-        assert(elem_begin_begin == elem_begin_end);
-        assert(elem_end_begin == elem_end_end);
-        return elem_begin_begin != nullptr;
+        return elem_begin_begin == nullptr;
     }
 
     constexpr void clear() noexcept
@@ -2089,7 +2087,7 @@ ctrl_end   →
 
     constexpr deque &operator=(const deque &other)
     {
-        if (this != &other)
+        if (this != std::addressof(other))
         {
             clear();
             if (!other.empty())
