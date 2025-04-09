@@ -632,7 +632,7 @@ class deque_iterator
             auto const [block_step, elem_step] = detail::calc_pos<T>(elem_curr - elem_begin, pos);
             auto const target_block = block_elem_begin + block_step;
             block_elem_begin = target_block;
-            elem_begin = std::to_address(*target_block);
+            elem_begin = *target_block;
             elem_curr = elem_begin + elem_step;
             elem_end = elem_begin + detail::block_elements_v<T>;
         }
