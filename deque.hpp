@@ -748,7 +748,7 @@ class deque_iterator
     {
         auto const block_size = lhs.block_elem_begin - rhs.block_elem_begin;
         return block_size * static_cast<std::ptrdiff_t>(block_elements_v<T>) + lhs.elem_curr - lhs.elem_begin -
-               (rhs.elem_curr - rhs.elem_begin);
+               rhs.elem_curr + rhs.elem_begin;
     }
 
     constexpr deque_iterator &operator+=(std::ptrdiff_t const pos) noexcept
@@ -1234,7 +1234,9 @@ ctrl_end   →
 
     constexpr bool empty() const noexcept
     {
-        return elem_begin_begin == nullptr;
+        assert(elem_begin_begin == elem_begin_end);
+        assert(elem_end_begin == elem_end_end);
+        return elem_begin_begin != nullptr;
     }
 
     constexpr void clear() noexcept
@@ -2087,7 +2089,7 @@ ctrl_end   →
 
     constexpr deque &operator=(const deque &other)
     {
-        if (this != std::addressof(other))
+        if (this != &other)
         {
             clear();
             if (!other.empty())
@@ -2129,6 +2131,7 @@ ctrl_end   →
     }
 
     template <std::ranges::input_range R>
+        requires std::convertible_to<std::ranges::range_value_t<R>, T>
     constexpr void assign_range(R &&rg)
     {
         clear();
@@ -2247,7 +2250,7 @@ ctrl_end   →
     // 不会失败且不移动元素
     constexpr void shrink_to_fit() noexcept
     {
-        if (block_ctrl_size() != 0uz) // 保证fill_block_alloc_end
+        if (block_alloc_size() != 0uz) // 保证fill_block_alloc_end
         {
             for (auto const i : std::ranges::subrange{block_alloc_begin, block_elem_begin})
             {
