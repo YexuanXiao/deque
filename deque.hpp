@@ -748,7 +748,7 @@ class deque_iterator
     {
         auto const block_size = lhs.block_elem_begin - rhs.block_elem_begin;
         return block_size * static_cast<std::ptrdiff_t>(block_elements_v<T>) + lhs.elem_curr - lhs.elem_begin -
-                              (rhs.elem_curr - rhs.elem_begin);
+               (rhs.elem_curr - rhs.elem_begin);
     }
 
     constexpr deque_iterator &operator+=(std::ptrdiff_t const pos) noexcept
@@ -2712,7 +2712,7 @@ ctrl_end   →
             auto const begin = *block_curr;
             if (elem_curr != begin)
             {
-            *(last_elem_end - 1uz) = std::move(*begin);
+                *(last_elem_end - 1uz) = std::move(*begin);
                 std::ranges::move(begin + 1uz, elem_curr, begin);
             }
         }
