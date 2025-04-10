@@ -2812,10 +2812,6 @@ class deque
             // 否则之前储存的last_elem_end是终点
             std::ranges::move(begin + 1uz, last_elem_end, begin);
         }
-        auto b = this->begin();
-        auto b1 = b + 1024;
-        auto b2 = b1 + 1024;
-        auto b3 = b2 + 1024;
         if (block_size > 1uz)
         {
             auto target_block_begin = block_begin + 1uz;
