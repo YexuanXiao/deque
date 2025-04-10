@@ -4,7 +4,11 @@ The next-generation deque container for C++, written and designed using modern C
 
 Working in progress.
 
-This branch provides an allocator-free version, making the code easier to read and modify.
+Additionally, [the noalloc branch](https://github.com/YexuanXiao/deque/tree/noalloc) provides an allocator-free version to explain the design of the deque and facilitate further modifications. The repository [deque-test](https://github.com/yexuanXiao/deque-test) provides a ported version of the test cases from libc++.
+
+## Roadmap
+
++ performance benchmark
 
 ## Compiler Portability
 

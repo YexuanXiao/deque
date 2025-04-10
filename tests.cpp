@@ -52,7 +52,7 @@ void test_constructor(std::size_t count = 1000uz)
             assert(d.size() == 0uz);
             assert(d.empty());
         }
-        // (2) not support
+        // (2) skip
         // (3)
         for (auto i = 0uz; i != count; ++i)
         {
@@ -103,7 +103,7 @@ void test_constructor(std::size_t count = 1000uz)
             std::vector<typename deque::value_type> v{std::from_range, std::ranges::iota_view(0uz, count)};
             deque d(std::from_range, v);
             assert(d.size() == count);
-            deque d1(std::from_range, std::ranges::subrange(v.begin(),v.end()));
+            deque d1(std::from_range, std::ranges::subrange(v.begin(), v.end()));
             assert(d1.size() == count);
         }
         // (7) equivalent to (5)
