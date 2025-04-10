@@ -2710,9 +2710,9 @@ ctrl_end   →
         if (block_size > 0uz)
         {
             auto const begin = *block_curr;
-            *(last_elem_end - 1uz) = std::move(*begin);
             if (elem_curr != begin)
             {
+            *(last_elem_end - 1uz) = std::move(*begin);
                 std::ranges::move(begin + 1uz, elem_curr, begin);
             }
         }
