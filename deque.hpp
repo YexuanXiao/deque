@@ -951,7 +951,7 @@ struct deque_proxy
         auto const target_block = block_elem_begin + block_step;
         auto const check_block = target_block < block_elem_end;
         auto const check_elem =
-            (target_block + 1uz == block_elem_end) ? (elem_end_begin + elem_step < elem_end_end) : true;
+            (target_block + 1uz == block_elem_end) ? ((*target_block) + elem_step < elem_end_end) : true;
         if constexpr (throw_exception)
         {
             if (not(check_block && check_elem))
@@ -1982,12 +1982,24 @@ ctrl_end   →
     {
         if (first != last)
         {
-            bucket_type bucket{first.block_elem_begin, last.block_elem_begin + 1uz,
-                               first.elem_curr,        first.elem_end,
-                               last.elem_begin,        last.elem_curr};
-            auto const block_size = bucket.size();
-            extent_block(block_size);
-            copy(bucket, block_size);
+            if (first.block_elem_begin == last.block_elem_begin)
+            {
+                bucket_type bucket{first.block_elem_begin, last.block_elem_begin + 1uz,
+                                   first.elem_curr,        last.elem_curr,
+                                   last.elem_begin,        last.elem_begin};
+                auto const block_size = bucket.size();
+                extent_block(block_size);
+                copy(bucket, block_size);
+            }
+            else
+            {
+                bucket_type bucket{first.block_elem_begin, last.block_elem_begin + 1uz,
+                                   first.elem_curr,        first.elem_end,
+                                   last.elem_begin,        last.elem_curr};
+                auto const block_size = bucket.size();
+                extent_block(block_size);
+                copy(bucket, block_size);
+            }
         }
     }
 
