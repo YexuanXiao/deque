@@ -2081,7 +2081,7 @@ ctrl_end   →
         {
             construct_guard guard(this);
             from_range_noguard(ilist.begin(), ilist.end());
-            ilist.release();
+            guard.release();
         }
     }
 
