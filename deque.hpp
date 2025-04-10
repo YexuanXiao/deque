@@ -915,7 +915,6 @@ struct deque_proxy
     // ctrl_begin可以是新块数组
     constexpr void align_elem_alloc_as_ctrl_back(CBlockP const ctrl_begin) noexcept
     {
-        assert(block_ctrl_size());
         align_elem_as_alloc_back();
         auto const alloc_block_size = block_alloc_size();
         auto const elem_block_size = block_elem_size();
@@ -931,7 +930,6 @@ struct deque_proxy
     // ctrl_end可以是新块数组
     constexpr void align_elem_alloc_as_ctrl_front(CBlockP const ctrl_end) noexcept
     {
-        assert(block_ctrl_size());
         assert(ctrl_end != block_ctrl_begin);
         align_elem_as_alloc_front();
         auto const alloc_block_size = block_alloc_size();
@@ -1409,7 +1407,6 @@ ctrl_end   →
         // 对空deque安全
         constexpr void replace_ctrl_back() const noexcept
         {
-            assert(d.block_ctrl_size());
             d.align_elem_alloc_as_ctrl_back(block_ctrl_begin);
             d.dealloc_ctrl();
             // 注意顺序
@@ -1420,7 +1417,6 @@ ctrl_end   →
 
         constexpr void replace_ctrl_front() const noexcept
         {
-            assert(d.block_ctrl_size());
             d.align_elem_alloc_as_ctrl_front(block_ctrl_end);
             d.dealloc_ctrl();
             // 注意顺序
