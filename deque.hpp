@@ -1693,7 +1693,7 @@ ctrl_end   →
             extent_block_back_uncond(new_block_size); // may throw
             return;
         }
-        if (alloc_block_size > new_block_size)
+        if (alloc_block_size >= new_block_size)
         {
             return;
         }
