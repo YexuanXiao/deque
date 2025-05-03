@@ -539,7 +539,7 @@ class bucket_type : public std::ranges::view_interface<bucket_type<T>>
 
     constexpr iterator end() noexcept
     {
-        static_cast<bucket_type const &>(*this).end().remove_const();
+        return static_cast<bucket_type const &>(*this).end().remove_const();
     }
 
     constexpr const_iterator cbegin() const noexcept
