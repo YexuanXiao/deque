@@ -16,4 +16,6 @@ libstdc++10+, libc++16+, MSVC STL 19.29+
 
 ## Notes
 
-Build tests can currently only using the STL, due to libc++ has not yet implemented `views::enumerate` and libstdc++ lacks `from_ranges` constructors.
+It is recommended to use the latest compilers and standard libraries as they provide more optimized code.
+
+Build tests cannot using the libc++, due to libc++ has not yet implemented `views::enumerate`.
