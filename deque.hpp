@@ -99,6 +99,13 @@ inline constexpr auto to_address(std::nullptr_t) noexcept
     return nullptr;
 }
 
+#if defined(BIZWEN_DEQUE_USE_LIBCPP_BLOCK)
+template <typename T>
+constexpr std::size_t block_elements_v = 8uz;
+#elif defined(BIZWEN_DEQUE_USE_GLIBCXX_BLOCK)
+template <typename T>
+constexpr std::size_t block_elements_v = 16uz > 4096uz / sizeof(T) ? 16uz : 4096 / sizeof(T);
+#else
 // 根据对象的大小计算block的大小，一定是4096的整数倍
 consteval std::size_t calc_block(std::size_t const pv) noexcept
 {
@@ -131,7 +138,6 @@ consteval std::size_t calc_block(std::size_t const pv) noexcept
         return (pv * 16uz + base - 1uz) / base * base;
     }
 }
-
 #if !defined(NDEBUG)
 static_assert(calc_block(1uz) == 4096uz);
 static_assert(calc_block(2uz) == 4096uz);
@@ -141,10 +147,10 @@ static_assert(calc_block(5uz) == 5uz * 4096uz);
 static_assert(calc_block(6uz) == 3uz * 4096uz);
 static_assert(calc_block(7uz) == 7uz * 4096uz);
 #endif
-
 // 根据T的大小计算每个block有多少元素
 template <typename T>
 constexpr std::size_t block_elements_v = calc_block(sizeof(T)) / sizeof(T);
+#endif
 
 // 构造函数和赋值用，计算如何分配和构造
 template <typename T>
@@ -2104,7 +2110,6 @@ class deque
     {
         if (ilist.size())
         {
-
             construct_guard guard(this);
             from_range_noguard(ilist.begin(), ilist.end());
             guard.release();
@@ -2113,7 +2118,7 @@ class deque
 
     constexpr deque &operator=(const deque &other)
     {
-        if (this != std::addressof(other))
+        if (this != other)
         {
             clear();
             if constexpr (!is_ator_stateless && is_pocca)
@@ -2891,48 +2896,28 @@ class deque
     }
 
   private:
-    // 把后半部分倒到前面
-    constexpr void move_back_to_front(std::size_t const back_diff)
+    // 把后半部分倒到前面，元素按原顺序
+    constexpr void move_back_to_front(std::size_t const count)
     {
-        reserve_front(back_diff);
-        for (auto i = 0uz; i != back_diff; ++i)
+        reserve_front(count);
+        for (auto i = 0uz; i != count; ++i)
         {
             emplace_front_noalloc(std::move(back()));
             pop_back();
         }
     }
 
-    // 逆操作
-    constexpr void move_back_to_front_reverse(std::size_t const back_diff)
+    // 把前半部分倒到后面，元素按原顺序
+    constexpr void move_front_to_back(std::size_t const count)
     {
-        reserve_back(back_diff);
-        for (auto &i : std::ranges::subrange(begin(), begin() + back_diff) | std::ranges::views::reverse)
+        reserve_back(count);
+        auto first = begin();
+        auto last = first + count;
+        for (; first != last; ++first)
         {
-            emplace_back_noalloc(std::move(i));
+            emplace_back_noalloc(std::move(*first));
         }
-        pop_front_n(back_diff);
-    }
-
-    // 把前半部分倒到前面
-    constexpr void move_front_to_back(std::size_t const front_diff)
-    {
-        reserve_back(front_diff);
-        for (auto i = 0uz; i != front_diff; ++i)
-        {
-            emplace_back_noalloc(std::move(front()));
-            pop_front();
-        }
-    }
-
-    // 逆操作
-    constexpr void move_front_to_back_reverse(std::size_t const front_diff)
-    {
-        reserve_front(front_diff);
-        for (auto &i : std::ranges::subrange(end() - front_diff, end()))
-        {
-            emplace_front_noalloc(std::move(i));
-        }
-        pop_back_n(front_diff);
+        pop_front_n(count);
     }
 
     static inline constexpr auto synth_three_way = []<class U, class V>(const U &u, const V &v) {
@@ -2955,6 +2940,10 @@ class deque
         requires std::convertible_to<std::ranges::range_value_t<R>, T>
     constexpr iterator insert_range(const_iterator const pos, R &&rg)
     {
+        if (std::ranges::empty(rg))
+        {
+            return pos.remove_const();
+        }
         auto const begin_pre = begin();
         auto const end_pre = end();
         if (pos == end_pre)
@@ -2970,6 +2959,7 @@ class deque
         }
         auto const back_diff = end_pre - pos + 0uz;
         auto const front_diff = pos - begin_pre + 0uz;
+#if defined(BIZWEN_DEQUE_USE_ROTATE_INSERT)
         if (back_diff <= front_diff)
         {
             auto const old_size = size();
@@ -2985,13 +2975,13 @@ class deque
             std::ranges::rotate(begin(), begin() + count, begin() + (count + front_diff));
             return begin() + front_diff;
         }
-        /*
+#else
         if (back_diff <= front_diff)
         {
             // 先把后半部分倒到前面，再插入到后面，最后把前面的倒到后面
             move_back_to_front(back_diff);
             append_range_noguard(std::forward<R>(rg));
-            move_back_to_front_reverse(back_diff);
+            move_front_to_back(back_diff);
             return begin() + front_diff;
         }
         else
@@ -2999,16 +2989,20 @@ class deque
             // 先把前半部分倒到后面，再插入到前面，最后把后面的倒到前面
             move_front_to_back(front_diff);
             prepend_range_noguard(std::forward<R>(rg));
-            move_front_to_back_reverse(front_diff);
+            move_back_to_front(front_diff);
             return begin() + front_diff;
         }
-        */
+#endif
     }
 
     // 几乎等于insert_range,但是使用迭代器版本以支持input iterator
     template <std::input_iterator U, typename V>
     constexpr iterator insert(const_iterator const pos, U first, V last)
     {
+        if (first == last)
+        {
+            return pos.remove_const();
+        }
         auto const begin_pre = begin();
         auto const end_pre = end();
         if (pos == end_pre)
@@ -3024,6 +3018,7 @@ class deque
         }
         auto const back_diff = end_pre - pos + 0uz;
         auto const front_diff = pos - begin_pre + 0uz;
+#if defined(BIZWEN_DEQUE_USE_ROTATE_INSERT)
         if (back_diff <= front_diff)
         {
             auto const old_size = size();
@@ -3039,23 +3034,24 @@ class deque
             std::ranges::rotate(begin(), begin() + count, begin() + (count + front_diff));
             return begin() + front_diff;
         }
-        /*
+#else
         if (back_diff <= front_diff)
         {
-            auto const old_size = size();
+            // 先把后半部分倒到前面，再插入到后面，最后把前面的倒到后面
+            move_back_to_front(back_diff);
             append_range_noguard(std::forward<U>(first), std::forward<V>(last));
-            std::ranges::rotate(begin() + front_diff, begin() + old_size, end());
+            move_front_to_back(back_diff);
             return begin() + front_diff;
         }
         else
         {
-            auto const old_size = size();
+            // 先把前半部分倒到后面，再插入到前面，最后把后面的倒到前面
+            move_front_to_back(front_diff);
             prepend_range_noguard(std::forward<U>(first), std::forward<V>(last));
-            auto const count = size() - old_size;
-            std::ranges::rotate(begin(), begin() + count, begin() + (count + front_diff));
+            move_back_to_front(front_diff);
             return begin() + front_diff;
         }
-        */
+#endif
     }
 
     constexpr iterator insert(const_iterator const pos, std::initializer_list<T> const ilist)
