@@ -2302,7 +2302,7 @@ ctrl_end   →
         to_proxy().pop_back_post();
     }
 
-    // 参考pop_front
+    // 参考pop_back
     constexpr void pop_front() noexcept
     {
         assert(not empty());
@@ -2602,7 +2602,7 @@ ctrl_end   →
     }
 
     template <typename... Ts>
-    constexpr void resize_unified(std::size_t const new_size, Ts... ts)
+    constexpr void resize_unified(std::size_t const new_size, Ts &&...ts)
     {
         if (auto const old_size = size(); new_size < old_size)
         {
