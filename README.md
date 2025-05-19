@@ -2,13 +2,7 @@
 
 The next-generation deque container for C++, written and designed using modern C++ with sufficiently good performance. Fully maintaining compatibility with the std::deque and supports contiguous access through buckets. Requires C++23.
 
-Working in progress.
-
-[The noalloc branch](https://github.com/YexuanXiao/deque/tree/noalloc) provides an allocator-free version to explain the design of the deque and facilitate further modifications. The repository [deque-test](https://github.com/yexuanXiao/deque-test) provides a ported version of the test cases from libc++. The repository [deque-benchmark](https://github.com/yexuanXiao/deque-benchmark) provides performance tests to compare the performance differences between this and the three other standard library implementations.
-
-## Roadmap
-
-+ Optimize the performance of inserting a range of elements
+The [noalloc](https://github.com/YexuanXiao/deque/tree/noalloc) branch provides an allocator-free version to explain the design of the deque and facilitate further modifications. The repository [deque-test](https://github.com/yexuanXiao/deque-test) provides a ported version of the test cases from libc++. The repository [deque-benchmark](https://github.com/yexuanXiao/deque-benchmark) provides performance tests to compare the performance differences between this and the three other standard library implementations.
 
 ## Compiler Portability
 
