@@ -686,12 +686,12 @@ class deque_iterator
         return std::strong_ordering::equal;
     }
 
-    T &operator*() noexcept
+    constexpr T &operator*() noexcept
     {
         return *elem_curr;
     }
 
-    T &operator*() const noexcept
+    constexpr T &operator*() const noexcept
     {
         return *elem_curr;
     }
@@ -1642,7 +1642,8 @@ class deque
         requires std::default_initializable<Allocator>
     = default;
 
-    explicit deque(const Allocator &alloc) noexcept(std::is_nothrow_copy_constructible_v<Allocator>) : a(alloc)
+    explicit constexpr deque(const Allocator &alloc) noexcept(std::is_nothrow_copy_constructible_v<Allocator>)
+        : a(alloc)
     {
     }
 
@@ -2057,7 +2058,7 @@ class deque
         }
     }
 
-    deque(const deque &other, const std::type_identity_t<Allocator> &alloc) : a(alloc)
+    constexpr deque(const deque &other, const std::type_identity_t<Allocator> &alloc) : a(alloc)
     {
         if (!other.empty())
         {
@@ -2074,7 +2075,7 @@ class deque
         other.swap_trivial(*this);
     }
 
-    deque(deque &&other, const std::type_identity_t<Allocator> &alloc) : a(alloc)
+    constexpr deque(deque &&other, const std::type_identity_t<Allocator> &alloc) : a(alloc)
     {
         if constexpr (is_ator_stateless)
         {
@@ -3069,13 +3070,16 @@ class deque
 
     constexpr bool operator==(deque const &other) const noexcept
     {
-        if (auto s = size(); s != other.size())
+        if (auto const s = size(); s != other.size())
         {
             return false;
         }
         else if (s != 0uz)
         {
-            for (auto first = begin(), last = end(), first1 = other.begin(); first != last; ++first, ++first1)
+            auto first = begin();
+            auto last = end();
+            auto first1 = other.begin();
+            for (; first != last; ++first, ++first1)
             {
                 if (*first != *first1)
                     return false;
