@@ -678,12 +678,12 @@ class deque_iterator
         return std::strong_ordering::equal;
     }
 
-    T &operator*() noexcept
+    constexpr T &operator*() noexcept
     {
         return *elem_curr;
     }
 
-    T &operator*() const noexcept
+    constexpr T &operator*() const noexcept
     {
         return *elem_curr;
     }
@@ -1147,7 +1147,8 @@ ctrl_end   →
         {
             for (auto const block_begin : std::ranges::subrange{block_elem_begin + 1uz, block_elem_end - 1uz})
             {
-                for (auto const &i : std::ranges::subrange{block_begin, block_begin + deque_detail::block_elements_v<T>})
+                for (auto const &i :
+                     std::ranges::subrange{block_begin, block_begin + deque_detail::block_elements_v<T>})
                 {
                     std::destroy_at(&i);
                 }
@@ -1772,7 +1773,8 @@ ctrl_end   →
                 std::ranges::uninitialized_copy(other.elem_end_begin, other.elem_end_end, begin,
                                                 std::unreachable_sentinel);
             }
-            elem_end(begin, begin + (other.elem_end_end - other.elem_end_begin), begin + deque_detail::block_elements_v<T>);
+            elem_end(begin, begin + (other.elem_end_end - other.elem_end_begin),
+                     begin + deque_detail::block_elements_v<T>);
             ++block_elem_end;
         }
     }
@@ -2584,7 +2586,8 @@ ctrl_end   →
         assert(old_size > new_size);
         if constexpr (std::is_trivially_destructible_v<T>)
         {
-            auto const [block_step, elem_step] = deque_detail::calc_pos<T>(elem_begin_begin - elem_begin_first, new_size);
+            auto const [block_step, elem_step] =
+                deque_detail::calc_pos<T>(elem_begin_begin - elem_begin_first, new_size);
             if (block_step == 0uz)
             {
                 auto const begin = elem_begin_first;
@@ -2952,13 +2955,16 @@ ctrl_end   →
 
     constexpr bool operator==(deque const &other) const noexcept
     {
-        if (auto s = size(); s != other.size())
+        if (auto const s = size(); s != other.size())
         {
             return false;
         }
         else if (s != 0uz)
         {
-            for (auto first = begin(), last = end(), first1 = other.begin(); first != last; ++first, ++first1)
+            auto first = begin();
+            auto last = end();
+            auto first1 = other.begin();
+            for (; first != last; ++first, ++first1)
             {
                 if (*first != *first1)
                     return false;
