@@ -606,27 +606,27 @@ class deque_iterator
 
     using Block = RConstT *;
 
-    Block *block_elem_begin{};
+    Block *block_elem_curr{};
     RConstT *elem_begin{};
     RConstT *elem_curr{};
     RConstT *elem_end{};
 
     constexpr deque_iterator(Block *const elem_begin, RConstT *const curr, RConstT *const begin,
                              RConstT *const end) noexcept
-        : block_elem_begin(elem_begin), elem_curr(curr), elem_begin(begin), elem_end(end)
+        : block_elem_curr(elem_begin), elem_curr(curr), elem_begin(begin), elem_end(end)
     {
     }
 
     constexpr deque_iterator<RConstT> remove_const() const noexcept
         requires(::std::is_const_v<T>)
     {
-        return {block_elem_begin, elem_curr, elem_begin, elem_end};
+        return {block_elem_curr, elem_curr, elem_begin, elem_end};
     }
 
     constexpr T &at_impl(::std::ptrdiff_t const pos) const noexcept
     {
         auto const [block_step, elem_step] = deque_detail::calc_pos<T>(elem_curr - elem_begin, pos);
-        auto const target_block = block_elem_begin + block_step;
+        auto const target_block = block_elem_curr + block_step;
         return *((*target_block) + elem_step);
     }
 
@@ -636,8 +636,8 @@ class deque_iterator
         if (pos != 0z)
         {
             auto const [block_step, elem_step] = deque_detail::calc_pos<T>(elem_curr - elem_begin, pos);
-            auto const target_block = block_elem_begin + block_step;
-            block_elem_begin = target_block;
+            auto const target_block = block_elem_curr + block_step;
+            block_elem_curr = target_block;
             elem_begin = *target_block;
             elem_curr = elem_begin + elem_step;
             elem_end = elem_begin + deque_detail::block_elements_v<T>;
@@ -667,9 +667,9 @@ class deque_iterator
 
     constexpr ::std::strong_ordering operator<=>(deque_iterator const &other) const noexcept
     {
-        if (block_elem_begin < other.block_elem_begin)
+        if (block_elem_curr < other.block_elem_curr)
             return ::std::strong_ordering::less;
-        if (block_elem_begin > other.block_elem_begin)
+        if (block_elem_curr > other.block_elem_curr)
             return ::std::strong_ordering::greater;
         if (elem_curr < other.elem_curr)
             return ::std::strong_ordering::less;
@@ -694,8 +694,8 @@ class deque_iterator
         ++elem_curr;
         if (elem_curr == elem_end)
         {
-            ++block_elem_begin;
-            elem_begin = *block_elem_begin;
+            ++block_elem_curr;
+            elem_begin = *block_elem_curr;
             elem_curr = elem_begin;
             elem_end = elem_begin + deque_detail::block_elements_v<T>;
         }
@@ -721,8 +721,8 @@ class deque_iterator
         }
         else
         {
-            --block_elem_begin;
-            elem_begin = *block_elem_begin;
+            --block_elem_curr;
+            elem_begin = *block_elem_curr;
             elem_end = elem_begin + deque_detail::block_elements_v<T>;
             elem_curr = elem_end - 1uz;
         }
@@ -752,7 +752,7 @@ class deque_iterator
 
     friend constexpr ::std::ptrdiff_t operator-(deque_iterator const &lhs, deque_iterator const &rhs) noexcept
     {
-        auto const block_size = lhs.block_elem_begin - rhs.block_elem_begin;
+        auto const block_size = lhs.block_elem_curr - rhs.block_elem_curr;
         return block_size * static_cast<::std::ptrdiff_t>(block_elements_v<T>) + lhs.elem_curr - lhs.elem_begin -
                (rhs.elem_curr - rhs.elem_begin);
     }
@@ -796,7 +796,7 @@ class deque_iterator
     constexpr operator deque_iterator<T const>() const
         requires(not ::std::is_const_v<T>)
     {
-        return {block_elem_begin, elem_curr, elem_begin, elem_end};
+        return {block_elem_curr, elem_curr, elem_begin, elem_end};
     }
 };
 
@@ -1139,7 +1139,7 @@ ctrl_end   →
         {
             for (auto const &i : ::std::ranges::subrange{elem_begin_begin, elem_begin_end})
             {
-                ::std::destroy_at(&i);
+                ::std::destroy_at(::std::to_address(i));
             }
         }
         // 清理中间的块
@@ -1150,7 +1150,7 @@ ctrl_end   →
                 for (auto const &i :
                      ::std::ranges::subrange{block_begin, block_begin + deque_detail::block_elements_v<T>})
                 {
-                    ::std::destroy_at(&i);
+                    ::std::destroy_at(::std::to_address(i));
                 }
             }
         }
@@ -1158,7 +1158,7 @@ ctrl_end   →
         {
             for (auto const &i : ::std::ranges::subrange{elem_end_begin, elem_end_end})
             {
-                ::std::destroy_at(&i);
+                ::std::destroy_at(::std::to_address(i));
             }
         }
     }
@@ -1986,9 +1986,9 @@ ctrl_end   →
     {
         if (first != last)
         {
-            if (first.block_elem_begin == last.block_elem_begin)
+            if (first.block_elem_curr == last.block_elem_curr)
             {
-                bucket_type bucket{first.block_elem_begin, last.block_elem_begin + 1uz,
+                bucket_type bucket{first.block_elem_curr, last.block_elem_curr + 1uz,
                                    first.elem_curr,        last.elem_curr,
                                    last.elem_begin,        last.elem_begin};
                 auto const block_size = bucket.size();
@@ -1997,7 +1997,7 @@ ctrl_end   →
             }
             else
             {
-                bucket_type bucket{first.block_elem_begin, last.block_elem_begin + 1uz,
+                bucket_type bucket{first.block_elem_curr, last.block_elem_curr + 1uz,
                                    first.elem_curr,        first.elem_end,
                                    last.elem_begin,        last.elem_curr};
                 auto const block_size = bucket.size();
@@ -2760,7 +2760,7 @@ ctrl_end   →
             reserve_one_back();
             // back_emplace向后移动1个元素并插入，因此先reserve以获得一个不失效的pos
             auto new_pos = begin() + front_diff;
-            back_emplace(new_pos.block_elem_begin, new_pos.elem_curr);
+            back_emplace(new_pos.block_elem_curr, new_pos.elem_curr);
             *new_pos = T(::std::forward<Args>(args)...);
             return new_pos;
         }
@@ -2768,7 +2768,7 @@ ctrl_end   →
         {
             reserve_one_front();
             auto new_pos = end() - back_diff;
-            front_emplace(new_pos.block_elem_begin, new_pos.elem_curr);
+            front_emplace(new_pos.block_elem_curr, new_pos.elem_curr);
             *(--new_pos) = T(::std::forward<Args>(args)...);
             return new_pos;
         }
