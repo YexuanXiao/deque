@@ -101,10 +101,10 @@ inline constexpr auto to_address(::std::nullptr_t) noexcept
 
 #if defined(BIZWEN_DEQUE_BLOCK_ELEMENTS)
 template <typename T>
-constexpr ::std::size_t block_elements_v = BIZWEN_DEQUE_BLOCK_ELEMENTS;
+inline constexpr ::std::size_t block_elements_v = BIZWEN_DEQUE_BLOCK_ELEMENTS;
 #else
 template <typename T>
-constexpr ::std::size_t block_elements_v = 16uz > 4096uz / sizeof(T) ? 16uz : 4096uz / sizeof(T);
+inline constexpr ::std::size_t block_elements_v = 16uz > 4096uz / sizeof(T) ? 16uz : 4096uz / sizeof(T);
 #endif
 
 // 构造函数和赋值用，计算如何分配和构造
