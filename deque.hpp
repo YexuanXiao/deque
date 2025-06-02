@@ -88,57 +88,13 @@ inline constexpr auto get(Args &&...args) noexcept
 #endif
 #endif
 
-#if defined(BIZWEN_DEQUE_USE_LIBCPP_BLOCK)
+
+#if defined(BIZWEN_DEQUE_BLOCK_ELEMENTS)
 template <typename T>
-constexpr ::std::size_t block_elements_v = 8uz;
-#elif defined(BIZWEN_DEQUE_USE_GLIBCXX_BLOCK)
-template <typename T>
-constexpr ::std::size_t block_elements_v = 16uz > 4096uz / sizeof(T) ? 16uz : 4096 / sizeof(T);
+constexpr ::std::size_t block_elements_v = BIZWEN_DEQUE_BLOCK_ELEMENTS;
 #else
-// 根据对象的大小计算block的大小，一定是4096的整数倍
-consteval ::std::size_t calc_block(::std::size_t const pv) noexcept
-{
-    // 块的基本大小
-    auto const base = 4096uz;
-    // 基本大小下，元素最大大小，至少保证16个
-    auto const sieve = base / 16uz;
-    auto result = 0uz;
-    if (pv < sieve)
-    {
-        // 在基本大小的1-8倍间找到利用率最高的
-        auto size_block = 0uz;
-        auto rmd_pre = ::std::size_t(-1);
-        for (auto i = 0uz; i != 8uz; ++i)
-        {
-            size_block = base * (i + 1uz);
-            auto const rmd_cur = size_block % pv;
-            // 越小利用率越高
-            if (rmd_cur < rmd_pre)
-            {
-                rmd_pre = rmd_cur;
-                result = size_block;
-            }
-        }
-        return result;
-    }
-    else
-    {
-        // 寻找y使得y大于16*元素大小，且y为4096整数倍
-        return (pv * 16uz + base - 1uz) / base * base;
-    }
-}
-#if !defined(NDEBUG)
-static_assert(calc_block(1uz) == 4096uz);
-static_assert(calc_block(2uz) == 4096uz);
-static_assert(calc_block(3uz) == 3uz * 4096uz);
-static_assert(calc_block(4uz) == 4096uz);
-static_assert(calc_block(5uz) == 5uz * 4096uz);
-static_assert(calc_block(6uz) == 3uz * 4096uz);
-static_assert(calc_block(7uz) == 7uz * 4096uz);
-#endif
-// 根据T的大小计算每个block有多少元素
 template <typename T>
-constexpr ::std::size_t block_elements_v = calc_block(sizeof(T)) / sizeof(T);
+constexpr ::std::size_t block_elements_v = 16uz > 4096uz / sizeof(T) ? 16uz : 4096uz / sizeof(T);
 #endif
 
 // 构造函数和赋值用，计算如何分配和构造
@@ -158,7 +114,7 @@ inline constexpr auto calc_cap(::std::size_t const size) noexcept
 // 该函数计算位置，参数front_size是起始位置和块首的距离，pos是目标位置
 // 对于负数pos返回负数位置
 template <typename T>
-constexpr auto calc_pos(::std::ptrdiff_t const front_size, ::std::ptrdiff_t const pos) noexcept
+inline constexpr auto calc_pos(::std::ptrdiff_t const front_size, ::std::ptrdiff_t const pos) noexcept
 {
     ::std::ptrdiff_t const block_elems = block_elements_v<T>;
     struct pos_t
@@ -176,6 +132,19 @@ constexpr auto calc_pos(::std::ptrdiff_t const front_size, ::std::ptrdiff_t cons
         auto const new_pos = pos + front_size - block_elems + 1z;
         return pos_t{new_pos / block_elems, new_pos % block_elems - 1z + block_elems};
     }
+}
+
+template <typename T>
+inline constexpr auto calc_pos(::std::size_t const front_size, ::std::size_t const pos) noexcept
+{
+    ::std::size_t const block_elems = block_elements_v<T>;
+    struct pos_t
+    {
+        ::std::size_t block_step; // 移动块的步数
+        ::std::size_t elem_step;  // 移动元素的步数（相对于块首）
+    };
+    auto const new_pos = pos + front_size;
+    return pos_t{new_pos / block_elems, new_pos % block_elems};
 }
 
 template <typename T>
@@ -951,7 +920,7 @@ struct deque_proxy
     template <bool throw_exception = false>
     constexpr RConstT &at_impl(::std::size_t const pos) const noexcept
     {
-        auto const [block_step, elem_step] = deque_detail::calc_pos<T>(elem_begin_begin - elem_begin_first, pos);
+        auto const [block_step, elem_step] = deque_detail::calc_pos<T>(static_cast<::std::size_t>(elem_begin_begin - elem_begin_first), pos);
         auto const target_block = block_elem_begin + block_step;
         auto const check_block = target_block < block_elem_end;
         auto const check_elem =
@@ -2384,7 +2353,7 @@ ctrl_end   →
             {
                 if constexpr (back)
                 {
-                    d->pop_back_n(d->size() - size);
+                    d->resize_shrink_(d->size(), size);
                 }
                 else
                 {
@@ -2587,7 +2556,7 @@ ctrl_end   →
         if constexpr (::std::is_trivially_destructible_v<T>)
         {
             auto const [block_step, elem_step] =
-                deque_detail::calc_pos<T>(elem_begin_begin - elem_begin_first, new_size);
+                deque_detail::calc_pos<T>(static_cast<::std::size_t>(elem_begin_begin - elem_begin_first), new_size);
             if (block_step == 0uz)
             {
                 auto const begin = elem_begin_first;
@@ -2598,15 +2567,19 @@ ctrl_end   →
             else
             {
                 auto const target_block = block_elem_begin + block_step;
-                auto begin = *target_block;
+                auto const begin = *target_block;
                 elem_end(begin, begin + elem_step, begin + deque_detail::block_elements_v<T>);
                 block_elem_end = target_block + 1uz;
             }
         }
         else
         {
-            auto const diff = old_size - new_size;
-            pop_back_n(diff);
+            auto const count = old_size - new_size;
+            for (auto i = 0uz; i != count; ++i)
+            {
+                assert(!empty());
+                pop_back();
+            }
         }
     }
 
