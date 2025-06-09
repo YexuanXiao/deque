@@ -2655,7 +2655,7 @@ class deque
     // 收缩专用
     constexpr void resize_shrink_(::std::size_t const old_size, ::std::size_t const new_size) noexcept
     {
-        assert(old_size > new_size);
+        assert(old_size >= new_size);
         if constexpr (::std::is_trivially_destructible_v<T> && is_default_operation_)
         {
             auto const [block_step, elem_step] =
