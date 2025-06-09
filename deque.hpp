@@ -584,19 +584,18 @@ class deque_iterator
     Block *block_elem_curr_{};
     RConstT *elem_begin_{};
     RConstT *elem_curr_{};
-    RConstT *elem_end_{};
 
-    template <typename U, typename V, typename W, typename X>
-    constexpr deque_iterator(U const block, V const pos, W const begin, X const end) noexcept
+    template <typename U, typename V, typename W>
+    constexpr deque_iterator(U const block, V const pos, W const begin) noexcept
         : block_elem_curr_(deque_detail::to_address(block)), elem_curr_(deque_detail::to_address(pos)),
-          elem_begin_(deque_detail::to_address(begin)), elem_end_(deque_detail::to_address(end))
+          elem_begin_(deque_detail::to_address(begin))
     {
     }
 
     constexpr deque_iterator<RConstT, Block> remove_const_() const noexcept
         requires(::std::is_const_v<T>)
     {
-        return {block_elem_curr_, elem_curr_, elem_begin_, elem_end_};
+        return {block_elem_curr_, elem_curr_, elem_begin_};
     }
 
     constexpr T &at_impl_(::std::ptrdiff_t const pos) const noexcept
@@ -615,7 +614,6 @@ class deque_iterator
             block_elem_curr_ = target_block;
             elem_begin_ = ::std::to_address(*target_block);
             elem_curr_ = elem_begin_ + elem_step;
-            elem_end_ = elem_begin_ + deque_detail::block_elements_v<T>;
         }
         return *this;
     }
@@ -667,12 +665,11 @@ class deque_iterator
     {
         // 空deque的迭代器不能自增，不需要考虑
         ++elem_curr_;
-        if (elem_curr_ == elem_end_)
+        if (elem_curr_ == elem_begin_ +  deque_detail::block_elements_v<T>)
         {
             ++block_elem_curr_;
             elem_begin_ = ::std::to_address(*block_elem_curr_);
             elem_curr_ = elem_begin_;
-            elem_end_ = elem_begin_ + deque_detail::block_elements_v<T>;
         }
         return *this;
     }
@@ -698,8 +695,7 @@ class deque_iterator
         {
             --block_elem_curr_;
             elem_begin_ = ::std::to_address(*block_elem_curr_);
-            elem_end_ = elem_begin_ + deque_detail::block_elements_v<T>;
-            elem_curr_ = elem_end_ - 1uz;
+            elem_curr_ =  elem_begin_ + deque_detail::block_elements_v<T> - 1uz;
         }
         return *this;
     }
@@ -771,7 +767,7 @@ class deque_iterator
     constexpr operator deque_iterator<T const, Block>() const
         requires(not::std::is_const_v<T>)
     {
-        return {block_elem_curr_, elem_curr_, elem_begin_, elem_end_};
+        return {block_elem_curr_, elem_curr_, elem_begin_};
     }
 };
 } // namespace deque_detail
@@ -1084,29 +1080,26 @@ class deque
     {
         if (block_elem_size_() == 0uz)
         {
-            return const_iterator{nullptr, nullptr, nullptr, nullptr};
+            return const_iterator{nullptr, nullptr, nullptr};
         }
-        return const_iterator{block_elem_begin_, elem_begin_begin_, *block_elem_begin_,
-                              (*block_elem_begin_) + deque_detail::block_elements_v<T>};
+        return const_iterator{block_elem_begin_, elem_begin_begin_, *block_elem_begin_};
     }
 
     constexpr const_iterator end() const noexcept
     {
         if (block_elem_size_() == 0uz)
         {
-            return const_iterator{nullptr, nullptr, nullptr, nullptr};
+            return const_iterator{nullptr, nullptr, nullptr};
         }
         else if (elem_end_end_ == elem_end_last_)
         {
             // 这种情况发生时，迭代器会积极的切换到下一个块然后再进行比较
             // 此时*block_elem_end要么是已经分配的储存，要么是空指针
-            return const_iterator{block_elem_end_, *block_elem_end_, *block_elem_end_,
-                                  (*block_elem_end_) + deque_detail::block_elements_v<T>};
+            return const_iterator{block_elem_end_, *block_elem_end_, *block_elem_end_};
         }
         else
         {
-            return const_iterator{block_elem_end_ - 1uz, elem_end_end_, *(block_elem_end_ - 1uz),
-                                  (*(block_elem_end_ - 1uz)) + deque_detail::block_elements_v<T>};
+            return const_iterator{block_elem_end_ - 1uz, elem_end_end_, *(block_elem_end_ - 1uz)};
         }
     }
 
@@ -1920,7 +1913,7 @@ class deque
             else
             {
                 bucket_type bucket{first.block_elem_curr_, last.block_elem_curr_ + 1uz,
-                                   first.elem_curr_,       first.elem_end_,
+                                   first.elem_curr_,       first.elem_begin_ + deque_detail::block_elements_v<T>,
                                    last.elem_begin_,       last.elem_curr_};
                 auto const block_size = bucket.size();
                 extent_block_(block_size);
