@@ -2552,7 +2552,7 @@ ctrl_end   →
     // 收缩专用
     constexpr void resize_shrink(::std::size_t const old_size, ::std::size_t const new_size) noexcept
     {
-        assert(old_size > new_size);
+        assert(old_size >= new_size);
         if constexpr (::std::is_trivially_destructible_v<T>)
         {
             auto const [block_step, elem_step] =
