@@ -853,13 +853,6 @@ struct deque_proxy
         elem_end_last = last;
     }
 
-    // 该函数完全是为了防止读取未初始化的值而产生UB，实际不会解引用
-    constexpr void fill_block_alloc_end() noexcept
-    {
-        assert(block_alloc_end != nullptr);
-        *block_alloc_end = nullptr;
-    }
-
     // 将已分配的块对齐到块数组头部
     constexpr void align_alloc_as_ctrl_back() noexcept
     {
@@ -868,7 +861,6 @@ struct deque_proxy
         auto const block_size = block_alloc_size();
         block_alloc_begin = block_ctrl_begin;
         block_alloc_end = block_ctrl_begin + block_size;
-        fill_block_alloc_end();
     }
 
     // 将已分配的块对齐到块数组尾部
@@ -879,7 +871,6 @@ struct deque_proxy
         auto const block_size = block_alloc_size();
         block_alloc_end = block_ctrl_end;
         block_alloc_begin = block_ctrl_end - block_size;
-        fill_block_alloc_end();
     }
 
     // 将有元素的块对齐到分配块的头部
@@ -912,7 +903,6 @@ struct deque_proxy
         block_alloc_end = ctrl_begin + alloc_block_size;
         block_elem_begin = ctrl_begin;
         block_elem_end = ctrl_begin + elem_block_size;
-        fill_block_alloc_end();
     }
 
     // 将有元素的块和分配块对齐到块数组尾部
@@ -928,7 +918,6 @@ struct deque_proxy
         block_alloc_begin = ctrl_end - alloc_block_size;
         block_elem_end = ctrl_end;
         block_elem_begin = ctrl_end - elem_block_size;
-        fill_block_alloc_end();
     }
 
     template <bool throw_exception = false>
@@ -1343,14 +1332,6 @@ ctrl_end   →
     }
 
   private:
-    // 参见ctrl_alloc注释
-    // 在每次调整block_alloc_end时都需要调用
-    // 该函数完全是为了避免读取未初始化的储存，但实际上不会解引用它
-    constexpr void fill_block_alloc_end() noexcept
-    {
-        *block_alloc_end = nullptr;
-    }
-
     // case 1           case 2            case 3           case 4
     // A1 B1 → A2 B2   A1       A2       A1 B1   A2       A1       A2 B2
     // |        |       |        |        |    ↘ |        |     ↗ |
@@ -1379,7 +1360,6 @@ ctrl_end   →
             d.block_alloc_end = block_ctrl_begin;
             d.block_elem_begin = block_ctrl_begin;
             d.block_elem_end = block_ctrl_begin;
-            d.fill_block_alloc_end();
         }
 
         // 扩容时，back为插入元素的方向
@@ -1407,13 +1387,9 @@ ctrl_end   →
         // 参数是新大小
         constexpr ctrl_alloc(deque &dq, ::std::size_t const ctrl_size) : d(dq)
         {
-            // 永远多分配一个，使得block_ctrl_end可以解引用以及*block_elem_end/*block_alloc_end始终合法
-            // 通过保证*block_alloc_end为0
-            // 实现迭代器可以走到block_alloc_end并且不访问野值避免UB
-            auto const size = ((ctrl_size + 1uz) + (4uz - 1uz)) / 4uz * 4uz;
+            auto const size = (ctrl_size + (4uz - 1uz)) / 4uz * 4uz;
             block_ctrl_begin = d.alloc_ctrl(size);
-            // 多分配的这个不可见
-            block_ctrl_end = block_ctrl_begin + size - 1uz;
+            block_ctrl_end = block_ctrl_begin + size;
         }
     };
 
@@ -1483,7 +1459,6 @@ ctrl_end   →
             *block_alloc_end = alloc_block();
             ++block_alloc_end;
         }
-        fill_block_alloc_end();
     }
 
     // 向back扩展
@@ -1659,29 +1634,32 @@ ctrl_end   →
     // 调用后可直接填充元素
     constexpr void extent_block(::std::size_t const new_block_size)
     {
-        auto const ctrl_block_size = block_ctrl_size();
-        auto const alloc_block_size = block_alloc_size();
-        if (ctrl_block_size == 0uz)
+        if (new_block_size != 0uz)
         {
-            ctrl_alloc const ctrl(*this, new_block_size); // may throw
-            ctrl.replace_ctrl();
-            extent_block_back_uncond(new_block_size); // may throw
-            return;
+            auto const ctrl_block_size = block_ctrl_size();
+            auto const alloc_block_size = block_alloc_size();
+            if (ctrl_block_size == 0uz)
+            {
+                ctrl_alloc const ctrl(*this, new_block_size); // may throw
+                ctrl.replace_ctrl();
+                extent_block_back_uncond(new_block_size); // may throw
+                return;
+            }
+            if (alloc_block_size >= new_block_size)
+            {
+                return;
+            }
+            if (ctrl_block_size < new_block_size)
+            {
+                ctrl_alloc const ctrl(*this, new_block_size); // may throw
+                ctrl.replace_ctrl_back();
+            }
+            else
+            {
+                align_alloc_as_ctrl_back();
+            }
+            extent_block_back_uncond(new_block_size - alloc_block_size); // may throw
         }
-        if (alloc_block_size >= new_block_size)
-        {
-            return;
-        }
-        if (ctrl_block_size < new_block_size)
-        {
-            ctrl_alloc const ctrl(*this, new_block_size); // may throw
-            ctrl.replace_ctrl_back();
-        }
-        else
-        {
-            align_alloc_as_ctrl_back();
-        }
-        extent_block_back_uncond(new_block_size - alloc_block_size); // may throw
     }
 
     // 构造函数和复制赋值的辅助函数，调用前必须分配内存，以及用于构造时使用guard
@@ -2248,7 +2226,6 @@ ctrl_end   →
                 dealloc_block(i);
             }
             block_alloc_end = block_elem_end;
-            fill_block_alloc_end();
         }
     }
 
