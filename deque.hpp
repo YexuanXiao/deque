@@ -859,9 +859,6 @@ class deque
              □
   ctrl_end   →
     */
-    /*
-    迭代器的++在走到last时会主动走到下一个块，由于block_alloc_end的保证，使得最终走到*block_elem_end得到0
-    */
 
     constexpr Block *block_ctrl_begin_() const noexcept
     {
