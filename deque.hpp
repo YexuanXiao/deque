@@ -680,6 +680,7 @@ class deque_iterator
     constexpr deque_iterator &operator++() noexcept
     {
         // 空deque的迭代器不能自增，不需要考虑
+        assert(elem_curr_ != elem_begin_ + deque_detail::block_elements_v<T>);
         ++elem_curr_;
         if (elem_curr_ == elem_begin_ + deque_detail::block_elements_v<T>)
         {
