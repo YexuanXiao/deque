@@ -619,16 +619,13 @@ class deque_iterator
                 elem_begin_ = ::std::to_address(*target_block);
                 elem_curr_ = elem_begin_ + elem_step;
             }
-            else if (target_block == block_elem_end_)
+            else
             {
+                assert(target_block == block_elem_end_);
                 assert(elem_step == 0uz);
                 block_elem_curr_ = target_block - 1uz;
                 elem_begin_ = ::std::to_address(*(target_block - 1uz));
                 elem_curr_ = elem_begin_ + deque_detail::block_elements_v<T>;
-            }
-            else
-            {
-                assert(false);
             }
         }
         return *this;
@@ -656,6 +653,7 @@ class deque_iterator
 
     constexpr ::std::strong_ordering operator<=>(deque_iterator const &other) const noexcept
     {
+        assert(block_elem_end_ == other.block_elem_end_);
         if (block_elem_curr_ < other.block_elem_curr_)
             return ::std::strong_ordering::less;
         if (block_elem_curr_ > other.block_elem_curr_)
@@ -669,17 +667,20 @@ class deque_iterator
 
     constexpr T &operator*() noexcept
     {
+        assert(elem_curr_ != elem_begin_ + deque_detail::block_elements_v<T>);
         return *elem_curr_;
     }
 
     constexpr T &operator*() const noexcept
     {
+        assert(elem_curr_ != elem_begin_ + deque_detail::block_elements_v<T>);
         return *elem_curr_;
     }
 
     constexpr deque_iterator &operator++() noexcept
     {
         // 空deque的迭代器不能自增，不需要考虑
+        assert(elem_curr_ != elem_begin_ + deque_detail::block_elements_v<T>);
         ++elem_curr_;
         if (elem_curr_ == elem_begin_ + deque_detail::block_elements_v<T>)
         {
@@ -742,6 +743,7 @@ class deque_iterator
 
     friend constexpr ::std::ptrdiff_t operator-(deque_iterator const &lhs, deque_iterator const &rhs) noexcept
     {
+        assert(lhs.block_elem_end_ == rhs.block_elem_end_);
         auto const block_size = lhs.block_elem_curr_ - rhs.block_elem_curr_;
         return block_size * static_cast<::std::ptrdiff_t>(block_elements_v<T>) + lhs.elem_curr_ - lhs.elem_begin_ -
                (rhs.elem_curr_ - rhs.elem_begin_);
