@@ -1741,8 +1741,7 @@ ctrl_end   →
     // 使用count、count和T、或者随机访问迭代器进行构造
     // 注意异常安全，需要调用者使用guard，并且分配好足够多内存
     template <typename... Ts>
-    constexpr void construct(::std::size_t const block_size, ::std::size_t const full_blocks,
-                             ::std::size_t const rem_elems, Ts &&...ts)
+    constexpr void construct(::std::size_t const full_blocks, ::std::size_t const rem_elems, Ts &&...ts)
     {
         // 由于析构优先考虑elem_begin，因此必须独立构造elem_begin
         if (full_blocks)
@@ -1897,7 +1896,7 @@ ctrl_end   →
         auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(count);
         construct_guard guard(this);
         extent_block(block_size);
-        construct(block_size, full_blocks, rem_elems);
+        construct(full_blocks, rem_elems);
         guard.release();
     }
 
@@ -1906,7 +1905,7 @@ ctrl_end   →
         auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(count);
         construct_guard guard(this);
         extent_block(block_size);
-        construct(block_size, full_blocks, rem_elems, t);
+        construct(full_blocks, rem_elems, t);
         guard.release();
     }
 
@@ -1927,7 +1926,7 @@ ctrl_end   →
         {
             auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(last - first);
             extent_block(block_size);
-            construct(block_size, full_blocks, rem_elems, ::std::move(first), ::std::move(last));
+            construct(full_blocks, rem_elems, ::std::move(first), ::std::move(last));
         }
     }
 
@@ -1974,7 +1973,7 @@ ctrl_end   →
             {
                 auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(size);
                 extent_block(block_size);
-                construct(block_size, full_blocks, rem_elems, ::std::ranges::begin(rg), ::std::ranges::end(rg));
+                construct(full_blocks, rem_elems, ::std::ranges::begin(rg), ::std::ranges::end(rg));
             }
         }
         else if constexpr (::std::random_access_iterator<decltype(::std::ranges::begin(rg))>)
@@ -2072,7 +2071,7 @@ ctrl_end   →
         {
             auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(ilist.size());
             extent_block(block_size);
-            construct(block_size, full_blocks, rem_elems, ::std::ranges::begin(ilist), ::std::ranges::end(ilist));
+            construct(full_blocks, rem_elems, ::std::ranges::begin(ilist), ::std::ranges::end(ilist));
         }
         return *this;
     }
@@ -2108,7 +2107,7 @@ ctrl_end   →
         {
             auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(count);
             extent_block(block_size);
-            construct(block_size, full_blocks, rem_elems, value);
+            construct(full_blocks, rem_elems, value);
         }
         /*
         assign_range(::std::ranges::views::repeat(value, count));
@@ -2621,11 +2620,11 @@ ctrl_end   →
             for (; target_block_end != block_curr + 1uz;)
             {
                 --target_block_end;
-                auto const begin = *target_block_end;
-                auto const end = begin + deque_detail::block_elements_v<T>;
+                auto const target_begin = *target_block_end;
+                auto const target_end = target_begin + deque_detail::block_elements_v<T>;
                 *last_elem = ::std::move(*(end - 1uz));
-                last_elem = begin;
-                ::std::ranges::move_backward(begin, end - 1uz, end);
+                last_elem = target_begin;
+                ::std::ranges::move_backward(target_begin, target_end - 1uz, target_end);
             }
         }
         // 移动插入位置所在的块
@@ -2650,20 +2649,16 @@ ctrl_end   →
         auto const block_begin = block_elem_begin;
         auto const block_size = block_curr - block_begin + 0uz;
         // 向前移动后尾部空出来的的后面一个位置
+        auto const last_elem_begin = elem_begin_begin;
         auto last_elem_end = elem_begin_end;
-        // if block_size
+        emplace_front_noalloc_(::std::move(front()));
+        // 如果block_curr是首个块，那么elem_curr就是终点
+        if (block_begin == block_curr)
         {
-            auto const begin = elem_begin_begin;
-            auto const block_begin = block_elem_begin;
-            emplace_front_noalloc(::std::move(front()));
-            // 如果block_curr是首个块，那么elem_curr就是终点
-            if (block_begin == block_curr)
-            {
-                last_elem_end = elem_curr;
-            }
-            // 否则之前储存的last_elem_end是终点
-            ::std::ranges::move(begin + 1uz, last_elem_end, begin);
+            last_elem_end = elem_curr;
         }
+        // 否则之前储存的last_elem_end是终点
+        ::std::ranges::move(last_elem_begin + 1uz, last_elem_end, last_elem_begin);
         if (block_size > 1uz)
         {
             auto target_block_begin = block_begin + 1uz;
