@@ -579,16 +579,16 @@ class deque_iterator
     RConstT *elem_begin{};
     RConstT *elem_curr{};
 
-    constexpr deque_iterator(Block *const block_begin, Block *const block_end, RConstT *const curr,
-                             RConstT *const begin) noexcept
-        : block_elem_curr(block_begin), block_elem_end(block_end), elem_curr(curr), elem_begin(begin)
+    constexpr deque_iterator(Block *const block_begin, Block *const block_end, RConstT *const begin,
+                             RConstT *const curr) noexcept
+        : block_elem_curr(block_begin), block_elem_end(block_end), elem_begin(begin), elem_curr(curr)
     {
     }
 
     constexpr deque_iterator<RConstT> remove_const() const noexcept
         requires(::std::is_const_v<T>)
     {
-        return {block_elem_curr, block_elem_end, elem_curr, elem_begin};
+        return {block_elem_curr, block_elem_end, elem_begin, elem_curr};
     }
 
     constexpr T &at_impl(::std::ptrdiff_t const pos) const noexcept
@@ -781,7 +781,7 @@ class deque_iterator
     constexpr operator deque_iterator<T const>() const
         requires(not::std::is_const_v<T>)
     {
-        return {block_elem_curr, block_elem_end, elem_curr, elem_begin};
+        return {block_elem_curr, block_elem_end, elem_begin, elem_curr};
     }
 };
 
@@ -1268,7 +1268,7 @@ ctrl_end   →
         {
             return const_iterator{nullptr, nullptr, nullptr, nullptr};
         }
-        return const_iterator{block_elem_begin, block_elem_end, elem_begin_begin, *block_elem_begin};
+        return const_iterator{block_elem_begin, block_elem_end, *block_elem_begin, elem_begin_begin};
     }
 
     constexpr const_iterator end() const noexcept
@@ -1277,7 +1277,7 @@ ctrl_end   →
         {
             return const_iterator{nullptr, nullptr, nullptr, nullptr};
         }
-        return const_iterator{block_elem_end - 1uz, block_elem_end, elem_end_end, *(block_elem_end - 1uz)};
+        return const_iterator{block_elem_end - 1uz, block_elem_end, *(block_elem_end - 1uz), elem_end_end};
     }
 
     constexpr iterator begin() noexcept
