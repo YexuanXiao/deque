@@ -612,16 +612,13 @@ class deque_iterator
                 elem_begin = *target_block;
                 elem_curr = elem_begin + elem_step;
             }
-            else if (target_block == block_elem_end)
+            else
             {
+                assert(target_block == block_elem_end);
                 assert(elem_step == 0uz);
                 block_elem_curr = target_block - 1uz;
                 elem_begin = *(target_block - 1uz);
                 elem_curr = elem_begin + deque_detail::block_elements_v<T>;
-            }
-            else
-            {
-                assert(false);
             }
         }
         return *this;
@@ -649,6 +646,7 @@ class deque_iterator
 
     constexpr ::std::strong_ordering operator<=>(deque_iterator const &other) const noexcept
     {
+        assert(block_elem_end == other.block_elem_end);
         if (block_elem_curr < other.block_elem_curr)
             return ::std::strong_ordering::less;
         if (block_elem_curr > other.block_elem_curr)
@@ -662,16 +660,19 @@ class deque_iterator
 
     constexpr T &operator*() noexcept
     {
+        assert(elem_curr != elem_begin + deque_detail::block_elements_v<T>);
         return *elem_curr;
     }
 
     constexpr T &operator*() const noexcept
     {
+        assert(elem_curr != elem_begin + deque_detail::block_elements_v<T>);
         return *elem_curr;
     }
 
     constexpr deque_iterator &operator++() noexcept
     {
+        assert(elem_curr != elem_begin + deque_detail::block_elements_v<T>);
         // 空deque的迭代器不能自增，不需要考虑
         ++elem_curr;
         if (elem_curr == elem_begin + deque_detail::block_elements_v<T>)
@@ -735,6 +736,7 @@ class deque_iterator
 
     friend constexpr ::std::ptrdiff_t operator-(deque_iterator const &lhs, deque_iterator const &rhs) noexcept
     {
+        assert(lhs.block_elem_end == rhs.block_elem_end);
         auto const block_size = lhs.block_elem_curr - rhs.block_elem_curr;
         return block_size * static_cast<::std::ptrdiff_t>(block_elements_v<T>) + lhs.elem_curr - lhs.elem_begin -
                (rhs.elem_curr - rhs.elem_begin);
