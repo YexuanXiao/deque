@@ -587,7 +587,7 @@ class deque_iterator
     RConstT *elem_curr_{};
 
     template <typename U, typename V, typename W, typename X>
-    constexpr deque_iterator(U const block_curr, V const block_end, W const pos, X const begin) noexcept
+    constexpr deque_iterator(U const block_curr, V const block_end, X const begin, W const pos) noexcept
         : block_elem_curr_(deque_detail::to_address(block_curr)), block_elem_end_(deque_detail::to_address(block_end)),
           elem_begin_(deque_detail::to_address(begin)), elem_curr_(deque_detail::to_address(pos))
     {
@@ -596,7 +596,7 @@ class deque_iterator
     constexpr deque_iterator<RConstT, Block> remove_const_() const noexcept
         requires(::std::is_const_v<T>)
     {
-        return {block_elem_curr_, block_elem_end_, elem_curr_, elem_begin_};
+        return {block_elem_curr_, block_elem_end_, elem_begin_, elem_curr_};
     }
 
     constexpr T &at_impl_(::std::ptrdiff_t const pos) const noexcept
@@ -788,7 +788,7 @@ class deque_iterator
     constexpr operator deque_iterator<T const, Block>() const
         requires(not ::std::is_const_v<T>)
     {
-        return {block_elem_curr_, block_elem_end_, elem_curr_, elem_begin_};
+        return {block_elem_curr_, block_elem_end_, elem_begin_, elem_curr_};
     }
 };
 } // namespace deque_detail
@@ -1100,7 +1100,7 @@ class deque
         {
             return const_iterator{nullptr, nullptr, nullptr, nullptr};
         }
-        return const_iterator{block_elem_begin_, block_elem_end_, elem_begin_begin_, *block_elem_begin_};
+        return const_iterator{block_elem_begin_, block_elem_end_, *block_elem_begin_, elem_begin_begin_};
     }
 
     constexpr const_iterator end() const noexcept
@@ -1109,7 +1109,7 @@ class deque
         {
             return const_iterator{nullptr, nullptr, nullptr, nullptr};
         }
-        return const_iterator{block_elem_end_ - 1uz, block_elem_end_, elem_end_end_, *(block_elem_end_ - 1uz)};
+        return const_iterator{block_elem_end_ - 1uz, block_elem_end_, *(block_elem_end_ - 1uz), elem_end_end_};
     }
 
     constexpr iterator begin() noexcept
