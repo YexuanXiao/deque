@@ -809,6 +809,9 @@ class deque
     static constexpr bool is_pocma_ = atraits_t_::propagate_on_container_move_assignment::value;
     static constexpr bool is_pocs_ = atraits_t_::propagate_on_container_swap::value;
 
+    // 给natvis使用，注意不要在其它函数中使用它，以支持使用不完整类型实例化。
+    static inline constexpr ::std::size_t block_elements = deque_detail::block_elements_v<T>;
+
 #if __has_cpp_attribute(msvc::no_unique_address)
     [[msvc::no_unique_address]] Allocator a_{};
 #else
@@ -1007,9 +1010,6 @@ class deque
     using bucket_type = deque_detail::bucket_type<T, Block>;
     using const_bucket_type = deque_detail::bucket_type<T const, Block>;
     using allocator_type = Allocator;
-
-    // 给natvis使用，注意不要在其它函数中使用它，以支持使用不完整类型实例化。
-    static inline constexpr ::std::size_t block_elements = deque_detail::block_elements_v<T>;
 
     constexpr Allocator get_allocator() const noexcept
     {
