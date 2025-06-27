@@ -1017,6 +1017,8 @@ class deque
 #endif
 
     using Block = T *;
+    // 给natvis使用，注意不要在其它函数中使用它，以支持使用不完整类型实例化。
+    static inline constexpr ::std::size_t block_elements = deque_detail::block_elements_v<T>;
 
     // 块数组的起始地址
     Block *block_ctrl_begin{};
@@ -1190,9 +1192,6 @@ ctrl_end   →
     using const_reverse_iterator = ::std::reverse_iterator<deque_detail::deque_iterator<T const>>;
     using bucket_type = deque_detail::bucket_type<T>;
     using const_bucket_type = deque_detail::bucket_type<T const>;
-
-    // 给natvis使用，注意不要在其它函数中使用它，以支持使用不完整类型实例化。
-    static inline constexpr ::std::size_t block_elements = deque_detail::block_elements_v<T>;
 
     constexpr bucket_type buckets() noexcept
     {
