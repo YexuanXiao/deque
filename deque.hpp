@@ -586,10 +586,10 @@ class deque_iterator
     RConstT *elem_begin_{};
     RConstT *elem_curr_{};
 
-    template <typename U, typename V, typename W, typename X>
-    constexpr deque_iterator(U const block_curr, V const block_end, X const begin, W const pos) noexcept
-        : block_elem_curr_(deque_detail::to_address(block_curr)), block_elem_end_(deque_detail::to_address(block_end)),
-          elem_begin_(deque_detail::to_address(begin)), elem_curr_(deque_detail::to_address(pos))
+    template <typename U, typename V>
+    constexpr deque_iterator(Block *block_curr, Block *block_end, U const begin, V const pos) noexcept
+        : block_elem_curr_(block_curr), block_elem_end_(block_end), elem_begin_(deque_detail::to_address(begin)),
+          elem_curr_(deque_detail::to_address(pos))
     {
     }
 
