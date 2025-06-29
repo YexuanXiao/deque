@@ -700,16 +700,12 @@ class deque_iterator
 
     constexpr deque_iterator &operator--() noexcept
     {
-        if (elem_curr != elem_begin)
-        {
-            --elem_curr;
-        }
-        else
-        {
+        if (elem_curr == elem_begin)
             --block_elem_curr;
             elem_begin = *block_elem_curr;
-            elem_curr = elem_begin + deque_detail::block_elements_v<T> - 1uz;
+            elem_curr = elem_begin + deque_detail::block_elements_v<T>;
         }
+        --elem_curr;
         return *this;
     }
 
