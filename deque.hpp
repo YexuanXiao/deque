@@ -154,15 +154,15 @@ inline constexpr auto calc_pos(::std::size_t const front_size, ::std::size_t con
 }
 
 template <typename T, typename Block>
-class bucket_type;
+class buckets_type;
 
 template <typename T, typename Block>
 class bucket_iterator
 {
     using RConstT = ::std::remove_const_t<T>;
 
-    friend bucket_type<RConstT, Block>;
-    friend bucket_type<T, Block>;
+    friend buckets_type<RConstT, Block>;
+    friend buckets_type<T, Block>;
     friend bucket_iterator<T const, Block>;
 
     Block *block_elem_begin_{};
@@ -382,13 +382,13 @@ static_assert(::std::random_access_iterator<bucket_iterator<const int, int *>>);
 #endif
 
 template <typename T, typename Block>
-class bucket_type : public ::std::ranges::view_interface<bucket_type<T, Block>>
+class buckets_type : public ::std::ranges::view_interface<buckets_type<T, Block>>
 {
     using RConstT = ::std::remove_const_t<T>;
 
     template <typename U, typename Allocator>
     friend class bizwen::deque;
-    friend bucket_type<::std::remove_const_t<T>, Block>;
+    friend buckets_type<::std::remove_const_t<T>, Block>;
 
     Block *block_elem_begin_{};
     Block *block_elem_end_{};
@@ -398,7 +398,7 @@ class bucket_type : public ::std::ranges::view_interface<bucket_type<T, Block>>
     RConstT *elem_end_end_{};
 
     template <typename U, typename V>
-    constexpr bucket_type(U const block_elem_begin, U const block_elem_end, V const elem_begin_begin,
+    constexpr buckets_type(U const block_elem_begin, U const block_elem_end, V const elem_begin_begin,
                           V const elem_begin_end, V const elem_end_begin, V const elem_end_end) noexcept
         : block_elem_begin_(::std::to_address(block_elem_begin)), block_elem_end_(::std::to_address(block_elem_end)),
           elem_begin_begin_(::std::to_address(elem_begin_begin)), elem_begin_end_(::std::to_address(elem_begin_end)),
@@ -437,13 +437,13 @@ class bucket_type : public ::std::ranges::view_interface<bucket_type<T, Block>>
     using reverse_iterator = ::std::reverse_iterator<iterator>;
     using const_reverse_iterator = ::std::reverse_iterator<const_iterator>;
 
-    constexpr bucket_type() = default;
+    constexpr buckets_type() = default;
 
-    constexpr ~bucket_type() = default;
+    constexpr ~buckets_type() = default;
 
-    constexpr bucket_type(bucket_type const &) = default;
+    constexpr buckets_type(buckets_type const &) = default;
 
-    constexpr bucket_type &operator=(bucket_type const &) = default;
+    constexpr buckets_type &operator=(buckets_type const &) = default;
 
     constexpr ::std::size_t size() const noexcept
     {
@@ -512,12 +512,12 @@ class bucket_type : public ::std::ranges::view_interface<bucket_type<T, Block>>
 
     constexpr iterator begin() noexcept
     {
-        return static_cast<bucket_type const &>(*this).begin().remove_const_();
+        return static_cast<buckets_type const &>(*this).begin().remove_const_();
     }
 
     constexpr iterator end() noexcept
     {
-        return static_cast<bucket_type const &>(*this).end().remove_const_();
+        return static_cast<buckets_type const &>(*this).end().remove_const_();
     }
 
     constexpr const_iterator cbegin() const noexcept
@@ -560,7 +560,7 @@ class bucket_type : public ::std::ranges::view_interface<bucket_type<T, Block>>
         return const_reverse_iterator{begin()};
     }
 
-    constexpr operator bucket_type<T const, Block>() const
+    constexpr operator buckets_type<T const, Block>() const
         requires(not ::std::is_const_v<T>)
     {
         return {block_elem_begin_, block_elem_end_, elem_begin_begin_, elem_begin_end_, elem_end_begin_, elem_end_end_};
@@ -786,7 +786,6 @@ class deque_iterator
 };
 
 #if !defined(__cpp_lib_ranges_repeat)
-
 template <typename T>
 class repeat_iterator
 {
@@ -900,6 +899,9 @@ class repeat_iterator
     difference_type pos_{};
     pointer value_ptr_{};
 };
+#if !defined(NDEBUG)
+static_assert(::std::random_access_iterator<repeat_iterator<int>>);
+#endif
 #endif
 } // namespace deque_detail
 
@@ -1117,8 +1119,8 @@ class deque
     using reverse_iterator = ::std::reverse_iterator<deque_detail::deque_iterator<T, Block>>;
     using const_iterator = deque_detail::deque_iterator<T const, Block>;
     using const_reverse_iterator = ::std::reverse_iterator<deque_detail::deque_iterator<T const, Block>>;
-    using bucket_type = deque_detail::bucket_type<T, Block>;
-    using const_bucket_type = deque_detail::bucket_type<T const, Block>;
+    using buckets_type = deque_detail::buckets_type<T, Block>;
+    using const_buckets_type = deque_detail::buckets_type<T const, Block>;
     using allocator_type = Allocator;
 
     constexpr Allocator get_allocator() const noexcept
@@ -1126,12 +1128,12 @@ class deque
         return a_;
     }
 
-    constexpr bucket_type buckets() noexcept
+    constexpr buckets_type buckets() noexcept
     {
         return {block_elem_begin_, block_elem_end_, elem_begin_begin_, elem_begin_end_, elem_end_begin_, elem_end_end_};
     }
 
-    constexpr const_bucket_type buckets() const noexcept
+    constexpr const_buckets_type buckets() const noexcept
     {
         return {block_elem_begin_, block_elem_end_, elem_begin_begin_, elem_begin_end_, elem_end_begin_, elem_end_end_};
     }
@@ -1631,7 +1633,7 @@ class deque
 
     // 构造函数和复制赋值的辅助函数，调用前必须分配内存，以及用于构造时使用guard
     template <bool move = false>
-    constexpr void copy_(const_bucket_type const other, ::std::size_t const block_size)
+    constexpr void copy_(const_buckets_type const other, ::std::size_t const block_size)
     {
         if (block_size)
         {
@@ -2006,7 +2008,7 @@ class deque
         {
             if (first.block_elem_curr_ == last.block_elem_curr_)
             {
-                bucket_type bucket{first.block_elem_curr_, last.block_elem_curr_ + ::std::size_t(1),
+                buckets_type bucket{first.block_elem_curr_, last.block_elem_curr_ + ::std::size_t(1),
                                    first.elem_curr_,       last.elem_curr_,
                                    last.elem_begin_,       last.elem_begin_};
                 auto const block_size = bucket.size();
@@ -2015,7 +2017,7 @@ class deque
             }
             else
             {
-                bucket_type bucket{first.block_elem_curr_, last.block_elem_curr_ + ::std::size_t(1),
+                buckets_type bucket{first.block_elem_curr_, last.block_elem_curr_ + ::std::size_t(1),
                                    first.elem_curr_,       first.elem_begin_ + deque_detail::block_elements_v<T>,
                                    last.elem_begin_,       last.elem_curr_};
                 auto const block_size = bucket.size();
