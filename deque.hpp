@@ -1,8 +1,4 @@
-#pragma once
-
-#if !defined(__cpp_size_t_suffix)
-#error "requires __cpp_size_t_suffix"
-#endif
+#ifndef BIZWEN_DEQUE
 
 // assert
 #include <cassert>
@@ -28,7 +24,7 @@
 #include <utility>
 // initializer_list
 #include <initializer_list>
-// __cpp_lib_containers_ranges
+// __cpp_lib_containers_ranges, __cpp_lib_ranges_repeat
 #include <version>
 
 #if not defined(__cpp_pack_indexing)
@@ -57,8 +53,8 @@ namespace deque_detail
 template <typename Tuple>
 inline constexpr auto get(Tuple args) noexcept
 {
-    auto &first = ::std::get<0uz>(args);
-    auto &second = ::std::get<1uz>(args);
+    auto &first = ::std::get<::std::size_t(0)>(args);
+    auto &second = ::std::get<::std::size_t(1)>(args);
     struct iter_ref_pair
     {
         decltype(first) &begin;
@@ -74,8 +70,8 @@ inline constexpr auto get(Tuple args) noexcept
 template <typename... Args>
 inline constexpr auto get(Args &&...args) noexcept
 {
-    auto &first = args...[0uz];
-    auto &second = args...[1uz];
+    auto &first = args...[::std::size_t(0)];
+    auto &second = args...[::std::size_t(1)];
     struct iter_ref_pair
     {
         decltype(first) &begin;
@@ -104,7 +100,7 @@ template <typename T>
 inline constexpr ::std::size_t block_elements_v = BIZWEN_DEQUE_BLOCK_ELEMENTS;
 #else
 template <typename T>
-inline constexpr ::std::size_t block_elements_v = 16uz > 4096uz / sizeof(T) ? 16uz : 4096uz / sizeof(T);
+inline constexpr ::std::size_t block_elements_v = ::std::size_t(16) > ::std::size_t(4096) / sizeof(T) ? ::std::size_t(16) : ::std::size_t(4096) / sizeof(T);
 #endif
 
 // 构造函数和赋值用，计算如何分配和构造
@@ -118,7 +114,7 @@ inline constexpr auto calc_cap(::std::size_t const size) noexcept
         ::std::size_t full_blocks; // 分配了几个完整block
         ::std::size_t rem_elems;   // 剩下的不完整block有多少元素
     };
-    return cap_t{(size + block_elems - 1uz) / block_elems, size / block_elems, size % block_elems};
+    return cap_t{(size + block_elems - ::std::size_t(1)) / block_elems, size / block_elems, size % block_elems};
 }
 
 // 该函数计算位置，参数front_size是起始位置和块首的距离，pos是目标位置
@@ -132,15 +128,15 @@ inline constexpr auto calc_pos(::std::ptrdiff_t const front_size, ::std::ptrdiff
         ::std::ptrdiff_t block_step; // 移动块的步数
         ::std::ptrdiff_t elem_step;  // 移动元素的步数（相对于块首）
     };
-    if (pos >= 0z)
+    if (pos >= ::std::ptrdiff_t(0))
     {
         auto const new_pos = pos + front_size;
         return pos_t{new_pos / block_elems, new_pos % block_elems};
     }
     else
     {
-        auto const new_pos = pos + front_size - block_elems + 1z;
-        return pos_t{new_pos / block_elems, new_pos % block_elems - 1z + block_elems};
+        auto const new_pos = pos + front_size - block_elems + ::std::ptrdiff_t(1);
+        return pos_t{new_pos / block_elems, new_pos % block_elems - ::std::ptrdiff_t(1) + block_elems};
     }
 }
 
@@ -199,7 +195,7 @@ class bucket_iterator
     constexpr bucket_iterator &plus_and_assign_(::std::ptrdiff_t const pos) noexcept
     {
         block_elem_curr_ += pos;
-        if (block_elem_curr_ + 1uz == block_elem_end_)
+        if (block_elem_curr_ + ::std::size_t(1) == block_elem_end_)
         {
             elem_curr_begin_ = elem_end_begin_;
             elem_curr_end_ = elem_end_end_;
@@ -236,7 +232,7 @@ class bucket_iterator
     constexpr bucket_iterator &operator++() noexcept
     {
         ++block_elem_curr_;
-        if (block_elem_curr_ + 1uz == block_elem_end_)
+        if (block_elem_curr_ + ::std::size_t(1) == block_elem_end_)
         {
             elem_curr_begin_ = elem_end_begin_;
             elem_curr_end_ = elem_end_end_;
@@ -271,7 +267,7 @@ class bucket_iterator
         }
         else
         {
-            elem_begin_begin_ = *(block_elem_begin_ - 1uz);
+            elem_begin_begin_ = *(block_elem_begin_ - ::std::size_t(1));
             elem_begin_end_ = elem_begin_begin_ + block_elements_v<T>;
         }
         assert(block_elem_curr_ >= block_elem_begin_);
@@ -413,11 +409,11 @@ class bucket_type : public ::std::ranges::view_interface<bucket_type<T, Block>>
     constexpr ::std::span<T> at_impl(::std::size_t const pos) const noexcept
     {
         assert(block_elem_begin_ + pos <= block_elem_end_);
-        if (pos == 0uz)
+        if (pos == ::std::size_t(0))
         {
             return {elem_begin_begin_, elem_begin_end_};
         }
-        else if (block_elem_begin_ + pos + 1uz == block_elem_end_)
+        else if (block_elem_begin_ + pos + ::std::size_t(1) == block_elem_end_)
         {
             return {elem_end_begin_, elem_end_end_};
         }
@@ -509,7 +505,7 @@ class bucket_type : public ::std::ranges::view_interface<bucket_type<T, Block>>
         }
         else
         {
-            return {block_elem_begin_, block_elem_end_, block_elem_end_ - 1uz, elem_begin_begin_, elem_begin_end_,
+            return {block_elem_begin_, block_elem_end_, block_elem_end_ - ::std::size_t(1), elem_begin_begin_, elem_begin_end_,
                     elem_end_begin_,   elem_end_end_,   elem_end_begin_,       elem_end_end_};
         }
     }
@@ -609,7 +605,7 @@ class deque_iterator
 
     constexpr deque_iterator &plus_and_assign_(::std::ptrdiff_t const pos) noexcept
     {
-        if (pos != 0z)
+        if (pos != ::std::ptrdiff_t(0))
         {
             auto const [block_step, elem_step] = deque_detail::calc_pos<T>(elem_curr_ - elem_begin_, pos);
             auto const target_block = block_elem_curr_ + block_step;
@@ -622,9 +618,9 @@ class deque_iterator
             else
             {
                 assert(target_block == block_elem_end_);
-                assert(elem_step == 0uz);
-                block_elem_curr_ = target_block - 1uz;
-                elem_begin_ = ::std::to_address(*(target_block - 1uz));
+                assert(elem_step == ::std::size_t(0));
+                block_elem_curr_ = target_block - ::std::size_t(1);
+                elem_begin_ = ::std::to_address(*(target_block - ::std::size_t(1)));
                 elem_curr_ = elem_begin_ + deque_detail::block_elements_v<T>;
             }
         }
@@ -684,7 +680,7 @@ class deque_iterator
         ++elem_curr_;
         if (elem_curr_ == elem_begin_ + deque_detail::block_elements_v<T>)
         {
-            if (block_elem_curr_ + 1uz != block_elem_end_)
+            if (block_elem_curr_ + ::std::size_t(1) != block_elem_end_)
             {
                 ++block_elem_curr_;
                 elem_begin_ = ::std::to_address(*block_elem_curr_);
@@ -901,7 +897,7 @@ class repeat_iterator
     }
 
   private:
-    difference_type pos_ = 0z;
+    difference_type pos_ = ::std::ptrdiff_t(0);
     pointer value_ptr_ = nullptr;
 };
 #endif
@@ -1029,9 +1025,9 @@ class deque
             }
         }
         // 清理中间的块
-        if (block_size > 2uz)
+        if (block_size > ::std::size_t(2))
         {
-            for (auto const block_begin : ::std::ranges::subrange{block_elem_begin_ + 1uz, block_elem_end_ - 1uz})
+            for (auto const block_begin : ::std::ranges::subrange{block_elem_begin_ + ::std::size_t(1), block_elem_end_ - ::std::size_t(1)})
             {
                 for (auto const &i :
                      ::std::ranges::subrange{block_begin, block_begin + deque_detail::block_elements_v<T>})
@@ -1040,7 +1036,7 @@ class deque
                 }
             }
         }
-        if (block_size > 1uz)
+        if (block_size > ::std::size_t(1))
         {
             for (auto const &i : ::std::ranges::subrange{elem_end_begin_, elem_end_end_})
             {
@@ -1182,16 +1178,16 @@ class deque
     constexpr ::std::size_t size() const noexcept
     {
         auto const block_size = block_elem_size_();
-        auto result = 0uz;
+        auto result = ::std::size_t(0);
         if (block_size)
         {
             result += elem_begin_end_ - elem_begin_begin_;
         }
-        if (block_size > 2uz)
+        if (block_size > ::std::size_t(2))
         {
-            result += (block_size - 2uz) * deque_detail::block_elements_v<T>;
+            result += (block_size - ::std::size_t(2)) * deque_detail::block_elements_v<T>;
         }
-        if (block_size > 1uz)
+        if (block_size > ::std::size_t(1))
         {
             result += elem_end_end_ - elem_end_begin_;
         }
@@ -1200,7 +1196,7 @@ class deque
 
     constexpr ::std::size_t max_size() const noexcept
     {
-        return ::std::size_t(-1) / 2uz;
+        return ::std::size_t(-1) / ::std::size_t(2);
     }
 
 #if !defined(NDEBUG)
@@ -1210,7 +1206,7 @@ class deque
 
     constexpr const_iterator begin() const noexcept
     {
-        if (block_elem_size_() == 0uz)
+        if (block_elem_size_() == ::std::size_t(0))
         {
             return const_iterator{nullptr, nullptr, nullptr, nullptr};
         }
@@ -1219,11 +1215,11 @@ class deque
 
     constexpr const_iterator end() const noexcept
     {
-        if (block_elem_size_() == 0uz)
+        if (block_elem_size_() == ::std::size_t(0))
         {
             return const_iterator{nullptr, nullptr, nullptr, nullptr};
         }
-        return const_iterator{block_elem_end_ - 1uz, block_elem_end_, *(block_elem_end_ - 1uz), elem_end_end_};
+        return const_iterator{block_elem_end_ - ::std::size_t(1), block_elem_end_, *(block_elem_end_ - ::std::size_t(1)), elem_end_end_};
     }
 
     constexpr iterator begin() noexcept
@@ -1332,7 +1328,7 @@ class deque
         // 参数是新大小
         constexpr ctrl_alloc_(deque &dq, ::std::size_t const ctrl_size) : d(dq)
         {
-            auto const size = (ctrl_size + (4uz - 1uz)) / 4uz * 4uz;
+            auto const size = (ctrl_size + (::std::size_t(4) - ::std::size_t(1))) / ::std::size_t(4) * ::std::size_t(4);
             block_ctrl_begin_fancy = d.alloc_ctrl_(size);
             block_ctrl_end = deque_detail::to_address(block_ctrl_begin_fancy) + size;
         }
@@ -1412,7 +1408,7 @@ class deque
     {
         assert(block_alloc_begin_ != block_ctrl_begin_());
         assert(block_alloc_begin_);
-        for (auto i = 0uz; i != block_size; ++i)
+        for (auto i = ::std::size_t(0); i != block_size; ++i)
         {
             --block_alloc_begin_;
             *block_alloc_begin_ = alloc_block_();
@@ -1425,7 +1421,7 @@ class deque
     {
         assert(block_alloc_end_ != block_ctrl_end_);
         assert(block_alloc_end_);
-        for (auto i = 0uz; i != block_size; ++i)
+        for (auto i = ::std::size_t(0); i != block_size; ++i)
         {
             *block_alloc_end_ = alloc_block_();
             ++block_alloc_end_;
@@ -1442,7 +1438,7 @@ class deque
         // 尾部块的cap
         auto const tail_block_cap = (block_alloc_end_ - block_elem_end_) * deque_detail::block_elements_v<T>;
         // 尾块的已使用大小
-        auto const tail_cap = elem_end_last_ - elem_end_end_ + 0uz;
+        auto const tail_cap = elem_end_last_ - elem_end_end_ + ::std::size_t(0);
         // non_move_cap为尾部-尾部已用，不移动块时cap
         auto const non_move_cap = tail_block_cap + tail_cap;
         // 首先如果cap足够，则不需要分配新block
@@ -1460,7 +1456,7 @@ class deque
         }
         // 计算需要分配多少块数组，无论接下来是什么逻辑都直接使用它
         auto const add_block_size =
-            (add_elem_size - move_cap + deque_detail::block_elements_v<T> - 1uz) / deque_detail::block_elements_v<T>;
+            (add_elem_size - move_cap + deque_detail::block_elements_v<T> - ::std::size_t(1)) / deque_detail::block_elements_v<T>;
         // 获得目前控制块容许容量
         auto const ctrl_cap = ((block_alloc_begin_ - block_ctrl_begin_()) + (block_ctrl_end_ - block_alloc_end_)) *
                                   deque_detail::block_elements_v<T> +
@@ -1492,17 +1488,17 @@ class deque
             align_elem_as_alloc_back_();
             return;
         }
-        if ((block_alloc_begin_ - block_ctrl_begin_()) + (block_ctrl_end_ - block_alloc_end_) != 0uz)
+        if ((block_alloc_begin_ - block_ctrl_begin_()) + (block_ctrl_end_ - block_alloc_end_) != ::std::size_t(0))
         {
             align_elem_alloc_as_ctrl_back_(block_ctrl_begin_());
         }
         else
         {
             // 否则扩展控制块
-            ctrl_alloc_ const ctrl{*this, block_alloc_size_() + 1uz}; // may throw
+            ctrl_alloc_ const ctrl{*this, block_alloc_size_() + ::std::size_t(1)}; // may throw
             ctrl.replace_ctrl_back();
         }
-        extent_block_back_uncond_(1uz);
+        extent_block_back_uncond_(::std::size_t(1));
     }
 
     // 从front扩展block，空deque安全
@@ -1514,7 +1510,7 @@ class deque
         // 尾部块的cap
         auto const tail_block_alloc_cap = (block_alloc_end_ - block_elem_end_) * deque_detail::block_elements_v<T>;
         // 头块的已使用大小
-        auto const head_cap = elem_begin_begin_ - elem_begin_first_ + 0uz;
+        auto const head_cap = elem_begin_begin_ - elem_begin_first_ + ::std::size_t(0);
         // non_move_cap为头部-头部已用，不移动块时cap
         auto const non_move_cap = head_block_alloc_cap + head_cap;
         // 首先如果cap足够，则不需要分配新block
@@ -1532,7 +1528,7 @@ class deque
         }
         // 计算需要分配多少块数组，无论接下来是什么逻辑都直接使用它
         auto const add_block_size =
-            (add_elem_size - move_cap + deque_detail::block_elements_v<T> - 1uz) / deque_detail::block_elements_v<T>;
+            (add_elem_size - move_cap + deque_detail::block_elements_v<T> - ::std::size_t(1)) / deque_detail::block_elements_v<T>;
         // 获得目前控制块容许容量
         auto const ctrl_cap = ((block_alloc_begin_ - block_ctrl_begin_()) + (block_ctrl_end_ - block_alloc_end_)) *
                                   deque_detail::block_elements_v<T> +
@@ -1564,17 +1560,17 @@ class deque
             align_elem_as_alloc_front_();
             return;
         }
-        if ((block_alloc_begin_ - block_ctrl_begin_()) + (block_ctrl_end_ - block_alloc_end_) != 0uz)
+        if ((block_alloc_begin_ - block_ctrl_begin_()) + (block_ctrl_end_ - block_alloc_end_) != ::std::size_t(0))
         {
             align_elem_alloc_as_ctrl_front_(block_ctrl_end_);
         }
         else
         {
             // 否则扩展控制块
-            ctrl_alloc_ const ctrl{*this, block_alloc_size_() + 1uz}; // may throw
+            ctrl_alloc_ const ctrl{*this, block_alloc_size_() + ::std::size_t(1)}; // may throw
             ctrl.replace_ctrl_front();
         }
-        extent_block_front_uncond_(1uz);
+        extent_block_front_uncond_(::std::size_t(1));
     }
 
     struct construct_guard_
@@ -1605,11 +1601,11 @@ class deque
     // 调用后可直接填充元素
     constexpr void extent_block_(::std::size_t const new_block_size)
     {
-        if (new_block_size != 0uz)
+        if (new_block_size != ::std::size_t(0))
         {
             auto const ctrl_block_size = block_ctrl_size_();
             auto const alloc_block_size = block_alloc_size_();
-            if (ctrl_block_size == 0uz)
+            if (ctrl_block_size == ::std::size_t(0))
             {
                 ctrl_alloc_ const ctrl(*this, new_block_size); // may throw
                 ctrl.replace_ctrl();
@@ -1659,10 +1655,10 @@ class deque
             elem_end_(begin, last, last);
             ++block_elem_end_;
         }
-        if (block_size > 2uz)
+        if (block_size > ::std::size_t(2))
         {
             for (auto const block_begin :
-                 ::std::ranges::subrange{other.block_elem_begin_ + 1uz, other.block_elem_end_ - 1uz})
+                 ::std::ranges::subrange{other.block_elem_begin_ + ::std::size_t(1), other.block_elem_end_ - ::std::size_t(1)})
             {
                 auto const begin = *block_elem_end_;
                 auto const src_begin = block_begin;
@@ -1681,7 +1677,7 @@ class deque
             }
             elem_end_last_ = elem_end_end_;
         }
-        if (block_size > 1uz)
+        if (block_size > ::std::size_t(1))
         {
             auto const begin = *block_elem_end_;
             if constexpr (move)
@@ -1727,7 +1723,7 @@ class deque
         {
             auto const begin = *block_elem_end_;
             auto const end = begin + deque_detail::block_elements_v<T>;
-            if constexpr (sizeof...(Ts) == 0uz)
+            if constexpr (sizeof...(Ts) == ::std::size_t(0))
             {
                 if constexpr (is_default_operation_)
                 {
@@ -1744,7 +1740,7 @@ class deque
                     }
                 }
             }
-            else if constexpr (sizeof...(Ts) == 1uz)
+            else if constexpr (sizeof...(Ts) == ::std::size_t(1))
             {
                 if constexpr (is_default_operation_)
                 {
@@ -1761,7 +1757,7 @@ class deque
                     }
                 }
             }
-            else if constexpr (sizeof...(Ts) == 2uz)
+            else if constexpr (sizeof...(Ts) == ::std::size_t(2))
             {
 #if defined(__cpp_pack_indexing)
                 auto [src_begin, src_end] = deque_detail::get(ts...);
@@ -1780,13 +1776,13 @@ class deque
             elem_end_(begin, end, end);
             ++block_elem_end_;
         }
-        if (full_blocks > 1uz)
+        if (full_blocks > ::std::size_t(1))
         {
-            for (auto i = 0uz; i != full_blocks - 1uz; ++i)
+            for (auto i = ::std::size_t(0); i != full_blocks - ::std::size_t(1); ++i)
             {
                 auto const begin = *block_elem_end_;
                 auto const end = begin + deque_detail::block_elements_v<T>;
-                if constexpr (sizeof...(Ts) == 0uz)
+                if constexpr (sizeof...(Ts) == ::std::size_t(0))
                 {
                     if constexpr (is_default_operation_)
                     {
@@ -1803,7 +1799,7 @@ class deque
                         }
                     }
                 }
-                else if constexpr (sizeof...(Ts) == 1uz)
+                else if constexpr (sizeof...(Ts) == ::std::size_t(1))
                 {
                     if constexpr (is_default_operation_)
                     {
@@ -1820,7 +1816,7 @@ class deque
                         }
                     }
                 }
-                else if constexpr (sizeof...(Ts) == 2uz)
+                else if constexpr (sizeof...(Ts) == ::std::size_t(2))
                 {
 #if defined(__cpp_pack_indexing)
                     auto [src_begin, src_end] = deque_detail::get(ts...);
@@ -1844,7 +1840,7 @@ class deque
         {
             auto const begin = *block_elem_end_;
             auto const end = begin + rem_elems;
-            if constexpr (sizeof...(Ts) == 0uz)
+            if constexpr (sizeof...(Ts) == ::std::size_t(0))
             {
                 if constexpr (is_default_operation_)
                 {
@@ -1861,7 +1857,7 @@ class deque
                     }
                 }
             }
-            else if constexpr (sizeof...(Ts) == 1uz)
+            else if constexpr (sizeof...(Ts) == ::std::size_t(1))
             {
                 if constexpr (is_default_operation_)
                 {
@@ -1878,7 +1874,7 @@ class deque
                     }
                 }
             }
-            else if constexpr (sizeof...(Ts) == 2uz)
+            else if constexpr (sizeof...(Ts) == ::std::size_t(2))
             {
 #if defined(__cpp_pack_indexing)
                 auto [src_begin, src_end] = deque_detail::get(ts...);
@@ -1892,7 +1888,7 @@ class deque
             {
                 static_assert(false);
             }
-            if (full_blocks == 0uz) // 注意
+            if (full_blocks == ::std::size_t(0)) // 注意
             {
                 elem_begin_(begin, end, begin);
             }
@@ -1906,11 +1902,11 @@ class deque
     {
         auto const end = elem_end_end_;
         atraits_t_::construct(a_, end, ::std::forward<V>(v)...); // may throw
-        elem_end_end_ = end + 1uz;
+        elem_end_end_ = end + ::std::size_t(1);
         // 修正elem_begin
-        if (block_size == 1uz)
+        if (block_size == ::std::size_t(1))
         {
-            elem_begin_end_ = end + 1uz;
+            elem_begin_end_ = end + ::std::size_t(1);
         }
         return *end;
     }
@@ -1921,12 +1917,12 @@ class deque
     {
         auto const begin = ::std::to_address(*block_elem_end_);
         atraits_t_::construct(a_, begin, ::std::forward<V>(v)...); // may throw
-        elem_end_(begin, begin + 1uz, begin + deque_detail::block_elements_v<T>);
+        elem_end_(begin, begin + ::std::size_t(1), begin + deque_detail::block_elements_v<T>);
         ++block_elem_end_;
         // 修正elem_begin，如果先前为0，说明现在是1，修正elem_begin等于elem_end
-        if (block_size == 0uz)
+        if (block_size == ::std::size_t(0))
         {
-            elem_begin_(begin, begin + 1uz, begin);
+            elem_begin_(begin, begin + ::std::size_t(1), begin);
         }
         return *begin;
     }
@@ -2010,7 +2006,7 @@ class deque
         {
             if (first.block_elem_curr_ == last.block_elem_curr_)
             {
-                bucket_type bucket{first.block_elem_curr_, last.block_elem_curr_ + 1uz,
+                bucket_type bucket{first.block_elem_curr_, last.block_elem_curr_ + ::std::size_t(1),
                                    first.elem_curr_,       last.elem_curr_,
                                    last.elem_begin_,       last.elem_begin_};
                 auto const block_size = bucket.size();
@@ -2019,7 +2015,7 @@ class deque
             }
             else
             {
-                bucket_type bucket{first.block_elem_curr_, last.block_elem_curr_ + 1uz,
+                bucket_type bucket{first.block_elem_curr_, last.block_elem_curr_ + ::std::size_t(1),
                                    first.elem_curr_,       first.elem_begin_ + deque_detail::block_elements_v<T>,
                                    last.elem_begin_,       last.elem_curr_};
                 auto const block_size = bucket.size();
@@ -2304,7 +2300,7 @@ class deque
         auto const [block_step, elem_step] = deque_detail::calc_pos<T>(front_size, pos);
         auto const target_block = block_elem_begin_ + block_step;
         auto const check_block = target_block < block_elem_end_;
-        auto const check_elem = (target_block + 1uz == block_elem_end_)
+        auto const check_elem = (target_block + ::std::size_t(1) == block_elem_end_)
                                     ? (::std::to_address(*target_block) + elem_step < elem_end_end_)
                                     : true;
         if constexpr (throw_exception)
@@ -2323,13 +2319,13 @@ class deque
     template <typename... V>
     constexpr T &emplace_front_pre_(::std::size_t const block_size, V &&...v)
     {
-        auto const begin = ::std::to_address(elem_begin_begin_ - 1uz);
+        auto const begin = ::std::to_address(elem_begin_begin_ - ::std::size_t(1));
         atraits_t_::construct(a_, begin, ::std::forward<V>(v)...); // may throw
         elem_begin_begin_ = begin;
-        if (block_size == 1uz)
+        if (block_size == ::std::size_t(1))
         {
 #if __has_cpp_attribute(assume)
-            [[assume(begin + 1uz == elem_begin_begin_)]];
+            [[assume(begin + ::std::size_t(1) == elem_begin_begin_)]];
 #endif
             elem_end_begin_ = begin;
         }
@@ -2340,21 +2336,21 @@ class deque
     template <typename... V>
     constexpr T &emplace_front_post_(::std::size_t const block_size, V &&...v)
     {
-        auto const block = block_elem_begin_ - 1uz;
+        auto const block = block_elem_begin_ - ::std::size_t(1);
         auto const first = ::std::to_address(*block);
         auto const end = first + deque_detail::block_elements_v<T>;
-        atraits_t_::construct(a_, end - 1uz, ::std::forward<V>(v)...); // may throw
-        elem_begin_(end - 1uz, end, first);
+        atraits_t_::construct(a_, end - ::std::size_t(1), ::std::forward<V>(v)...); // may throw
+        elem_begin_(end - ::std::size_t(1), end, first);
 #if __has_cpp_attribute(assume)
-        [[assume(block + 1uz == block_elem_begin_)]];
+        [[assume(block + ::std::size_t(1) == block_elem_begin_)]];
 #endif
         --block_elem_begin_;
         // 修正elem_end
-        if (block_size == 0uz)
+        if (block_size == ::std::size_t(0))
         {
-            elem_end_(end - 1uz, end, end);
+            elem_end_(end - ::std::size_t(1), end, end);
         }
-        return *(end - 1uz);
+        return *(end - ::std::size_t(1));
     }
 
   public:
@@ -2396,7 +2392,7 @@ class deque
     // 不会失败且不移动元素
     constexpr void shrink_to_fit() noexcept
     {
-        if (block_alloc_size_() != 0uz) // 保证fill_block_alloc_end
+        if (block_alloc_size_() != ::std::size_t(0)) // 保证fill_block_alloc_end
         {
             for (auto const i : ::std::ranges::subrange{block_alloc_begin_, block_elem_begin_})
             {
@@ -2442,13 +2438,13 @@ class deque
         {
             --block_elem_end_;
             auto const block_size = block_elem_size_();
-            if (block_size == 1uz)
+            if (block_size == ::std::size_t(1))
             {
                 elem_end_(elem_begin_begin_, elem_begin_end_, elem_begin_end_);
             }
             else if (block_size)
             {
-                auto const begin = *(block_elem_end_ - 1uz);
+                auto const begin = *(block_elem_end_ - ::std::size_t(1));
                 auto const last = begin + deque_detail::block_elements_v<T>;
                 elem_end_(begin, last, last);
             }
@@ -2458,7 +2454,7 @@ class deque
                 elem_end_(nullptr, nullptr, nullptr);
             }
         }
-        else if (block_elem_size_() == 1uz)
+        else if (block_elem_size_() == ::std::size_t(1))
         {
             --elem_begin_end_;
         }
@@ -2475,7 +2471,7 @@ class deque
             ++block_elem_begin_;
             auto const block_size = block_elem_size_();
             // 注意，如果就剩最后一个block，那么应该采用end的位置而不是计算得到
-            if (block_size == 1uz)
+            if (block_size == ::std::size_t(1))
             {
                 elem_begin_(elem_end_begin_, elem_end_end_, elem_end_begin_);
             }
@@ -2491,7 +2487,7 @@ class deque
                 elem_end_(nullptr, nullptr, nullptr);
             }
         }
-        else if (block_elem_size_() == 1uz)
+        else if (block_elem_size_() == ::std::size_t(1))
         {
             ++elem_end_begin_;
         }
@@ -2506,7 +2502,7 @@ class deque
     constexpr T &back() noexcept
     {
         assert(not empty());
-        return *(elem_end_end_ - 1uz);
+        return *(elem_end_end_ - ::std::size_t(1));
     }
 
     constexpr T const &front() const noexcept
@@ -2518,13 +2514,13 @@ class deque
     constexpr T const &back() const noexcept
     {
         assert(not empty());
-        return *(elem_end_end_ - 1uz);
+        return *(elem_end_end_ - ::std::size_t(1));
     }
 
   private:
     constexpr void pop_back_n_(::std::size_t const count) noexcept
     {
-        for (auto i = 0uz; i != count; ++i)
+        for (auto i = ::std::size_t(0); i != count; ++i)
         {
             assert(!empty());
             pop_back();
@@ -2533,7 +2529,7 @@ class deque
 
     constexpr void pop_front_n_(::std::size_t const count) noexcept
     {
-        for (auto i = 0uz; i != count; ++i)
+        for (auto i = ::std::size_t(0); i != count; ++i)
         {
             assert(!empty());
             pop_front();
@@ -2766,11 +2762,11 @@ class deque
         {
             auto const [block_step, elem_step] =
                 deque_detail::calc_pos<T>(static_cast<::std::size_t>(elem_begin_begin_ - elem_begin_first_), new_size);
-            if (block_step == 0uz)
+            if (block_step == ::std::size_t(0))
             {
                 auto const begin = elem_begin_first_;
                 elem_end_(elem_begin_begin_, begin + elem_step, begin + deque_detail::block_elements_v<T>);
-                block_elem_end_ = block_elem_begin_ + 1uz;
+                block_elem_end_ = block_elem_begin_ + ::std::size_t(1);
                 elem_begin_(elem_begin_begin_, begin + elem_step, begin);
             }
             else
@@ -2778,13 +2774,13 @@ class deque
                 auto const target_block = block_elem_begin_ + block_step;
                 auto const begin = *target_block;
                 elem_end_(begin, begin + elem_step, begin + deque_detail::block_elements_v<T>);
-                block_elem_end_ = target_block + 1uz;
+                block_elem_end_ = target_block + ::std::size_t(1);
             }
         }
         else
         {
             auto const count = old_size - new_size;
-            for (auto i = 0uz; i != count; ++i)
+            for (auto i = ::std::size_t(0); i != count; ++i)
             {
                 assert(!empty());
                 pop_back();
@@ -2804,7 +2800,7 @@ class deque
             auto const diff = new_size - old_size;
             reserve_back_(diff);
             partial_guard_<true> guard(this, old_size);
-            for (auto i = 0uz; i != diff; ++i)
+            for (auto i = ::std::size_t(0); i != diff; ++i)
             {
                 emplace_back_noalloc_(ts...);
             }
@@ -2816,12 +2812,12 @@ class deque
     // 注意必须调用clear，使得空容器的elem_begin/elem_end都为空指针
     constexpr void resize(::std::size_t const new_size)
     {
-        new_size == 0uz ? clear() : resize_unified_(new_size);
+        new_size == ::std::size_t(0) ? clear() : resize_unified_(new_size);
     }
 
     constexpr void resize(::std::size_t const new_size, T const &t)
     {
-        new_size == 0uz ? clear() : resize_unified_(new_size, t);
+        new_size == ::std::size_t(0) ? clear() : resize_unified_(new_size, t);
     }
 
   private:
@@ -2831,7 +2827,7 @@ class deque
     constexpr void back_emplace_(Block *const block_curr, T *const elem_curr)
     {
         auto const block_end = block_elem_end_;
-        auto const block_size = block_end - block_curr - 1uz;
+        auto const block_size = block_end - block_curr - ::std::size_t(1);
         // 每次移动时留下的空位
         auto last_elem = elem_end_begin_;
         // 先记录尾块块尾位置
@@ -2839,37 +2835,37 @@ class deque
         // 再emplace_back
         emplace_back_noalloc_(::std::move(back()));
         // 如果大于一个块，那么移动整个尾块
-        if (block_size > 0uz)
+        if (block_size > ::std::size_t(0))
         {
             auto const begin = last_elem;
-            ::std::ranges::move_backward(begin, end - 1uz, end);
+            ::std::ranges::move_backward(begin, end - ::std::size_t(1), end);
         }
         // 移动中间的块
-        if (block_size > 1uz)
+        if (block_size > ::std::size_t(1))
         {
-            auto target_block_end = block_end - 1uz;
-            for (; target_block_end != block_curr + 1uz;)
+            auto target_block_end = block_end - ::std::size_t(1);
+            for (; target_block_end != block_curr + ::std::size_t(1);)
             {
                 --target_block_end;
                 auto const target_begin = ::std::to_address(*target_block_end);
                 auto const target_end = target_begin + deque_detail::block_elements_v<T>;
-                *last_elem = ::std::move(*(target_end - 1uz));
+                *last_elem = ::std::move(*(target_end - ::std::size_t(1)));
                 last_elem = target_begin;
-                ::std::ranges::move_backward(target_begin, target_end - 1uz, target_end);
+                ::std::ranges::move_backward(target_begin, target_end - ::std::size_t(1), target_end);
             }
         }
         // 移动插入位置所在的块
         {
             // 如果插入位置就是尾块，那么采纳之前储存的end作为移动使用的end
-            if (block_end - 1uz != block_curr)
+            if (block_end - ::std::size_t(1) != block_curr)
             {
                 // 否则使用计算出来的end
                 end = ::std::to_address(*block_curr + deque_detail::block_elements_v<T>);
                 // 将当前块的最后一个移动到上一个块的第一个
-                *last_elem = ::std::move(*(end - 1uz));
+                *last_elem = ::std::move(*(end - ::std::size_t(1)));
             }
             // 把插入位置所在块整体右移1
-            ::std::ranges::move_backward(elem_curr, end - 1uz, end);
+            ::std::ranges::move_backward(elem_curr, end - ::std::size_t(1), end);
         }
     }
 
@@ -2877,7 +2873,7 @@ class deque
     constexpr void front_emplace_(Block *const block_curr, T *const elem_curr)
     {
         auto const block_begin = block_elem_begin_;
-        auto const block_size = block_curr - block_begin + 0uz;
+        auto const block_size = block_curr - block_begin + ::std::size_t(0);
         // 向前移动后尾部空出来的的后面一个位置
         auto const last_elem_begin = elem_begin_begin_;
         auto last_elem_end = elem_begin_end_;
@@ -2888,26 +2884,26 @@ class deque
             last_elem_end = elem_curr;
         }
         // 否则之前储存的last_elem_end是终点
-        ::std::ranges::move(last_elem_begin + 1uz, last_elem_end, last_elem_begin);
-        if (block_size > 1uz)
+        ::std::ranges::move(last_elem_begin + ::std::size_t(1), last_elem_end, last_elem_begin);
+        if (block_size > ::std::size_t(1))
         {
-            auto target_block_begin = block_begin + 1uz;
+            auto target_block_begin = block_begin + ::std::size_t(1);
             for (; target_block_begin != block_curr; ++target_block_begin)
             {
                 auto const begin = ::std::to_address(*target_block_begin);
                 auto const end = begin + deque_detail::block_elements_v<T>;
-                *(last_elem_end - 1uz) = ::std::move(*begin);
+                *(last_elem_end - ::std::size_t(1)) = ::std::move(*begin);
                 last_elem_end = end;
-                ::std::ranges::move(begin + 1uz, end, begin);
+                ::std::ranges::move(begin + ::std::size_t(1), end, begin);
             }
         }
-        if (block_size > 0uz)
+        if (block_size > ::std::size_t(0))
         {
             auto const begin = ::std::to_address(*block_curr);
             if (elem_curr != begin)
             {
-                *(last_elem_end - 1uz) = ::std::move(*begin);
-                ::std::ranges::move(begin + 1uz, elem_curr, begin);
+                *(last_elem_end - ::std::size_t(1)) = ::std::move(*begin);
+                ::std::ranges::move(begin + ::std::size_t(1), elem_curr, begin);
             }
         }
     }
@@ -2921,7 +2917,7 @@ class deque
         if (pos == end_pre)
         {
             emplace_back(::std::forward<Args>(args)...);
-            return end() - 1z;
+            return end() - ::std::ptrdiff_t(1);
         }
         if (pos == begin_pre)
         {
@@ -2929,14 +2925,14 @@ class deque
             return begin();
         }
         // 此时容器一定不为空
-        auto const back_diff = end_pre - pos + 0uz;
-        auto const front_diff = pos - begin_pre + 0uz;
+        auto const back_diff = end_pre - pos + ::std::size_t(0);
+        auto const front_diff = pos - begin_pre + ::std::size_t(0);
         // NB:
         // 如果args是当前容器的元素的引用，那么必须使得该元素先被emplace_back/front后再被移动到正确位置，否则该引用会失效，同时reserve不会导致引用失效
         // 此处逻辑和无分配器版本稍微不一样
-        if (back_diff <= front_diff || (block_elem_size_() == 1uz && elem_end_end_ != elem_end_last_))
+        if (back_diff <= front_diff || (block_elem_size_() == ::std::size_t(1) && elem_end_end_ != elem_end_last_))
         {
-            reserve_back_(2uz);
+            reserve_back_(::std::size_t(2));
             emplace_back_noalloc_(::std::forward<Args>(args)...); // 满足标准要求经过A::construct
             // back_emplace向后移动1个元素并插入，因此先reserve以获得一个不失效的pos
             auto new_pos = begin() + front_diff;
@@ -2947,7 +2943,7 @@ class deque
         }
         else
         {
-            reserve_front_(2uz);
+            reserve_front_(::std::size_t(2));
             emplace_front_noalloc_(::std::forward<Args>(args)...);
             auto new_pos = end() - back_diff;
             front_emplace_(new_pos.block_elem_curr_, new_pos.elem_curr_);
@@ -2972,7 +2968,7 @@ class deque
     constexpr void move_back_to_front_(::std::size_t const count)
     {
         reserve_front_(count);
-        for (auto i = 0uz; i != count; ++i)
+        for (auto i = ::std::size_t(0); i != count; ++i)
         {
             emplace_front_noalloc_(::std::move(back()));
             pop_back();
@@ -3029,8 +3025,8 @@ class deque
             prepend_range_noguard_(::std::forward<R>(rg));
             return begin();
         }
-        auto const back_diff = end_pre - pos + 0uz;
-        auto const front_diff = pos - begin_pre + 0uz;
+        auto const back_diff = end_pre - pos + ::std::size_t(0);
+        auto const front_diff = pos - begin_pre + ::std::size_t(0);
 #if defined(BIZWEN_DEQUE_USE_ROTATE_INSERT)
         if (back_diff <= front_diff)
         {
@@ -3088,8 +3084,8 @@ class deque
             prepend_range_noguard_(::std::forward<U>(first), ::std::forward<V>(last));
             return begin();
         }
-        auto const back_diff = end_pre - pos + 0uz;
-        auto const front_diff = pos - begin_pre + 0uz;
+        auto const back_diff = end_pre - pos + ::std::size_t(0);
+        auto const front_diff = pos - begin_pre + ::std::size_t(0);
 #if defined(BIZWEN_DEQUE_USE_ROTATE_INSERT)
         if (back_diff <= front_diff)
         {
@@ -3136,7 +3132,7 @@ class deque
 #if defined(__cpp_lib_ranges_repeat)
         return insert_range(pos, ::std::ranges::views::repeat(value, count));
 #else
-        return insert(pos, deque_detail::repeat_iterator(0z, value),
+        return insert(pos, deque_detail::repeat_iterator(::std::ptrdiff_t(0), value),
                       deque_detail::repeat_iterator(static_cast<::std::ptrdiff_t>(count), value));
 #endif
     }
@@ -3147,7 +3143,7 @@ class deque
         {
             return false;
         }
-        else if (s != 0uz)
+        else if (s != ::std::size_t(0))
         {
             auto first = begin();
             auto last = end();
@@ -3178,22 +3174,22 @@ class deque
             pop_front();
             return begin();
         }
-        if (pos + 1uz == end_pre)
+        if (pos + ::std::size_t(1) == end_pre)
         {
             pop_back();
             return end();
         }
-        auto const back_diff = end_pre - pos + 0uz;
-        auto const front_diff = pos - begin_pre + 0uz;
+        auto const back_diff = end_pre - pos + ::std::size_t(0);
+        auto const front_diff = pos - begin_pre + ::std::size_t(0);
         if (back_diff <= front_diff)
         {
-            ::std::ranges::move((pos + 1uz).remove_const_(), end(), pos.remove_const_());
+            ::std::ranges::move((pos + ::std::size_t(1)).remove_const_(), end(), pos.remove_const_());
             pop_back();
             return begin() + front_diff;
         }
         else
         {
-            ::std::ranges::move_backward(begin(), pos.remove_const_(), (pos + 1uz).remove_const_());
+            ::std::ranges::move_backward(begin(), pos.remove_const_(), (pos + ::std::size_t(1)).remove_const_());
             pop_front();
             return begin() + front_diff;
         }
@@ -3213,8 +3209,8 @@ class deque
             pop_back_n_(last - first);
             return end();
         }
-        auto const back_diff = end_pre - last + 0uz;
-        auto const front_diff = first - begin_pre + 0uz;
+        auto const back_diff = end_pre - last + ::std::size_t(0);
+        auto const front_diff = first - begin_pre + ::std::size_t(0);
         if (back_diff <= front_diff)
         {
             ::std::ranges::move(last, end(), first.remove_const_());
@@ -3235,7 +3231,7 @@ namespace deque_detail
 template <typename A>
 concept mini_alloc = requires(A &a) {
     typename A::value_type;
-    a.allocate(0uz);
+    a.allocate(::std::size_t(0));
 };
 } // namespace deque_detail
 
@@ -3275,3 +3271,5 @@ inline constexpr ::std::size_t erase_if(deque<T, Alloc> &c, Pred pred)
     return r;
 }
 } // namespace bizwen
+
+#endif
