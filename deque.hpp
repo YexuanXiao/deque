@@ -701,6 +701,7 @@ class deque_iterator
     constexpr deque_iterator &operator--() noexcept
     {
         if (elem_curr == elem_begin)
+        {
             --block_elem_curr;
             elem_begin = *block_elem_curr;
             elem_curr = elem_begin + deque_detail::block_elements_v<T>;
@@ -2646,7 +2647,7 @@ ctrl_end   →
         // 向前移动后尾部空出来的的后面一个位置
         auto const last_elem_begin = elem_begin_begin;
         auto last_elem_end = elem_begin_end;
-        emplace_front_noalloc_(::std::move(front()));
+        emplace_front_noalloc(::std::move(front()));
         // 如果block_curr是首个块，那么elem_curr就是终点
         if (block_begin == block_curr)
         {
