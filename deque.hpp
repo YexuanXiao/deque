@@ -874,21 +874,21 @@ class repeat_iterator
         return tmp;
     }
 
-    friend constexpr difference_type operator-(const repeat_iterator &a, const repeat_iterator &b) noexcept
+    friend constexpr difference_type operator-(const repeat_iterator &lhs, const repeat_iterator &rhs) noexcept
     {
-        assert(a.value_ptr_ == b.value_ptr_);
-        return a.pos_ - b.pos_;
+        assert(lhs.value_ptr_ == rhs.value_ptr_);
+        return lhs.pos_ - rhs.pos_;
     }
 
-    friend constexpr auto operator<=>(const repeat_iterator &a, const repeat_iterator &b) noexcept
+    friend constexpr auto operator<=>(const repeat_iterator &lhs, const repeat_iterator &rhs) noexcept
     {
-        assert(a.value_ptr_ == b.value_ptr_);
-        return a.pos_ <=> b.pos_;
+        assert(lhs.value_ptr_ == rhs.value_ptr_);
+        return lhs.pos_ <=> rhs.pos_;
     }
 
-    friend constexpr bool operator==(const repeat_iterator &a, const repeat_iterator &b) noexcept
+    friend constexpr bool operator==(const repeat_iterator &lhs, const repeat_iterator &rhs) noexcept
     {
-        return a.pos_ == b.pos_ && a.value_ptr_ == b.value_ptr_;
+        return lhs.pos_ == rhs.pos_ && lhs.value_ptr_ == rhs.value_ptr_;
     }
 
     friend constexpr repeat_iterator operator+(difference_type n, const repeat_iterator &it) noexcept
@@ -897,8 +897,8 @@ class repeat_iterator
     }
 
   private:
-    difference_type pos_ = ::std::ptrdiff_t(0);
-    pointer value_ptr_ = nullptr;
+    difference_type pos_{};
+    pointer value_ptr_{};
 };
 #endif
 } // namespace deque_detail
