@@ -788,6 +788,123 @@ class deque_iterator
         return {block_elem_curr_, block_elem_end_, elem_begin_, elem_curr_};
     }
 };
+
+#if !defined(__cpp_lib_ranges_repeat)
+
+template <typename T>
+class repeat_iterator
+{
+  public:
+    using iterator_category = ::std::random_access_iterator_tag;
+    using iterator_concept = ::std::random_access_iterator_tag;
+    using value_type = T;
+    using difference_type = ::std::ptrdiff_t;
+    using pointer = const T *;
+    using reference = const T &;
+
+    constexpr repeat_iterator() = default;
+
+    constexpr repeat_iterator(difference_type pos, const T &value) noexcept
+        : pos_(pos), value_ptr_(::std::addressof(value))
+    {
+    }
+
+    constexpr reference operator*() const noexcept
+    {
+        assert(value_ptr_);
+        return *value_ptr_;
+    }
+
+    constexpr pointer operator->() const noexcept
+    {
+        assert(value_ptr_ != nullptr);
+        return value_ptr_;
+    }
+
+    constexpr reference operator[](difference_type) const noexcept
+    {
+        return *value_ptr_;
+    }
+
+    constexpr repeat_iterator &operator++() noexcept
+    {
+        ++pos_;
+        return *this;
+    }
+
+    constexpr repeat_iterator operator++(int) noexcept
+    {
+        auto tmp = *this;
+        ++*this;
+        return tmp;
+    }
+
+    constexpr repeat_iterator &operator--() noexcept
+    {
+        --pos_;
+        return *this;
+    }
+
+    constexpr repeat_iterator operator--(int) noexcept
+    {
+        auto tmp = *this;
+        --*this;
+        return tmp;
+    }
+
+    constexpr repeat_iterator &operator+=(difference_type n) noexcept
+    {
+        pos_ += n;
+        return *this;
+    }
+
+    constexpr repeat_iterator &operator-=(difference_type n) noexcept
+    {
+        pos_ -= n;
+        return *this;
+    }
+
+    constexpr repeat_iterator operator+(difference_type n) const noexcept
+    {
+        auto tmp = *this;
+        tmp += n;
+        return tmp;
+    }
+
+    constexpr repeat_iterator operator-(difference_type n) const noexcept
+    {
+        auto tmp = *this;
+        tmp -= n;
+        return tmp;
+    }
+
+    friend constexpr difference_type operator-(const repeat_iterator &a, const repeat_iterator &b) noexcept
+    {
+        assert(a.value_ptr_ == b.value_ptr_);
+        return a.pos_ - b.pos_;
+    }
+
+    friend constexpr auto operator<=>(const repeat_iterator &a, const repeat_iterator &b) noexcept
+    {
+        assert(a.value_ptr_ == b.value_ptr_);
+        return a.pos_ <=> b.pos_;
+    }
+
+    friend constexpr bool operator==(const repeat_iterator &a, const repeat_iterator &b) noexcept
+    {
+        return a.pos_ == b.pos_ && a.value_ptr_ == b.value_ptr_;
+    }
+
+    friend constexpr repeat_iterator operator+(difference_type n, const repeat_iterator &it) noexcept
+    {
+        return it + n;
+    }
+
+  private:
+    difference_type pos_ = 0z;
+    pointer value_ptr_ = nullptr;
+};
+#endif
 } // namespace deque_detail
 
 template <typename T, typename Allocator = ::std::allocator<T>>
@@ -3016,7 +3133,12 @@ class deque
 
     constexpr iterator insert(const_iterator const pos, ::std::size_t const count, T const &value)
     {
+#if defined(__cpp_lib_ranges_repeat)
         return insert_range(pos, ::std::ranges::views::repeat(value, count));
+#else
+        return insert(pos, deque_detail::repeat_iterator(0z, value),
+                      deque_detail::repeat_iterator(static_cast<::std::ptrdiff_t>(count), value));
+#endif
     }
 
     constexpr bool operator==(deque const &other) const noexcept
@@ -3125,6 +3247,7 @@ template <::std::input_iterator U, typename V,
           deque_detail::mini_alloc Alloc = ::std::allocator<typename ::std::iterator_traits<U>::value_type>>
 deque(U, V, Alloc) -> deque<typename ::std::iterator_traits<U>::value_type, Alloc>;
 
+#if defined(__cpp_lib_containers_ranges)
 template <::std::ranges::input_range R>
 deque(::std::from_range_t, R &&)
     -> deque<::std::ranges::range_value_t<R>, ::std::allocator<::std::ranges::range_value_t<R>>>;
@@ -3132,6 +3255,7 @@ deque(::std::from_range_t, R &&)
 template <::std::ranges::input_range R,
           deque_detail::mini_alloc Alloc = ::std::allocator<::std::ranges::range_value_t<R>>>
 deque(::std::from_range_t, R &&, Alloc) -> deque<::std::ranges::range_value_t<R>, Alloc>;
+#endif
 
 template <typename T, typename Alloc, typename U = T>
 inline constexpr ::std::size_t erase(deque<T, Alloc> &c, const U &value)
