@@ -52,7 +52,7 @@ void test_constructor(std::size_t count = 1000uz)
             assert(d.size() == 0uz);
             assert(d.empty());
         }
-        // (2) skip
+        // (2) not support
         // (3)
         for (auto i = 0uz; i != count; ++i)
         {
@@ -456,6 +456,21 @@ void test_all(std::size_t count = 1000uz)
 #endif
 }
 
+#if defined(TEST_FUNC)
+void test_buckets(int n)
+{
+    bizwen::deque<int> c{std::from_range, std::views::iota(0, n)};
+    int x = 0;
+    for (auto i : c.buckets())
+    {
+        for (auto j : i)
+        {
+            j = x++;
+        }
+    }
+}
+#endif
+
 int main()
 {
     test_all<vsn<1uz>>();
@@ -467,4 +482,8 @@ int main()
     test_all<vsn<7uz>>();
     test_all<vsn<8uz>>();
     test_all<vsn<9uz>>();
+#if defined(TEST_FUNC)
+    for (auto x = 0; x < 100000; ++x)
+        test_buckets(x);
+#endif
 }
