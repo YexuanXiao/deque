@@ -1,4 +1,5 @@
 #ifndef BIZWEN_DEQUE
+#define BIZWEN_DEQUE
 
 // assert
 #include <cassert>
