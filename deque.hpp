@@ -1,4 +1,5 @@
-#ifndef BIZWEN_DEQUE
+#if not defined(BIZWEN_DEQUE)
+#define BIZWEN_DEQUE
 
 // assert
 #include <cassert>
@@ -399,7 +400,7 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T, Block>
 
     template <typename U, typename V>
     constexpr buckets_type(U const block_elem_begin, U const block_elem_end, V const elem_begin_begin,
-                          V const elem_begin_end, V const elem_end_begin, V const elem_end_end) noexcept
+                           V const elem_begin_end, V const elem_end_begin, V const elem_end_end) noexcept
         : block_elem_begin_(::std::to_address(block_elem_begin)), block_elem_end_(::std::to_address(block_elem_end)),
           elem_begin_begin_(::std::to_address(elem_begin_begin)), elem_begin_end_(::std::to_address(elem_begin_end)),
           elem_end_begin_(::std::to_address(elem_end_begin)), elem_end_end_(::std::to_address(elem_end_end))
@@ -695,7 +696,7 @@ class deque_iterator
 #if defined(__cpp_auto_cast)
         return ++auto{*this};
 #else
-        auto temp(*this);
+        auto temp = *this;
         ++temp;
         return temp;
 #endif
@@ -718,7 +719,7 @@ class deque_iterator
 #if defined(__cpp_auto_cast)
         return --auto{*this};
 #else
-        auto temp(*this);
+        auto temp = *this;
         --temp;
         return temp;
 #endif
@@ -785,21 +786,24 @@ class deque_iterator
     }
 };
 
-#if !defined(__cpp_lib_ranges_repeat)
+#if not defined(__cpp_lib_ranges_repeat)
 template <typename T>
 class repeat_iterator
 {
+    ::std::ptrdiff_t pos_{};
+    T const *value_ptr_{};
+
   public:
     using iterator_category = ::std::random_access_iterator_tag;
     using iterator_concept = ::std::random_access_iterator_tag;
     using value_type = T;
     using difference_type = ::std::ptrdiff_t;
-    using pointer = const T *;
-    using reference = const T &;
+    using pointer = T const *;
+    using reference = T const &;
 
     constexpr repeat_iterator() = default;
 
-    constexpr repeat_iterator(difference_type pos, const T &value) noexcept
+    constexpr repeat_iterator(difference_type pos, T const &value) noexcept
         : pos_(pos), value_ptr_(::std::addressof(value))
     {
     }
@@ -829,9 +833,9 @@ class repeat_iterator
 
     constexpr repeat_iterator operator++(int) noexcept
     {
-        auto tmp = *this;
+        auto temp = *this;
         ++*this;
-        return tmp;
+        return temp;
     }
 
     constexpr repeat_iterator &operator--() noexcept
@@ -842,9 +846,9 @@ class repeat_iterator
 
     constexpr repeat_iterator operator--(int) noexcept
     {
-        auto tmp = *this;
+        auto temp = *this;
         --*this;
-        return tmp;
+        return temp;
     }
 
     constexpr repeat_iterator &operator+=(difference_type n) noexcept
@@ -861,43 +865,40 @@ class repeat_iterator
 
     constexpr repeat_iterator operator+(difference_type n) const noexcept
     {
-        auto tmp = *this;
-        tmp += n;
-        return tmp;
+        auto temp = *this;
+        temp += n;
+        return temp;
     }
 
     constexpr repeat_iterator operator-(difference_type n) const noexcept
     {
-        auto tmp = *this;
-        tmp -= n;
-        return tmp;
+        auto temp = *this;
+        temp -= n;
+        return temp;
     }
 
-    friend constexpr difference_type operator-(const repeat_iterator &lhs, const repeat_iterator &rhs) noexcept
+    friend constexpr difference_type operator-(repeat_iterator const &lhs, repeat_iterator const &rhs) noexcept
     {
         assert(lhs.value_ptr_ == rhs.value_ptr_);
         return lhs.pos_ - rhs.pos_;
     }
 
-    friend constexpr auto operator<=>(const repeat_iterator &lhs, const repeat_iterator &rhs) noexcept
+    friend constexpr auto operator<=>(repeat_iterator const &lhs, repeat_iterator const &rhs) noexcept
     {
         assert(lhs.value_ptr_ == rhs.value_ptr_);
         return lhs.pos_ <=> rhs.pos_;
     }
 
-    friend constexpr bool operator==(const repeat_iterator &lhs, const repeat_iterator &rhs) noexcept
+    friend constexpr bool operator==(repeat_iterator const &lhs, repeat_iterator const &rhs) noexcept
     {
-        return lhs.pos_ == rhs.pos_ && lhs.value_ptr_ == rhs.value_ptr_;
+        assert(lhs.value_ptr_ == rhs.value_ptr_);
+        return lhs.pos_ == rhs.pos_;
     }
 
-    friend constexpr repeat_iterator operator+(difference_type n, const repeat_iterator &it) noexcept
+    friend constexpr repeat_iterator operator+(difference_type n, repeat_iterator const &it) noexcept
     {
         return it + n;
     }
-
-  private:
-    difference_type pos_{};
-    pointer value_ptr_{};
 };
 #if !defined(NDEBUG)
 static_assert(::std::random_access_iterator<repeat_iterator<int>>);
@@ -1708,7 +1709,7 @@ class deque
         requires ::std::default_initializable<Allocator>
     = default;
 
-    explicit constexpr deque(const Allocator &alloc) noexcept(::std::is_nothrow_copy_constructible_v<Allocator>)
+    explicit constexpr deque(Allocator const &alloc) noexcept(::std::is_nothrow_copy_constructible_v<Allocator>)
         : a_(alloc)
     {
     }
@@ -1954,7 +1955,7 @@ class deque
         guard.release();
     }
 
-    explicit deque(size_type count, const Allocator &alloc) : a_(alloc)
+    explicit deque(size_type count, Allocator const &alloc) : a_(alloc)
     {
         auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(count);
         construct_guard_ guard(this);
@@ -1972,7 +1973,7 @@ class deque
         guard.release();
     }
 
-    constexpr deque(size_type count, const T &value, const Allocator &alloc) : a_(alloc)
+    constexpr deque(size_type count, T const &value, Allocator const &alloc) : a_(alloc)
     {
         auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(count);
         construct_guard_ guard(this);
@@ -2009,8 +2010,8 @@ class deque
             if (first.block_elem_curr_ == last.block_elem_curr_)
             {
                 buckets_type bucket{first.block_elem_curr_, last.block_elem_curr_ + ::std::size_t(1),
-                                   first.elem_curr_,       last.elem_curr_,
-                                   last.elem_begin_,       last.elem_begin_};
+                                    first.elem_curr_,       last.elem_curr_,
+                                    last.elem_begin_,       last.elem_begin_};
                 auto const block_size = bucket.size();
                 extent_block_(block_size);
                 copy_(bucket, block_size);
@@ -2018,8 +2019,8 @@ class deque
             else
             {
                 buckets_type bucket{first.block_elem_curr_, last.block_elem_curr_ + ::std::size_t(1),
-                                   first.elem_curr_,       first.elem_begin_ + deque_detail::block_elements_v<T>,
-                                   last.elem_begin_,       last.elem_curr_};
+                                    first.elem_curr_,       first.elem_begin_ + deque_detail::block_elements_v<T>,
+                                    last.elem_begin_,       last.elem_curr_};
                 auto const block_size = bucket.size();
                 extent_block_(block_size);
                 copy_(bucket, block_size);
@@ -2052,7 +2053,7 @@ class deque
         {
             from_range_noguard_(::std::ranges::begin(rg), ::std::ranges::end(rg));
         }
-#if defined(__cpp_lib_ranges_reserve_hint) && __cpp_lib_ranges_reserve_hint >= 202502L
+#if defined(__cpp_lib_ranges_reserve_hint)
         else if constexpr (::std::ranges::approximately_sized_range<R>)
         {
             if (auto const size = ::std::ranges::reserve_hint(rg))
@@ -2083,7 +2084,7 @@ class deque
     }
 
     template <::std::input_iterator U, typename V>
-    constexpr deque(U first, V last, const Allocator &alloc) : a_(alloc)
+    constexpr deque(U first, V last, Allocator const &alloc) : a_(alloc)
     {
         construct_guard_ guard(this);
         from_range_noguard_(::std::move(first), ::std::move(last));
@@ -2102,7 +2103,7 @@ class deque
 
     template <::std::ranges::input_range R>
         requires ::std::convertible_to<::std::ranges::range_value_t<R>, T>
-    constexpr deque(::std::from_range_t, R &&rg, const Allocator &alloc) : a_(alloc)
+    constexpr deque(::std::from_range_t, R &&rg, Allocator const &alloc) : a_(alloc)
     {
         construct_guard_ guard(this);
         from_range_noguard_(rg);
@@ -2123,7 +2124,7 @@ class deque
         }
     }
 
-    constexpr deque(const deque &other, const ::std::type_identity_t<Allocator> &alloc) : a_(alloc)
+    constexpr deque(deque const &other, ::std::type_identity_t<Allocator> const &alloc) : a_(alloc)
     {
         if (!other.empty())
         {
@@ -2135,12 +2136,13 @@ class deque
         }
     }
 
-    constexpr deque(deque &&other) noexcept : a_(other.a_)
+    constexpr deque(deque &&other) noexcept(::std::is_nothrow_copy_constructible_v<Allocator>) : a_(other.a_)
     {
         other.swap_without_ator_(*this);
     }
 
-    constexpr deque(deque &&other, const ::std::type_identity_t<Allocator> &alloc) : a_(alloc)
+    constexpr deque(deque &&other, ::std::type_identity_t<Allocator> const &alloc) noexcept(is_ator_stateless_)
+        : a_(alloc)
     {
         if constexpr (is_ator_stateless_)
         {
@@ -2148,7 +2150,7 @@ class deque
         }
         else
         {
-            if (alloc == other.a_)
+            if (a_ == other.a_)
             {
                 other.swap_without_ator_(*this);
             }
@@ -2159,7 +2161,6 @@ class deque
                 extent_block_(block_size);
                 copy_<true>(other.buckets(), block_size);
                 guard.release();
-                other.clear();
             }
         }
     }
@@ -2174,7 +2175,7 @@ class deque
         }
     }
 
-    constexpr deque(::std::initializer_list<T> const ilist, const Allocator &alloc) : a_(alloc)
+    constexpr deque(::std::initializer_list<T> const ilist, Allocator const &alloc) : a_(alloc)
     {
         if (ilist.size())
         {
@@ -2184,7 +2185,7 @@ class deque
         }
     }
 
-    constexpr deque &operator=(const deque &other)
+    constexpr deque &operator=(deque const &other)
     {
         if (this != ::std::addressof(other))
         {
@@ -2627,7 +2628,7 @@ class deque
         {
             return;
         }
-#if defined(__cpp_lib_ranges_reserve_hint) && __cpp_lib_ranges_reserve_hint >= 202502L
+#if defined(__cpp_lib_ranges_reserve_hint)
         if constexpr (::std::ranges::approximately_sized_range<R>)
         {
             reserve_back_(::std::ranges::reserve_hint(rg));
@@ -2686,7 +2687,7 @@ class deque
         {
             return;
         }
-#if defined(__cpp_lib_ranges_reserve_hint) && __cpp_lib_ranges_reserve_hint >= 202502L
+#if defined(__cpp_lib_ranges_reserve_hint)
         if constexpr (::std::ranges::approximately_sized_range<R> && ::std::ranges::bidirectional_range<R>)
         {
             reserve_front_(::std::ranges::reserve_hint(rg));
@@ -2707,7 +2708,7 @@ class deque
         {
             prepend_range_noguard_(::std::ranges::begin(rg), ::std::ranges::end(rg));
         }
-#if defined(__cpp_lib_ranges_reserve_hint) && __cpp_lib_ranges_reserve_hint >= 202502L
+#if defined(__cpp_lib_ranges_reserve_hint)
         else if constexpr (::std::ranges::approximately_sized_range<R>)
         {
             reserve_front(::std::ranges::reserve_hint(rg));
@@ -2990,7 +2991,7 @@ class deque
         pop_front_n_(count);
     }
 
-    static inline constexpr auto synth_three_way_ = []<class U, class V>(const U &u, const V &v) {
+    static inline constexpr auto synth_three_way_ = []<class U, class V>(U const &u, V const &v) {
         if constexpr (::std::three_way_comparable_with<U, V>)
         {
             return u <=> v;
@@ -3226,6 +3227,13 @@ class deque
             return begin() + front_diff;
         }
     }
+
+#if defined(TEST_STD_VER)
+    constexpr bool __invariants() const
+    {
+        return true;
+    }
+#endif
 };
 
 namespace deque_detail
@@ -3256,7 +3264,7 @@ deque(::std::from_range_t, R &&, Alloc) -> deque<::std::ranges::range_value_t<R>
 #endif
 
 template <typename T, typename Alloc, typename U = T>
-inline constexpr ::std::size_t erase(deque<T, Alloc> &c, const U &value)
+inline constexpr ::std::size_t erase(deque<T, Alloc> &c, U const &value)
 {
     auto const it = ::std::remove(c.begin(), c.end(), value);
     auto const r = c.end() - it;
