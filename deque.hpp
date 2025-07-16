@@ -25,8 +25,10 @@
 #include <utility>
 // initializer_list
 #include <initializer_list>
-// __cpp_lib_containers_ranges, __cpp_lib_ranges_repeat
+// __cpp_lib_containers_ranges/__cpp_lib_ranges_repeat
 #include <version>
+// polymorphic_allocator
+#include <memory_resource>
 
 #if not defined(__cpp_pack_indexing)
 // tuple/get
@@ -1956,6 +1958,7 @@ class deque
 
     explicit deque(size_type count, Allocator const &alloc) : a_(alloc)
     {
+        assert(a_ == alloc);
         auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(count);
         construct_guard_ guard(this);
         extent_block_(block_size);
@@ -1974,6 +1977,7 @@ class deque
 
     constexpr deque(size_type count, T const &value, Allocator const &alloc) : a_(alloc)
     {
+        assert(a_ == alloc);
         auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(count);
         construct_guard_ guard(this);
         extent_block_(block_size);
@@ -2052,21 +2056,6 @@ class deque
         {
             from_range_noguard_(::std::ranges::begin(rg), ::std::ranges::end(rg));
         }
-#if defined(__cpp_lib_ranges_reserve_hint)
-        else if constexpr (::std::ranges::approximately_sized_range<R>)
-        {
-            if (auto const size = ::std::ranges::reserve_hint(rg))
-            {
-                reserve_back(size);
-                auto begin = ::std::ranges::begin(rg);
-                auto end = ::std::ranges::end(rg);
-                for (; begin != end; ++begin)
-                {
-                    emplace_back_noalloc_(*begin);
-                }
-            }
-        }
-#endif
         else
         {
             from_range_noguard_(::std::ranges::begin(rg), ::std::ranges::end(rg));
@@ -2085,6 +2074,7 @@ class deque
     template <::std::input_iterator U, typename V>
     constexpr deque(U first, V last, Allocator const &alloc) : a_(alloc)
     {
+        assert(a_ == alloc);
         construct_guard_ guard(this);
         from_range_noguard_(::std::move(first), ::std::move(last));
         guard.release();
@@ -2104,6 +2094,7 @@ class deque
         requires ::std::convertible_to<::std::ranges::range_value_t<R>, T>
     constexpr deque(::std::from_range_t, R &&rg, Allocator const &alloc) : a_(alloc)
     {
+        assert(a_ == alloc);
         construct_guard_ guard(this);
         from_range_noguard_(rg);
         guard.release();
@@ -2125,6 +2116,7 @@ class deque
 
     constexpr deque(deque const &other, ::std::type_identity_t<Allocator> const &alloc) : a_(alloc)
     {
+        assert(a_ == alloc);
         if (!other.empty())
         {
             construct_guard_ guard(this);
@@ -2137,6 +2129,7 @@ class deque
 
     constexpr deque(deque &&other) noexcept(::std::is_nothrow_copy_constructible_v<Allocator>) : a_(other.a_)
     {
+        assert(a_ == other.a_);
         other.swap_without_ator_(*this);
     }
 
@@ -2149,6 +2142,8 @@ class deque
         }
         else
         {
+            assert(a_ == alloc);
+
             if (a_ == other.a_)
             {
                 other.swap_without_ator_(*this);
@@ -2176,6 +2171,7 @@ class deque
 
     constexpr deque(::std::initializer_list<T> const ilist, Allocator const &alloc) : a_(alloc)
     {
+        assert(a_ == alloc);
         if (ilist.size())
         {
             construct_guard_ guard(this);
@@ -2627,15 +2623,9 @@ class deque
         {
             return;
         }
-#if defined(__cpp_lib_ranges_reserve_hint)
-        if constexpr (::std::ranges::approximately_sized_range<R>)
-        {
-            reserve_back_(::std::ranges::reserve_hint(rg));
-#else
         if constexpr (::std::ranges::sized_range<R>)
         {
             reserve_back_(::std::ranges::size(rg));
-#endif
             for (auto &&i : rg)
             {
                 emplace_back_noalloc_(::std::forward<decltype(i)>(i));
@@ -2686,15 +2676,9 @@ class deque
         {
             return;
         }
-#if defined(__cpp_lib_ranges_reserve_hint)
-        if constexpr (::std::ranges::approximately_sized_range<R> && ::std::ranges::bidirectional_range<R>)
-        {
-            reserve_front_(::std::ranges::reserve_hint(rg));
-#else
         if constexpr (::std::ranges::sized_range<R> && ::std::ranges::bidirectional_range<R>)
         {
             reserve_front_(::std::ranges::size(rg));
-#endif
             auto first = ::std::ranges::begin(rg);
             auto last = ::std::ranges::end(rg);
             for (; first != last;)
@@ -2707,18 +2691,6 @@ class deque
         {
             prepend_range_noguard_(::std::ranges::begin(rg), ::std::ranges::end(rg));
         }
-#if defined(__cpp_lib_ranges_reserve_hint)
-        else if constexpr (::std::ranges::approximately_sized_range<R>)
-        {
-            reserve_front(::std::ranges::reserve_hint(rg));
-            auto const old_size = size();
-            for (auto &&i : rg)
-            {
-                emplace_front_noalloc_(::std::forward<decltype(i)>(i));
-            }
-            ::std::ranges::reverse(begin(), begin() + (size() - old_size));
-        }
-#endif
         else if constexpr (::std::ranges::sized_range<R>)
         {
             auto const count = ::std::ranges::size(rg);
@@ -3278,6 +3250,12 @@ inline constexpr ::std::size_t erase_if(deque<T, Alloc> &c, Pred pred)
     auto const r = c.end() - it;
     c.resize(c.size() - r);
     return r;
+}
+
+namespace pmr
+{
+template <typename T>
+using deque = deque<T, ::std::pmr::polymorphic_allocator<T>>;
 }
 } // namespace bizwen
 
