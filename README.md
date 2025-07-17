@@ -1,4 +1,4 @@
-# deque
+# [deque](https://github.com/yexuanXiao/deque)
 
 The next-generation deque container for C++, written and designed using modern C++ with sufficiently good performance. Fully maintaining compatibility with the std::deque and supports contiguous access through buckets. Requires C++20.
 

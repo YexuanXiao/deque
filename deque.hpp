@@ -1,5 +1,5 @@
-#if not defined(BIZWEN_DEQUE)
-#define BIZWEN_DEQUE
+#if not defined(BIZWEN_DEQUE_HPP)
+#define BIZWEN_DEQUE_HPP
 
 // assert
 #include <cassert>
@@ -103,7 +103,9 @@ template <typename T>
 inline constexpr ::std::size_t block_elements_v = BIZWEN_DEQUE_BLOCK_ELEMENTS;
 #else
 template <typename T>
-inline constexpr ::std::size_t block_elements_v = ::std::size_t(16) > ::std::size_t(4096) / sizeof(T) ? ::std::size_t(16) : ::std::size_t(4096) / sizeof(T);
+inline constexpr ::std::size_t block_elements_v = ::std::size_t(16) > ::std::size_t(4096) / sizeof(T)
+                                                      ? ::std::size_t(16)
+                                                      : ::std::size_t(4096) / sizeof(T);
 #endif
 
 // 构造函数和赋值用，计算如何分配和构造
@@ -379,7 +381,7 @@ class bucket_iterator
     }
 };
 
-#if !defined(NDEBUG)
+#if not defined(NDEBUG)
 static_assert(::std::random_access_iterator<bucket_iterator<int, int *>>);
 static_assert(::std::random_access_iterator<bucket_iterator<const int, int *>>);
 #endif
@@ -508,8 +510,9 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T, Block>
         }
         else
         {
-            return {block_elem_begin_, block_elem_end_, block_elem_end_ - ::std::size_t(1), elem_begin_begin_, elem_begin_end_,
-                    elem_end_begin_,   elem_end_end_,   elem_end_begin_,       elem_end_end_};
+            return {block_elem_begin_, block_elem_end_, block_elem_end_ - ::std::size_t(1),
+                    elem_begin_begin_, elem_begin_end_, elem_end_begin_,
+                    elem_end_end_,     elem_end_begin_, elem_end_end_};
         }
     }
 
@@ -901,7 +904,7 @@ class repeat_iterator
         return it + n;
     }
 };
-#if !defined(NDEBUG)
+#if not defined(NDEBUG)
 static_assert(::std::random_access_iterator<repeat_iterator<int>>);
 #endif
 #endif
@@ -910,7 +913,7 @@ static_assert(::std::random_access_iterator<repeat_iterator<int>>);
 template <typename T, typename Allocator = ::std::allocator<T>>
 class deque
 {
-#if !defined(NDEBUG)
+#if not defined(NDEBUG)
     static_assert(::std::is_object_v<T>);
     static_assert(not ::std::is_const_v<T>);
     static_assert(::std::is_same_v<T, typename Allocator::value_type>);
@@ -927,9 +930,9 @@ class deque
     static inline constexpr ::std::size_t block_elements = deque_detail::block_elements_v<T>;
 
 #if __has_cpp_attribute(msvc::no_unique_address)
-    [[msvc::no_unique_address]] Allocator a_{};
+    [[msvc::no_unique_address]] Allocator allocator_{};
 #else
-    [[no_unique_address]] Allocator a_{};
+    [[no_unique_address]] Allocator allocator_{};
 #endif
 
     using Block = typename atraits_t_::pointer;
@@ -986,27 +989,27 @@ class deque
 
     constexpr void dealloc_block_(Block b) noexcept
     {
-        atraits_t_::deallocate(a_, b, deque_detail::block_elements_v<T>);
+        atraits_t_::deallocate(allocator_, b, deque_detail::block_elements_v<T>);
     }
 
     constexpr Block alloc_block_()
     {
-        return atraits_t_::allocate(a_, deque_detail::block_elements_v<T>);
+        return atraits_t_::allocate(allocator_, deque_detail::block_elements_v<T>);
     }
 
     constexpr BlockFP alloc_ctrl_(::std::size_t const size)
     {
-        return typename atraits_t_::template rebind_alloc<Block>(a_).allocate(
-            typename atraits_t_::template rebind_traits<Block>::size_type(size));
+        return typename atraits_t_::template rebind_alloc<Block>(allocator_)
+            .allocate(typename atraits_t_::template rebind_traits<Block>::size_type(size));
     }
 
     constexpr void dealloc_ctrl_() noexcept
     {
         if (block_ctrl_end_ != block_ctrl_begin_())
         {
-            typename atraits_t_::template rebind_alloc<Block>(a_).deallocate(
-                block_ctrl_begin_fancy_,
-                typename atraits_t_::template rebind_traits<Block>::size_type(block_ctrl_end_ - block_ctrl_begin_()));
+            typename atraits_t_::template rebind_alloc<Block>(allocator_)
+                .deallocate(block_ctrl_begin_fancy_, typename atraits_t_::template rebind_traits<Block>::size_type(
+                                                         block_ctrl_end_ - block_ctrl_begin_()));
         }
     }
 
@@ -1025,18 +1028,19 @@ class deque
         {
             for (auto const &i : ::std::ranges::subrange{elem_begin_begin_, elem_begin_end_})
             {
-                atraits_t_::destroy(a_, ::std::addressof(i));
+                atraits_t_::destroy(allocator_, ::std::addressof(i));
             }
         }
         // 清理中间的块
         if (block_size > ::std::size_t(2))
         {
-            for (auto const block_begin : ::std::ranges::subrange{block_elem_begin_ + ::std::size_t(1), block_elem_end_ - ::std::size_t(1)})
+            for (auto const block_begin :
+                 ::std::ranges::subrange{block_elem_begin_ + ::std::size_t(1), block_elem_end_ - ::std::size_t(1)})
             {
                 for (auto const &i :
                      ::std::ranges::subrange{block_begin, block_begin + deque_detail::block_elements_v<T>})
                 {
-                    atraits_t_::destroy(a_, ::std::addressof(i));
+                    atraits_t_::destroy(allocator_, ::std::addressof(i));
                 }
             }
         }
@@ -1044,7 +1048,7 @@ class deque
         {
             for (auto const &i : ::std::ranges::subrange{elem_end_begin_, elem_end_end_})
             {
-                atraits_t_::destroy(a_, ::std::addressof(i));
+                atraits_t_::destroy(allocator_, ::std::addressof(i));
             }
         }
     }
@@ -1127,7 +1131,7 @@ class deque
 
     constexpr Allocator get_allocator() const noexcept
     {
-        return a_;
+        return allocator_;
     }
 
     constexpr buckets_type buckets() noexcept
@@ -1161,14 +1165,14 @@ class deque
 
     constexpr void swap(deque &other) noexcept
     {
-        if constexpr (!is_ator_stateless_ && !is_pocs_)
+        if constexpr (not is_ator_stateless_ && not is_pocs_)
         {
             // P0178?
-            assert(a_ == other.a_);
+            assert(allocator_ == other.allocator_);
         }
         if constexpr (is_pocs_)
         {
-            ::std::ranges::swap(a_, other.a_);
+            ::std::ranges::swap(allocator_, other.allocator_);
         }
         swap_without_ator_(other);
     }
@@ -1203,7 +1207,7 @@ class deque
         return ::std::size_t(-1) / ::std::size_t(2);
     }
 
-#if !defined(NDEBUG)
+#if not defined(NDEBUG)
     static_assert(::std::random_access_iterator<iterator>);
     static_assert(::std::sentinel_for<iterator, iterator>);
 #endif
@@ -1223,7 +1227,8 @@ class deque
         {
             return const_iterator{nullptr, nullptr, nullptr, nullptr};
         }
-        return const_iterator{block_elem_end_ - ::std::size_t(1), block_elem_end_, *(block_elem_end_ - ::std::size_t(1)), elem_end_end_};
+        return const_iterator{block_elem_end_ - ::std::size_t(1), block_elem_end_,
+                              *(block_elem_end_ - ::std::size_t(1)), elem_end_end_};
     }
 
     constexpr iterator begin() noexcept
@@ -1459,8 +1464,8 @@ class deque
             return;
         }
         // 计算需要分配多少块数组，无论接下来是什么逻辑都直接使用它
-        auto const add_block_size =
-            (add_elem_size - move_cap + deque_detail::block_elements_v<T> - ::std::size_t(1)) / deque_detail::block_elements_v<T>;
+        auto const add_block_size = (add_elem_size - move_cap + deque_detail::block_elements_v<T> - ::std::size_t(1)) /
+                                    deque_detail::block_elements_v<T>;
         // 获得目前控制块容许容量
         auto const ctrl_cap = ((block_alloc_begin_ - block_ctrl_begin_()) + (block_ctrl_end_ - block_alloc_end_)) *
                                   deque_detail::block_elements_v<T> +
@@ -1531,8 +1536,8 @@ class deque
             return;
         }
         // 计算需要分配多少块数组，无论接下来是什么逻辑都直接使用它
-        auto const add_block_size =
-            (add_elem_size - move_cap + deque_detail::block_elements_v<T> - ::std::size_t(1)) / deque_detail::block_elements_v<T>;
+        auto const add_block_size = (add_elem_size - move_cap + deque_detail::block_elements_v<T> - ::std::size_t(1)) /
+                                    deque_detail::block_elements_v<T>;
         // 获得目前控制块容许容量
         auto const ctrl_cap = ((block_alloc_begin_ - block_ctrl_begin_()) + (block_ctrl_end_ - block_alloc_end_)) *
                                   deque_detail::block_elements_v<T> +
@@ -1661,8 +1666,8 @@ class deque
         }
         if (block_size > ::std::size_t(2))
         {
-            for (auto const block_begin :
-                 ::std::ranges::subrange{other.block_elem_begin_ + ::std::size_t(1), other.block_elem_end_ - ::std::size_t(1)})
+            for (auto const block_begin : ::std::ranges::subrange{other.block_elem_begin_ + ::std::size_t(1),
+                                                                  other.block_elem_end_ - ::std::size_t(1)})
             {
                 auto const begin = *block_elem_end_;
                 auto const src_begin = block_begin;
@@ -1711,7 +1716,7 @@ class deque
     = default;
 
     explicit constexpr deque(Allocator const &alloc) noexcept(::std::is_nothrow_copy_constructible_v<Allocator>)
-        : a_(alloc)
+        : allocator_(alloc)
     {
     }
 
@@ -1739,7 +1744,7 @@ class deque
                     elem_begin_(begin, begin, begin);
                     for (auto &i : ::std::ranges::subrange(begin, end))
                     {
-                        atraits_t_::construct(a_, &i);
+                        atraits_t_::construct(allocator_, &i);
                         ++elem_begin_end_;
                     }
                 }
@@ -1756,7 +1761,7 @@ class deque
                     elem_begin_(begin, begin, begin);
                     for (auto &i : ::std::ranges::subrange(begin, end))
                     {
-                        atraits_t_::construct(a_, &i, ts...);
+                        atraits_t_::construct(allocator_, &i, ts...);
                         ++elem_begin_end_;
                     }
                 }
@@ -1798,7 +1803,7 @@ class deque
                         elem_end_(begin, begin, elem_end_last_);
                         for (auto &j : ::std::ranges::subrange(begin, end))
                         {
-                            atraits_t_::construct(a_, &j);
+                            atraits_t_::construct(allocator_, &j);
                             ++elem_end_end_;
                         }
                     }
@@ -1815,7 +1820,7 @@ class deque
                         elem_end_(begin, begin, elem_end_last_);
                         for (auto &j : ::std::ranges::subrange(begin, end))
                         {
-                            atraits_t_::construct(a_, &j, ts...);
+                            atraits_t_::construct(allocator_, &j, ts...);
                             ++elem_end_end_;
                         }
                     }
@@ -1856,7 +1861,7 @@ class deque
                     elem_end_(begin, begin, begin + deque_detail::block_elements_v<T>);
                     for (auto &i : ::std::ranges::subrange(begin, end))
                     {
-                        atraits_t_::construct(a_, &i);
+                        atraits_t_::construct(allocator_, &i);
                         ++elem_end_end_;
                     }
                 }
@@ -1873,7 +1878,7 @@ class deque
                     elem_end_(begin, begin, begin + deque_detail::block_elements_v<T>);
                     for (auto &i : ::std::ranges::subrange(begin, end))
                     {
-                        atraits_t_::construct(a_, &i, ts...);
+                        atraits_t_::construct(allocator_, &i, ts...);
                         ++elem_end_end_;
                     }
                 }
@@ -1905,7 +1910,7 @@ class deque
     constexpr T &emplace_back_pre_(::std::size_t const block_size, V &&...v)
     {
         auto const end = elem_end_end_;
-        atraits_t_::construct(a_, end, ::std::forward<V>(v)...); // may throw
+        atraits_t_::construct(allocator_, end, ::std::forward<V>(v)...); // may throw
         elem_end_end_ = end + ::std::size_t(1);
         // 修正elem_begin
         if (block_size == ::std::size_t(1))
@@ -1920,7 +1925,7 @@ class deque
     constexpr T &emplace_back_post_(::std::size_t const block_size, V &&...v)
     {
         auto const begin = ::std::to_address(*block_elem_end_);
-        atraits_t_::construct(a_, begin, ::std::forward<V>(v)...); // may throw
+        atraits_t_::construct(allocator_, begin, ::std::forward<V>(v)...); // may throw
         elem_end_(begin, begin + ::std::size_t(1), begin + deque_detail::block_elements_v<T>);
         ++block_elem_end_;
         // 修正elem_begin，如果先前为0，说明现在是1，修正elem_begin等于elem_end
@@ -1956,9 +1961,9 @@ class deque
         guard.release();
     }
 
-    explicit deque(size_type count, Allocator const &alloc) : a_(alloc)
+    explicit deque(size_type count, Allocator const &alloc) : allocator_(alloc)
     {
-        assert(a_ == alloc);
+        assert(allocator_ == alloc);
         auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(count);
         construct_guard_ guard(this);
         extent_block_(block_size);
@@ -1975,9 +1980,9 @@ class deque
         guard.release();
     }
 
-    constexpr deque(size_type count, T const &value, Allocator const &alloc) : a_(alloc)
+    constexpr deque(size_type count, T const &value, Allocator const &alloc) : allocator_(alloc)
     {
-        assert(a_ == alloc);
+        assert(allocator_ == alloc);
         auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(count);
         construct_guard_ guard(this);
         extent_block_(block_size);
@@ -2072,9 +2077,9 @@ class deque
     }
 
     template <::std::input_iterator U, typename V>
-    constexpr deque(U first, V last, Allocator const &alloc) : a_(alloc)
+    constexpr deque(U first, V last, Allocator const &alloc) : allocator_(alloc)
     {
-        assert(a_ == alloc);
+        assert(allocator_ == alloc);
         construct_guard_ guard(this);
         from_range_noguard_(::std::move(first), ::std::move(last));
         guard.release();
@@ -2092,9 +2097,9 @@ class deque
 
     template <::std::ranges::input_range R>
         requires ::std::convertible_to<::std::ranges::range_value_t<R>, T>
-    constexpr deque(::std::from_range_t, R &&rg, Allocator const &alloc) : a_(alloc)
+    constexpr deque(::std::from_range_t, R &&rg, Allocator const &alloc) : allocator_(alloc)
     {
-        assert(a_ == alloc);
+        assert(allocator_ == alloc);
         construct_guard_ guard(this);
         from_range_noguard_(rg);
         guard.release();
@@ -2102,7 +2107,8 @@ class deque
 #endif
 
     // 复制构造采取按结构复制的方法
-    constexpr deque(deque const &other) : a_(atraits_t_::select_on_container_copy_construction(other.a_))
+    constexpr deque(deque const &other)
+        : allocator_(atraits_t_::select_on_container_copy_construction(other.allocator_))
     {
         if (!other.empty())
         {
@@ -2114,9 +2120,9 @@ class deque
         }
     }
 
-    constexpr deque(deque const &other, ::std::type_identity_t<Allocator> const &alloc) : a_(alloc)
+    constexpr deque(deque const &other, ::std::type_identity_t<Allocator> const &alloc) : allocator_(alloc)
     {
-        assert(a_ == alloc);
+        assert(allocator_ == alloc);
         if (!other.empty())
         {
             construct_guard_ guard(this);
@@ -2127,14 +2133,15 @@ class deque
         }
     }
 
-    constexpr deque(deque &&other) noexcept(::std::is_nothrow_copy_constructible_v<Allocator>) : a_(other.a_)
+    constexpr deque(deque &&other) noexcept(::std::is_nothrow_copy_constructible_v<Allocator>)
+        : allocator_(other.allocator_)
     {
-        assert(a_ == other.a_);
+        assert(allocator_ == other.allocator_);
         other.swap_without_ator_(*this);
     }
 
     constexpr deque(deque &&other, ::std::type_identity_t<Allocator> const &alloc) noexcept(is_ator_stateless_)
-        : a_(alloc)
+        : allocator_(alloc)
     {
         if constexpr (is_ator_stateless_)
         {
@@ -2142,9 +2149,9 @@ class deque
         }
         else
         {
-            assert(a_ == alloc);
+            assert(allocator_ == alloc);
 
-            if (a_ == other.a_)
+            if (allocator_ == other.allocator_)
             {
                 other.swap_without_ator_(*this);
             }
@@ -2169,9 +2176,9 @@ class deque
         }
     }
 
-    constexpr deque(::std::initializer_list<T> const ilist, Allocator const &alloc) : a_(alloc)
+    constexpr deque(::std::initializer_list<T> const ilist, Allocator const &alloc) : allocator_(alloc)
     {
-        assert(a_ == alloc);
+        assert(allocator_ == alloc);
         if (ilist.size())
         {
             construct_guard_ guard(this);
@@ -2185,9 +2192,9 @@ class deque
         if (this != ::std::addressof(other))
         {
             clear();
-            if constexpr (!is_ator_stateless_ && is_pocca_)
+            if constexpr (not is_ator_stateless_ && is_pocca_)
             {
-                a_ = other.a_;
+                allocator_ = other.allocator_;
             }
             if (!other.empty())
             {
@@ -2223,12 +2230,12 @@ class deque
         }
         else if constexpr (is_pocma_)
         {
-            a_ = ::std::move(other.a_);
+            allocator_ = ::std::move(other.allocator_);
             other.swap_without_ator_(*this);
         }
         else
         {
-            if (a_ == other.a_)
+            if (allocator_ == other.allocator_)
             {
                 other.swap_without_ator_(*this);
             }
@@ -2292,7 +2299,7 @@ class deque
   private:
     // 几乎等于iterator的at，但具有检查和断言
     template <bool throw_exception = false>
-    constexpr T &at_impl_(::std::size_t const pos) const noexcept(!throw_exception)
+    constexpr T &at_impl_(::std::size_t const pos) const noexcept(not throw_exception)
     {
         auto const front_size = static_cast<::std::size_t>(elem_begin_begin_ - elem_begin_first_);
         auto const [block_step, elem_step] = deque_detail::calc_pos<T>(front_size, pos);
@@ -2318,7 +2325,7 @@ class deque
     constexpr T &emplace_front_pre_(::std::size_t const block_size, V &&...v)
     {
         auto const begin = ::std::to_address(elem_begin_begin_ - ::std::size_t(1));
-        atraits_t_::construct(a_, begin, ::std::forward<V>(v)...); // may throw
+        atraits_t_::construct(allocator_, begin, ::std::forward<V>(v)...); // may throw
         elem_begin_begin_ = begin;
         if (block_size == ::std::size_t(1))
         {
@@ -2337,7 +2344,7 @@ class deque
         auto const block = block_elem_begin_ - ::std::size_t(1);
         auto const first = ::std::to_address(*block);
         auto const end = first + deque_detail::block_elements_v<T>;
-        atraits_t_::construct(a_, end - ::std::size_t(1), ::std::forward<V>(v)...); // may throw
+        atraits_t_::construct(allocator_, end - ::std::size_t(1), ::std::forward<V>(v)...); // may throw
         elem_begin_(end - ::std::size_t(1), end, first);
 #if __has_cpp_attribute(assume)
         [[assume(block + ::std::size_t(1) == block_elem_begin_)]];
@@ -2431,7 +2438,7 @@ class deque
     {
         assert(not empty());
         --elem_end_end_;
-        atraits_t_::destroy(a_, elem_end_end_);
+        atraits_t_::destroy(allocator_, elem_end_end_);
         if (elem_end_end_ == elem_end_begin_)
         {
             --block_elem_end_;
@@ -2462,7 +2469,7 @@ class deque
     constexpr void pop_front() noexcept
     {
         assert(not empty());
-        atraits_t_::destroy(a_, elem_begin_begin_);
+        atraits_t_::destroy(allocator_, elem_begin_begin_);
         ++elem_begin_begin_;
         if (elem_begin_end_ == elem_begin_begin_)
         {
