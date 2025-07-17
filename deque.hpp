@@ -1,3 +1,7 @@
+// Copyright 2025 YexuanXiao
+// Distributed under the MIT License.
+// https://github.com/YexuanXiao/deque
+
 #if not defined(BIZWEN_DEQUE_HPP)
 #define BIZWEN_DEQUE_HPP
 

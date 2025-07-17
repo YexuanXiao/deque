@@ -1,3 +1,7 @@
+// Copyright 2025 YexuanXiao
+// Distributed under the MIT License.
+// https://github.com/YexuanXiao/deque
+
 #include <cassert>
 #include <ranges>
 #include <vector>
