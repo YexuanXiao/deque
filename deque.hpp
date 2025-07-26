@@ -1438,8 +1438,9 @@ ctrl_end   →
         assert(block_alloc_begin);
         for (auto i = 0uz; i != block_size; ++i)
         {
-            --block_alloc_begin;
-            *block_alloc_begin = alloc_block();
+            auto const block = block_alloc_begin - 1uz;
+            *block = alloc_block();
+            block_alloc_begin = block;
         }
     }
 
