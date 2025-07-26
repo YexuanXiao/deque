@@ -49,7 +49,7 @@
 
 namespace bizwen
 {
-template <typename T, typename Allocator>
+template <typename T, typename Alloc>
 class deque;
 
 namespace deque_detail
@@ -398,7 +398,7 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T, Block>
 {
     using RConstT = ::std::remove_const_t<T>;
 
-    template <typename U, typename Allocator>
+    template <typename U, typename Alloc>
     friend class bizwen::deque;
     friend buckets_type<::std::remove_const_t<T>, Block>;
     friend deque_iterator<RConstT const, Block>;
@@ -587,7 +587,7 @@ class deque_iterator
 {
     using RConstT = ::std::remove_const_t<T>;
 
-    template <typename U, typename Allocator>
+    template <typename U, typename Alloc>
     friend class bizwen::deque;
     friend deque_iterator<RConstT, Block>;
     friend deque_iterator<T const, Block>;
@@ -978,17 +978,17 @@ static_assert(::std::random_access_iterator<repeat_iterator<int>>);
 #endif
 } // namespace deque_detail
 
-template <typename T, typename Allocator = ::std::allocator<T>>
+template <typename T, typename Alloc = ::std::allocator<T>>
 class deque
 {
 #if not defined(NDEBUG)
     static_assert(::std::is_object_v<T>);
     static_assert(not ::std::is_const_v<T>);
-    static_assert(::std::is_same_v<T, typename Allocator::value_type>);
+    static_assert(::std::is_same_v<T, typename Alloc::value_type>);
 #endif
-    using atraits_t_ = ::std::allocator_traits<Allocator>;
+    using atraits_t_ = ::std::allocator_traits<Alloc>;
 
-    static constexpr bool is_default_operation_ = requires(Allocator &a) { a.construct(static_cast<T *>(nullptr)); };
+    static constexpr bool is_default_operation_ = requires(Alloc &a) { a.construct(static_cast<T *>(nullptr)); };
     static constexpr bool is_ator_stateless_ = atraits_t_::is_always_equal::value;
     static constexpr bool is_pocca_ = atraits_t_::propagate_on_container_copy_assignment::value;
     static constexpr bool is_pocma_ = atraits_t_::propagate_on_container_move_assignment::value;
@@ -998,9 +998,9 @@ class deque
     static inline constexpr ::std::size_t block_elements = deque_detail::block_elements_v<T>;
 
 #if __has_cpp_attribute(msvc::no_unique_address)
-    [[msvc::no_unique_address]] Allocator allocator_{};
+    [[msvc::no_unique_address]] Alloc allocator_{};
 #else
-    [[no_unique_address]] Allocator allocator_{};
+    [[no_unique_address]] Alloc allocator_{};
 #endif
 
     using Block = typename atraits_t_::pointer;
@@ -1195,9 +1195,9 @@ class deque
     using const_reverse_iterator = ::std::reverse_iterator<deque_detail::deque_iterator<T const, Block>>;
     using buckets_type = deque_detail::buckets_type<T, Block>;
     using const_buckets_type = deque_detail::buckets_type<T const, Block>;
-    using allocator_type = Allocator;
+    using allocator_type = Alloc;
 
-    constexpr Allocator get_allocator() const noexcept
+    constexpr Alloc get_allocator() const noexcept
     {
         return allocator_;
     }
@@ -1789,11 +1789,11 @@ class deque
     }
 
   public:
-    constexpr deque() noexcept(::std::is_nothrow_default_constructible_v<Allocator>)
-        requires ::std::default_initializable<Allocator>
+    constexpr deque() noexcept(::std::is_nothrow_default_constructible_v<Alloc>)
+        requires ::std::default_initializable<Alloc>
     = default;
 
-    explicit constexpr deque(Allocator const &alloc) noexcept(::std::is_nothrow_copy_constructible_v<Allocator>)
+    explicit constexpr deque(Alloc const &alloc) noexcept(::std::is_nothrow_copy_constructible_v<Alloc>)
         : allocator_(alloc)
     {
     }
@@ -2039,7 +2039,7 @@ class deque
         guard.release();
     }
 
-    explicit deque(size_type count, Allocator const &alloc) : allocator_(alloc)
+    explicit deque(size_type count, Alloc const &alloc) : allocator_(alloc)
     {
         assert(allocator_ == alloc);
         auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(count);
@@ -2058,7 +2058,7 @@ class deque
         guard.release();
     }
 
-    constexpr deque(size_type count, T const &value, Allocator const &alloc) : allocator_(alloc)
+    constexpr deque(size_type count, T const &value, Alloc const &alloc) : allocator_(alloc)
     {
         assert(allocator_ == alloc);
         auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(count);
@@ -2155,7 +2155,7 @@ class deque
     }
 
     template <::std::input_iterator U, typename V>
-    constexpr deque(U first, V last, Allocator const &alloc) : allocator_(alloc)
+    constexpr deque(U first, V last, Alloc const &alloc) : allocator_(alloc)
     {
         assert(allocator_ == alloc);
         construct_guard_ guard(this);
@@ -2175,7 +2175,7 @@ class deque
 
     template <::std::ranges::input_range R>
         requires ::std::convertible_to<::std::ranges::range_value_t<R>, T>
-    constexpr deque(::std::from_range_t, R &&rg, Allocator const &alloc) : allocator_(alloc)
+    constexpr deque(::std::from_range_t, R &&rg, Alloc const &alloc) : allocator_(alloc)
     {
         assert(allocator_ == alloc);
         construct_guard_ guard(this);
@@ -2198,7 +2198,7 @@ class deque
         }
     }
 
-    constexpr deque(deque const &other, ::std::type_identity_t<Allocator> const &alloc) : allocator_(alloc)
+    constexpr deque(deque const &other, ::std::type_identity_t<Alloc> const &alloc) : allocator_(alloc)
     {
         assert(allocator_ == alloc);
         if (!other.empty())
@@ -2211,14 +2211,14 @@ class deque
         }
     }
 
-    constexpr deque(deque &&other) noexcept(::std::is_nothrow_copy_constructible_v<Allocator>)
+    constexpr deque(deque &&other) noexcept(::std::is_nothrow_copy_constructible_v<Alloc>)
         : allocator_(other.allocator_)
     {
         assert(allocator_ == other.allocator_);
         other.swap_without_ator_(*this);
     }
 
-    constexpr deque(deque &&other, ::std::type_identity_t<Allocator> const &alloc) noexcept(is_ator_stateless_)
+    constexpr deque(deque &&other, ::std::type_identity_t<Alloc> const &alloc) noexcept(is_ator_stateless_)
         : allocator_(alloc)
     {
         if constexpr (is_ator_stateless_)
@@ -2254,7 +2254,7 @@ class deque
         }
     }
 
-    constexpr deque(::std::initializer_list<T> const ilist, Allocator const &alloc) : allocator_(alloc)
+    constexpr deque(::std::initializer_list<T> const ilist, Alloc const &alloc) : allocator_(alloc)
     {
         assert(allocator_ == alloc);
         if (ilist.size())
@@ -3306,8 +3306,8 @@ deque(U, V) -> deque<typename ::std::iterator_traits<U>::value_type,
                      typename ::std::allocator<typename ::std::iterator_traits<U>::value_type>>;
 
 template <::std::input_iterator U, typename V,
-          deque_detail::mini_alloc Allocator = ::std::allocator<typename ::std::iterator_traits<U>::value_type>>
-deque(U, V, Allocator) -> deque<typename ::std::iterator_traits<U>::value_type, Allocator>;
+          deque_detail::mini_alloc Alloc = ::std::allocator<typename ::std::iterator_traits<U>::value_type>>
+deque(U, V, Alloc) -> deque<typename ::std::iterator_traits<U>::value_type, Alloc>;
 
 #if defined(__cpp_lib_containers_ranges)
 template <::std::ranges::input_range R>
@@ -3315,12 +3315,12 @@ deque(::std::from_range_t, R &&)
     -> deque<::std::ranges::range_value_t<R>, ::std::allocator<::std::ranges::range_value_t<R>>>;
 
 template <::std::ranges::input_range R,
-          deque_detail::mini_alloc Allocator = ::std::allocator<::std::ranges::range_value_t<R>>>
-deque(::std::from_range_t, R &&, Allocator) -> deque<::std::ranges::range_value_t<R>, Allocator>;
+          deque_detail::mini_alloc Alloc = ::std::allocator<::std::ranges::range_value_t<R>>>
+deque(::std::from_range_t, R &&, Alloc) -> deque<::std::ranges::range_value_t<R>, Alloc>;
 #endif
 
-template <typename T, typename Allocator, typename U = T>
-inline constexpr ::std::size_t erase(deque<T, Allocator> &c, U const &value)
+template <typename T, typename Alloc, typename U = T>
+inline constexpr ::std::size_t erase(deque<T, Alloc> &c, U const &value)
 {
     auto const it = ::std::remove(c.begin(), c.end(), value);
     auto const r = c.end() - it;
@@ -3328,8 +3328,8 @@ inline constexpr ::std::size_t erase(deque<T, Allocator> &c, U const &value)
     return r;
 }
 
-template <typename T, typename Allocator, typename Pred>
-inline constexpr ::std::size_t erase_if(deque<T, Allocator> &c, Pred pred)
+template <typename T, typename Alloc, typename Pred>
+inline constexpr ::std::size_t erase_if(deque<T, Alloc> &c, Pred pred)
 {
     auto const it = ::std::remove_if(c.begin(), c.end(), pred);
     auto const r = c.end() - it;
