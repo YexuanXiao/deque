@@ -391,6 +391,9 @@ static_assert(::std::random_access_iterator<bucket_iterator<const int, int *>>);
 #endif
 
 template <typename T, typename Block>
+class deque_iterator;
+
+template <typename T, typename Block>
 class buckets_type : public ::std::ranges::view_interface<buckets_type<T, Block>>
 {
     using RConstT = ::std::remove_const_t<T>;
@@ -398,6 +401,8 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T, Block>
     template <typename U, typename Allocator>
     friend class bizwen::deque;
     friend buckets_type<::std::remove_const_t<T>, Block>;
+    friend deque_iterator<RConstT const, Block>;
+    friend deque_iterator<RConstT, Block>;
 
     Block *block_elem_begin_{};
     Block *block_elem_end_{};
@@ -591,22 +596,72 @@ class deque_iterator
     Block *block_elem_end_{};
     RConstT *elem_begin_{};
     RConstT *elem_curr_{};
+#if not defined(NDEBUG)
+    buckets_type<T const, Block> buckets_{};
 
-    template <typename U, typename V>
-    constexpr deque_iterator(Block *block_curr, Block *block_end, U const begin, V const pos) noexcept
+    constexpr void verify() const noexcept
+    {
+        assert(block_elem_curr_ >= buckets_.block_elem_begin_);
+        assert(block_elem_end_ == buckets_.block_elem_end_);
+        if (block_elem_curr_ != nullptr)
+        {
+            assert(block_elem_curr_ < block_elem_end_);
+            assert(elem_begin_ == ::std::to_address(*block_elem_curr_));
+        }
+        assert(elem_curr_ >= elem_begin_);
+        assert(elem_curr_ <= elem_begin_ + block_elements_v<T>);
+        if (block_elem_curr_ == buckets_.block_elem_end_ - ::std::size_t(1))
+            assert(elem_curr_ <= buckets_.elem_end_end_);
+        else if (block_elem_curr_ == buckets_.block_elem_begin_)
+            assert(elem_curr_ >= buckets_.elem_begin_begin_);
+    }
+
+    constexpr void verify(deque_iterator const &other) const noexcept
+    {
+        auto const &rhs = other.buckets_;
+        assert(rhs.block_elem_begin_ == buckets_.block_elem_begin_);
+        assert(rhs.block_elem_end_ == buckets_.block_elem_end_);
+        assert(rhs.elem_begin_begin_ == buckets_.elem_begin_begin_);
+        assert(rhs.elem_begin_end_ == buckets_.elem_begin_end_);
+        assert(rhs.elem_end_begin_ == buckets_.elem_end_begin_);
+        assert(rhs.elem_end_end_ == buckets_.elem_end_end_);
+    }
+
+    constexpr deque_iterator(Block *block_curr, Block *block_end, RConstT *const begin, RConstT *const pos,
+                             buckets_type<T const, Block> buckets) noexcept
+        : block_elem_curr_(block_curr), block_elem_end_(block_end), elem_begin_(deque_detail::to_address(begin)),
+          elem_curr_(deque_detail::to_address(pos)), buckets_(buckets)
+    {
+    }
+#else
+    constexpr void verify() const noexcept
+    {
+    }
+
+    constexpr void verify(deque_iterator const &other) const noexcept
+    {
+    }
+
+    constexpr deque_iterator(Block *block_curr, Block *block_end, RConstT *const begin, RConstT *const pos) noexcept
         : block_elem_curr_(block_curr), block_elem_end_(block_end), elem_begin_(deque_detail::to_address(begin)),
           elem_curr_(deque_detail::to_address(pos))
     {
     }
+#endif
 
     constexpr deque_iterator<RConstT, Block> remove_const_() const noexcept
         requires(::std::is_const_v<T>)
     {
+#if not defined(NDEBUG)
+        return {block_elem_curr_, block_elem_end_, elem_begin_, elem_curr_, buckets_};
+#else
         return {block_elem_curr_, block_elem_end_, elem_begin_, elem_curr_};
+#endif
     }
 
     constexpr T &at_impl_(::std::ptrdiff_t const pos) const noexcept
     {
+        verify();
         auto const [block_step, elem_step] = deque_detail::calc_pos<T>(elem_curr_ - elem_begin_, pos);
         auto const target_block = block_elem_curr_ + block_step;
         assert(target_block < block_elem_end_);
@@ -615,6 +670,7 @@ class deque_iterator
 
     constexpr deque_iterator &plus_and_assign_(::std::ptrdiff_t const pos) noexcept
     {
+        verify();
         if (pos != ::std::ptrdiff_t(0))
         {
             auto const [block_step, elem_step] = deque_detail::calc_pos<T>(elem_curr_ - elem_begin_, pos);
@@ -659,6 +715,7 @@ class deque_iterator
 
     constexpr ::std::strong_ordering operator<=>(deque_iterator const &other) const noexcept
     {
+        verify(other);
         assert(block_elem_end_ == other.block_elem_end_);
         if (block_elem_curr_ < other.block_elem_curr_)
             return ::std::strong_ordering::less;
@@ -685,6 +742,7 @@ class deque_iterator
 
     constexpr deque_iterator &operator++() noexcept
     {
+        verify();
         // 空deque的迭代器不能自增，不需要考虑
         assert(elem_curr_ != elem_begin_ + deque_detail::block_elements_v<T>);
         ++elem_curr_;
@@ -713,6 +771,7 @@ class deque_iterator
 
     constexpr deque_iterator &operator--() noexcept
     {
+        verify();
         if (elem_curr_ == elem_begin_)
         {
             --block_elem_curr_;
@@ -746,6 +805,7 @@ class deque_iterator
 
     friend constexpr ::std::ptrdiff_t operator-(deque_iterator const &lhs, deque_iterator const &rhs) noexcept
     {
+        lhs.verify(rhs);
         assert(lhs.block_elem_end_ == rhs.block_elem_end_);
         auto const block_size = lhs.block_elem_curr_ - rhs.block_elem_curr_;
         return block_size * static_cast<::std::ptrdiff_t>(block_elements_v<T>) + lhs.elem_curr_ - lhs.elem_begin_ -
@@ -791,7 +851,11 @@ class deque_iterator
     constexpr operator deque_iterator<T const, Block>() const
         requires(not ::std::is_const_v<T>)
     {
+#if not defined(NDEBUG)
+        return {block_elem_curr_, block_elem_end_, elem_begin_, elem_curr_, buckets_};
+#else
         return {block_elem_curr_, block_elem_end_, elem_begin_, elem_curr_};
+#endif
     }
 };
 
@@ -1087,17 +1151,17 @@ class deque
 
     constexpr ::std::size_t block_elem_size_() const noexcept
     {
-        return block_elem_end_ - block_elem_begin_;
+        return static_cast<::std::size_t>(block_elem_end_ - block_elem_begin_);
     }
 
     constexpr ::std::size_t block_ctrl_size_() const noexcept
     {
-        return block_ctrl_end_ - block_ctrl_begin_();
+        return static_cast<::std::size_t>(block_ctrl_end_ - block_ctrl_begin_());
     }
 
     constexpr ::std::size_t block_alloc_size_() const noexcept
     {
-        return block_alloc_end_ - block_alloc_begin_;
+        return static_cast<::std::size_t>(block_alloc_end_ - block_alloc_begin_);
     }
 
     constexpr void swap_without_ator_(deque &other) noexcept
@@ -1208,7 +1272,7 @@ class deque
 
     constexpr ::std::size_t max_size() const noexcept
     {
-        return ::std::size_t(-1) / ::std::size_t(2);
+        return atraits_t_::max_size(allocator_);
     }
 
 #if not defined(NDEBUG)
@@ -1220,19 +1284,29 @@ class deque
     {
         if (block_elem_size_() == ::std::size_t(0))
         {
-            return const_iterator{nullptr, nullptr, nullptr, nullptr};
+            return {};
         }
-        return const_iterator{block_elem_begin_, block_elem_end_, *block_elem_begin_, elem_begin_begin_};
+#if not defined(NDEBUG)
+        return {block_elem_begin_, block_elem_end_, ::std::to_address(*block_elem_begin_), elem_begin_begin_,
+                buckets()};
+#else
+        return {block_elem_begin_, block_elem_end_, ::std::to_address(*block_elem_begin_), elem_begin_begin_};
+#endif
     }
 
     constexpr const_iterator end() const noexcept
     {
         if (block_elem_size_() == ::std::size_t(0))
         {
-            return const_iterator{nullptr, nullptr, nullptr, nullptr};
+            return {};
         }
-        return const_iterator{block_elem_end_ - ::std::size_t(1), block_elem_end_,
-                              *(block_elem_end_ - ::std::size_t(1)), elem_end_end_};
+#if not defined(NDEBUG)
+        return {block_elem_end_ - ::std::size_t(1), block_elem_end_,
+                ::std::to_address(*(block_elem_end_ - ::std::size_t(1))), elem_end_end_, buckets()};
+#else
+        return {block_elem_end_ - ::std::size_t(1), block_elem_end_,
+                ::std::to_address(*(block_elem_end_ - ::std::size_t(1))), elem_end_end_};
+#endif
     }
 
     constexpr iterator begin() noexcept
@@ -3232,8 +3306,8 @@ deque(U, V) -> deque<typename ::std::iterator_traits<U>::value_type,
                      typename ::std::allocator<typename ::std::iterator_traits<U>::value_type>>;
 
 template <::std::input_iterator U, typename V,
-          deque_detail::mini_alloc Alloc = ::std::allocator<typename ::std::iterator_traits<U>::value_type>>
-deque(U, V, Alloc) -> deque<typename ::std::iterator_traits<U>::value_type, Alloc>;
+          deque_detail::mini_alloc Allocator = ::std::allocator<typename ::std::iterator_traits<U>::value_type>>
+deque(U, V, Allocator) -> deque<typename ::std::iterator_traits<U>::value_type, Allocator>;
 
 #if defined(__cpp_lib_containers_ranges)
 template <::std::ranges::input_range R>
@@ -3241,12 +3315,12 @@ deque(::std::from_range_t, R &&)
     -> deque<::std::ranges::range_value_t<R>, ::std::allocator<::std::ranges::range_value_t<R>>>;
 
 template <::std::ranges::input_range R,
-          deque_detail::mini_alloc Alloc = ::std::allocator<::std::ranges::range_value_t<R>>>
-deque(::std::from_range_t, R &&, Alloc) -> deque<::std::ranges::range_value_t<R>, Alloc>;
+          deque_detail::mini_alloc Allocator = ::std::allocator<::std::ranges::range_value_t<R>>>
+deque(::std::from_range_t, R &&, Allocator) -> deque<::std::ranges::range_value_t<R>, Allocator>;
 #endif
 
-template <typename T, typename Alloc, typename U = T>
-inline constexpr ::std::size_t erase(deque<T, Alloc> &c, U const &value)
+template <typename T, typename Allocator, typename U = T>
+inline constexpr ::std::size_t erase(deque<T, Allocator> &c, U const &value)
 {
     auto const it = ::std::remove(c.begin(), c.end(), value);
     auto const r = c.end() - it;
@@ -3254,8 +3328,8 @@ inline constexpr ::std::size_t erase(deque<T, Alloc> &c, U const &value)
     return r;
 }
 
-template <typename T, typename Alloc, typename Pred>
-inline constexpr ::std::size_t erase_if(deque<T, Alloc> &c, Pred pred)
+template <typename T, typename Allocator, typename Pred>
+inline constexpr ::std::size_t erase_if(deque<T, Allocator> &c, Pred pred)
 {
     auto const it = ::std::remove_if(c.begin(), c.end(), pred);
     auto const r = c.end() - it;
