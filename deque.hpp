@@ -1272,7 +1272,7 @@ class deque
 
     constexpr ::std::size_t max_size() const noexcept
     {
-        return atraits_t_::max_size(allocator_);
+        return ::std::ranges::min(atraits_t_::max_size(allocator_), ::std::size_t(-1) / ::std::size_t(2) / sizeof(T));
     }
 
 #if !defined(NDEBUG)
@@ -1497,8 +1497,9 @@ class deque
         assert(block_alloc_begin_);
         for (auto i = ::std::size_t(0); i != block_size; ++i)
         {
-            --block_alloc_begin_;
-            *block_alloc_begin_ = alloc_block_();
+            auto const block = block_alloc_begin_ - ::std::size_t(1);
+            *block = alloc_block_();
+            block_alloc_begin_ = block;
         }
     }
 
@@ -2213,7 +2214,7 @@ class deque
     }
 
     constexpr deque(deque &&other) noexcept(::std::is_nothrow_copy_constructible_v<Alloc>)
-        : allocator_(other.allocator_)
+        : allocator_(::std::move(other.allocator_))
     {
         assert(allocator_ == other.allocator_);
         other.swap_without_ator_(*this);
@@ -2324,7 +2325,6 @@ class deque
                 auto const block_size = other.block_elem_size_();
                 extent_block_(block_size);
                 copy_<true>(other.buckets(), block_size);
-                other.clear();
             }
         }
         return *this;
