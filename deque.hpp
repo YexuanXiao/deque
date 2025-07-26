@@ -2,7 +2,7 @@
 // Distributed under the MIT License.
 // https://github.com/YexuanXiao/deque
 
-#if not defined(BIZWEN_DEQUE_HPP)
+#if !defined(BIZWEN_DEQUE_HPP)
 #define BIZWEN_DEQUE_HPP
 
 // assert
@@ -34,7 +34,7 @@
 // polymorphic_allocator
 #include <memory_resource>
 
-#if not defined(__cpp_pack_indexing)
+#if !defined(__cpp_pack_indexing)
 // tuple/get
 #include <tuple>
 #endif
@@ -56,7 +56,7 @@ namespace deque_detail
 {
 
 // 用于从参数包中获得前两个对象（只有两个）的引用的辅助函数
-#if not defined(__cpp_pack_indexing)
+#if !defined(__cpp_pack_indexing)
 template <typename Tuple>
 inline constexpr auto get(Tuple args) noexcept
 {
@@ -378,14 +378,14 @@ class bucket_iterator
     }
 
     constexpr operator bucket_iterator<T const, Block>() const
-        requires(not ::std::is_const_v<T>)
+        requires(!::std::is_const_v<T>)
     {
         return {block_elem_begin_, block_elem_end_, block_elem_curr_, elem_begin_begin_, elem_begin_end_,
                 elem_end_begin_,   elem_end_end_,   elem_curr_begin_, elem_curr_end_};
     }
 };
 
-#if not defined(NDEBUG)
+#if !defined(NDEBUG)
 static_assert(::std::random_access_iterator<bucket_iterator<int, int *>>);
 static_assert(::std::random_access_iterator<bucket_iterator<const int, int *>>);
 #endif
@@ -476,7 +476,7 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T, Block>
     }
 
     constexpr ::std::span<T const> front() noexcept
-        requires(not ::std::is_const_v<T>)
+        requires(!::std::is_const_v<T>)
     {
         return {elem_begin_begin_, elem_begin_end_};
     }
@@ -487,7 +487,7 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T, Block>
     }
 
     constexpr ::std::span<T const> back() noexcept
-        requires(not ::std::is_const_v<T>)
+        requires(!::std::is_const_v<T>)
     {
         return {elem_end_begin_, elem_end_end_};
     }
@@ -498,7 +498,7 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T, Block>
     }
 
     constexpr ::std::span<const T> at(::std::size_t const pos) const noexcept
-        requires(not ::std::is_const_v<T>)
+        requires(!::std::is_const_v<T>)
     {
         auto const s = at_impl(pos);
         return {s.data(), s.size()};
@@ -576,7 +576,7 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T, Block>
     }
 
     constexpr operator buckets_type<T const, Block>() const
-        requires(not ::std::is_const_v<T>)
+        requires(!::std::is_const_v<T>)
     {
         return {block_elem_begin_, block_elem_end_, elem_begin_begin_, elem_begin_end_, elem_end_begin_, elem_end_end_};
     }
@@ -596,7 +596,7 @@ class deque_iterator
     Block *block_elem_end_{};
     RConstT *elem_begin_{};
     RConstT *elem_curr_{};
-#if not defined(NDEBUG)
+#if !defined(NDEBUG)
     buckets_type<T const, Block> buckets_{};
 
     constexpr void verify() const noexcept
@@ -652,7 +652,7 @@ class deque_iterator
     constexpr deque_iterator<RConstT, Block> remove_const_() const noexcept
         requires(::std::is_const_v<T>)
     {
-#if not defined(NDEBUG)
+#if !defined(NDEBUG)
         return {block_elem_curr_, block_elem_end_, elem_begin_, elem_curr_, buckets_};
 #else
         return {block_elem_curr_, block_elem_end_, elem_begin_, elem_curr_};
@@ -849,9 +849,9 @@ class deque_iterator
     }
 
     constexpr operator deque_iterator<T const, Block>() const
-        requires(not ::std::is_const_v<T>)
+        requires(!::std::is_const_v<T>)
     {
-#if not defined(NDEBUG)
+#if !defined(NDEBUG)
         return {block_elem_curr_, block_elem_end_, elem_begin_, elem_curr_, buckets_};
 #else
         return {block_elem_curr_, block_elem_end_, elem_begin_, elem_curr_};
@@ -859,7 +859,7 @@ class deque_iterator
     }
 };
 
-#if not defined(__cpp_lib_ranges_repeat)
+#if !defined(__cpp_lib_ranges_repeat)
 template <typename T>
 class repeat_iterator
 {
@@ -972,7 +972,7 @@ class repeat_iterator
         return it + n;
     }
 };
-#if not defined(NDEBUG)
+#if !defined(NDEBUG)
 static_assert(::std::random_access_iterator<repeat_iterator<int>>);
 #endif
 #endif
@@ -981,9 +981,9 @@ static_assert(::std::random_access_iterator<repeat_iterator<int>>);
 template <typename T, typename Alloc = ::std::allocator<T>>
 class deque
 {
-#if not defined(NDEBUG)
+#if !defined(NDEBUG)
     static_assert(::std::is_object_v<T>);
-    static_assert(not ::std::is_const_v<T>);
+    static_assert(!::std::is_const_v<T>);
     static_assert(::std::is_same_v<T, typename Alloc::value_type>);
 #endif
     using atraits_t_ = ::std::allocator_traits<Alloc>;
@@ -1233,7 +1233,7 @@ class deque
 
     constexpr void swap(deque &other) noexcept
     {
-        if constexpr (not is_ator_stateless_ && not is_pocs_)
+        if constexpr (!is_ator_stateless_ && !is_pocs_)
         {
             // P0178?
             assert(allocator_ == other.allocator_);
@@ -1275,7 +1275,7 @@ class deque
         return atraits_t_::max_size(allocator_);
     }
 
-#if not defined(NDEBUG)
+#if !defined(NDEBUG)
     static_assert(::std::random_access_iterator<iterator>);
     static_assert(::std::sentinel_for<iterator, iterator>);
 #endif
@@ -1286,7 +1286,7 @@ class deque
         {
             return {};
         }
-#if not defined(NDEBUG)
+#if !defined(NDEBUG)
         return {block_elem_begin_, block_elem_end_, ::std::to_address(*block_elem_begin_), elem_begin_begin_,
                 buckets()};
 #else
@@ -1300,7 +1300,7 @@ class deque
         {
             return {};
         }
-#if not defined(NDEBUG)
+#if !defined(NDEBUG)
         return {block_elem_end_ - ::std::size_t(1), block_elem_end_,
                 ::std::to_address(*(block_elem_end_ - ::std::size_t(1))), elem_end_end_, buckets()};
 #else
@@ -2083,7 +2083,8 @@ class deque
     {
         if (first != last)
         {
-            auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(last - first);
+            auto const [block_size, full_blocks, rem_elems] =
+                deque_detail::calc_cap<T>(static_cast<::std::size_t>(last - first));
             extent_block_(block_size);
             construct_(full_blocks, rem_elems, ::std::move(first), ::std::move(last));
         }
@@ -2270,7 +2271,7 @@ class deque
         if (this != ::std::addressof(other))
         {
             clear();
-            if constexpr (not is_ator_stateless_ && is_pocca_)
+            if constexpr (!is_ator_stateless_ && is_pocca_)
             {
                 allocator_ = other.allocator_;
             }
@@ -2377,7 +2378,7 @@ class deque
   private:
     // 几乎等于iterator的at，但具有检查和断言
     template <bool throw_exception = false>
-    constexpr T &at_impl_(::std::size_t const pos) const noexcept(not throw_exception)
+    constexpr T &at_impl_(::std::size_t const pos) const noexcept(!throw_exception)
     {
         auto const front_size = static_cast<::std::size_t>(elem_begin_begin_ - elem_begin_first_);
         auto const [block_step, elem_step] = deque_detail::calc_pos<T>(front_size, pos);
@@ -2388,7 +2389,7 @@ class deque
                                     : true;
         if constexpr (throw_exception)
         {
-            if (not(check_block && check_elem))
+            if (!(check_block && check_elem))
                 throw ::std::out_of_range{"bizwen::deque::at"};
         }
         else
@@ -2514,7 +2515,7 @@ class deque
     // 这是emplace_back的先决条件
     constexpr void pop_back() noexcept
     {
-        assert(not empty());
+        assert(!empty());
         --elem_end_end_;
         atraits_t_::destroy(allocator_, elem_end_end_);
         if (elem_end_end_ == elem_end_begin_)
@@ -2546,7 +2547,7 @@ class deque
     // 参考pop_back
     constexpr void pop_front() noexcept
     {
-        assert(not empty());
+        assert(!empty());
         atraits_t_::destroy(allocator_, elem_begin_begin_);
         ++elem_begin_begin_;
         if (elem_begin_end_ == elem_begin_begin_)
@@ -2578,25 +2579,25 @@ class deque
 
     constexpr T &front() noexcept
     {
-        assert(not empty());
+        assert(!empty());
         return *(elem_begin_begin_);
     }
 
     constexpr T &back() noexcept
     {
-        assert(not empty());
+        assert(!empty());
         return *(elem_end_end_ - ::std::size_t(1));
     }
 
     constexpr T const &front() const noexcept
     {
-        assert(not empty());
+        assert(!empty());
         return *(elem_begin_begin_);
     }
 
     constexpr T const &back() const noexcept
     {
-        assert(not empty());
+        assert(!empty());
         return *(elem_end_end_ - ::std::size_t(1));
     }
 
@@ -2694,7 +2695,7 @@ class deque
     template <::std::random_access_iterator U>
     constexpr void append_range_noguard_(U &&first, U &&last)
     {
-        reserve_back_(last - first);
+        reserve_back_(static_cast<::std::size_t>(last - first));
         for (; first != last; ++first)
         {
             emplace_back_noalloc_(*first);
@@ -2746,7 +2747,7 @@ class deque
     template <::std::random_access_iterator U>
     constexpr void prepend_range_noguard_(U &&first, U &&last)
     {
-        reserve_front_(last - first);
+        reserve_front_(static_cast<::std::size_t>(last - first));
         for (; first != last;)
         {
             --last;
@@ -3039,7 +3040,7 @@ class deque
     {
         reserve_back_(count);
         auto first = begin();
-        auto last = first + count;
+        auto last = first + static_cast<::std::ptrdiff_t>(count);
         for (; first != last; ++first)
         {
             emplace_back_noalloc_(::std::move(*first));
@@ -3077,7 +3078,7 @@ class deque
         {
             auto const old_size = size();
             append_range_noguard_(::std::forward<R>(rg));
-            return begin() + old_size;
+            return begin() + static_cast<::std::ptrdiff_t>(old_size);
         }
         if (pos == begin_pre)
         {
@@ -3091,16 +3092,18 @@ class deque
         {
             auto const old_size = size();
             append_range_noguard_(::std::forward<R>(rg));
-            ::std::ranges::rotate(begin() + front_diff, begin() + old_size, end());
-            return begin() + front_diff;
+            ::std::ranges::rotate(begin() + static_cast<::std::ptrdiff_t>(front_diff),
+                                  begin() + static_cast<::std::ptrdiff_t>(old_size), end());
+            return begin() + static_cast<::std::ptrdiff_t>(front_diff);
         }
         else
         {
             auto const old_size = size();
             prepend_range_noguard_(::std::forward<R>(rg));
             auto const count = size() - old_size;
-            ::std::ranges::rotate(begin(), begin() + count, begin() + (count + front_diff));
-            return begin() + front_diff;
+            ::std::ranges::rotate(begin(), begin() + static_cast<::std::ptrdiff_t>(count),
+                                  begin() + static_cast<::std::ptrdiff_t>(count + front_diff));
+            return begin() + static_cast<::std::ptrdiff_t>(front_diff);
         }
 #else
         if (back_diff <= front_diff)
@@ -3109,7 +3112,7 @@ class deque
             move_back_to_front_(back_diff);
             append_range_noguard_(::std::forward<R>(rg));
             move_front_to_back_(back_diff);
-            return begin() + front_diff;
+            return begin() + static_cast<::std::ptrdiff_t>(front_diff);
         }
         else
         {
@@ -3117,7 +3120,7 @@ class deque
             move_front_to_back_(front_diff);
             prepend_range_noguard_(::std::forward<R>(rg));
             move_back_to_front_(front_diff);
-            return begin() + front_diff;
+            return begin() + static_cast<::std::ptrdiff_t>(front_diff);
         }
 #endif
     }
@@ -3136,7 +3139,7 @@ class deque
         {
             auto const old_size = size();
             append_range_noguard_(::std::forward<U>(first), ::std::forward<V>(last));
-            return begin() + old_size;
+            return begin() + static_cast<::std::ptrdiff_t>(old_size);
         }
         if (pos == begin_pre)
         {
@@ -3150,16 +3153,18 @@ class deque
         {
             auto const old_size = size();
             append_range_noguard_(::std::forward<U>(first), ::std::forward<V>(last));
-            ::std::ranges::rotate(begin() + front_diff, begin() + old_size, end());
-            return begin() + front_diff;
+            ::std::ranges::rotate(begin() + static_cast<::std::ptrdiff_t>(front_diff),
+                                  begin() + static_cast<::std::ptrdiff_t>(old_size), end());
+            return begin() + static_cast<::std::ptrdiff_t>(front_diff);
         }
         else
         {
             auto const old_size = size();
             prepend_range_noguard_(::std::forward<U>(first), ::std::forward<V>(last));
             auto const count = size() - old_size;
-            ::std::ranges::rotate(begin(), begin() + count, begin() + (count + front_diff));
-            return begin() + front_diff;
+            ::std::ranges::rotate(begin(), begin() + static_cast<::std::ptrdiff_t>(count),
+                                  begin() + static_cast<::std::ptrdiff_t>(count + front_diff));
+            return begin() + static_cast<::std::ptrdiff_t>(front_diff);
         }
 #else
         if (back_diff <= front_diff)
@@ -3168,7 +3173,7 @@ class deque
             move_back_to_front_(back_diff);
             append_range_noguard_(::std::forward<U>(first), ::std::forward<V>(last));
             move_front_to_back_(back_diff);
-            return begin() + front_diff;
+            return begin() + static_cast<::std::ptrdiff_t>(front_diff);
         }
         else
         {
@@ -3176,7 +3181,7 @@ class deque
             move_front_to_back_(front_diff);
             prepend_range_noguard_(::std::forward<U>(first), ::std::forward<V>(last));
             move_back_to_front_(front_diff);
-            return begin() + front_diff;
+            return begin() + static_cast<::std::ptrdiff_t>(front_diff);
         }
 #endif
     }
