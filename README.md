@@ -4,6 +4,8 @@ The next-generation deque container for C++, written and designed using modern C
 
 The [noalloc](https://github.com/YexuanXiao/deque/tree/noalloc) branch provides an allocator-free version to explain the design of the deque and facilitate further modifications. The repository [deque-test](https://github.com/YexuanXiao/deque-test) provides a ported version of the test cases from libc++. The repository [deque-benchmark](https://github.com/YexuanXiao/deque-benchmark) provides performance tests to compare the performance differences between this and the three other standard library implementations.
 
+This implementation is better than libstdc++, libc++, and Microsoft STL. See [STL-vNext #3](https://github.com/YexuanXiao/STL-vNext/issues/3).
+
 ## Compiler Portability
 
 GCC 11+, Clang 13+, MSVC 19.43+
