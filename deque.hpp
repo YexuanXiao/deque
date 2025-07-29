@@ -882,7 +882,7 @@ class repeat_iterator
 
     constexpr reference operator*() const noexcept
     {
-        assert(value_ptr_);
+        assert(value_ptr_ != nullptr);
         return *value_ptr_;
     }
 
@@ -1494,7 +1494,7 @@ class deque
     constexpr void extent_block_front_uncond_(::std::size_t const block_size)
     {
         assert(block_alloc_begin_ != block_ctrl_begin_());
-        assert(block_alloc_begin_);
+        assert(block_alloc_begin_ != nullptr);
         for (auto i = ::std::size_t(0); i != block_size; ++i)
         {
             auto const block = block_alloc_begin_ - ::std::size_t(1);
@@ -1508,7 +1508,7 @@ class deque
     constexpr void extent_block_back_uncond_(::std::size_t const block_size)
     {
         assert(block_alloc_end_ != block_ctrl_end_);
-        assert(block_alloc_end_);
+        assert(block_alloc_end_ != nullptr);
         for (auto i = ::std::size_t(0); i != block_size; ++i)
         {
             *block_alloc_end_ = alloc_block_();
