@@ -31,7 +31,7 @@
 // __cpp_lib_containers_ranges
 #include <version>
 
-#if not defined(__cpp_pack_indexing)
+#if !defined(__cpp_pack_indexing)
 // tuple/get
 #include <tuple>
 #endif
@@ -53,7 +53,7 @@ namespace deque_detail
 {
 
 // 用于从参数包中获得前两个对象（只有两个）的引用的辅助函数
-#if not defined(__cpp_pack_indexing)
+#if !defined(__cpp_pack_indexing)
 template <typename Tuple>
 inline constexpr auto get(Tuple args) noexcept
 {
@@ -365,7 +365,7 @@ class bucket_iterator
     }
 
     constexpr operator bucket_iterator<T const>() const
-        requires(not ::std::is_const_v<T>)
+        requires(!::std::is_const_v<T>)
     {
         return {block_elem_begin, block_elem_end, block_elem_curr, elem_begin_begin, elem_begin_end,
                 elem_end_begin,   elem_end_end,   elem_curr_begin, elem_curr_end};
@@ -463,7 +463,7 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T>>
     }
 
     constexpr ::std::span<T const> front() noexcept
-        requires(not ::std::is_const_v<T>)
+        requires(!::std::is_const_v<T>)
     {
         return {elem_begin_begin, elem_begin_end};
     }
@@ -474,7 +474,7 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T>>
     }
 
     constexpr ::std::span<T const> back() noexcept
-        requires(not ::std::is_const_v<T>)
+        requires(!::std::is_const_v<T>)
     {
         return {elem_end_begin, elem_end_end};
     }
@@ -485,7 +485,7 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T>>
     }
 
     constexpr ::std::span<const T> at(::std::size_t const pos) const noexcept
-        requires(not ::std::is_const_v<T>)
+        requires(!::std::is_const_v<T>)
     {
         auto const s = at_impl(pos);
         return {s.data(), s.size()};
@@ -562,7 +562,7 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T>>
     }
 
     constexpr operator buckets_type<T const>() const
-        requires(not ::std::is_const_v<T>)
+        requires(!::std::is_const_v<T>)
     {
         return {block_elem_begin, block_elem_end, elem_begin_begin, elem_begin_end, elem_end_begin, elem_end_end};
     }
@@ -818,7 +818,7 @@ class deque_iterator
     }
 
     constexpr operator deque_iterator<T const>() const
-        requires(not ::std::is_const_v<T>)
+        requires(!::std::is_const_v<T>)
     {
 #if !defined(NDEBUG)
         return {block_elem_curr, block_elem_end, elem_begin, elem_curr, buckets};
@@ -976,7 +976,7 @@ struct deque_proxy
             (target_block + 1uz == block_elem_end) ? ((*target_block) + elem_step < elem_end_end) : true;
         if constexpr (throw_exception)
         {
-            if (not(check_block && check_elem))
+            if (!(check_block && check_elem))
                 throw ::std::out_of_range{"bizwen::deque::at"};
         }
         assert(check_block && check_elem);
@@ -1056,7 +1056,7 @@ class deque
 {
 #if !defined(NDEBUG)
     static_assert(::std::is_object_v<T>);
-    static_assert(not ::std::is_const_v<T>);
+    static_assert(!::std::is_const_v<T>);
 #endif
 
     using Block = T *;
@@ -2287,7 +2287,7 @@ ctrl_end   →
     // 这是emplace_back的先决条件
     constexpr void pop_back() noexcept
     {
-        assert(not empty());
+        assert(!empty());
         --elem_end_end;
         ::std::destroy_at(elem_end_end);
         to_proxy().pop_back_post();
@@ -2296,7 +2296,7 @@ ctrl_end   →
     // 参考pop_back
     constexpr void pop_front() noexcept
     {
-        assert(not empty());
+        assert(!empty());
         ::std::destroy_at(elem_begin_begin);
         ++elem_begin_begin;
         to_proxy().pop_front_post();
@@ -2304,25 +2304,25 @@ ctrl_end   →
 
     constexpr T &front() noexcept
     {
-        assert(not empty());
+        assert(!empty());
         return *(elem_begin_begin);
     }
 
     constexpr T &back() noexcept
     {
-        assert(not empty());
+        assert(!empty());
         return *(elem_end_end - 1uz);
     }
 
     constexpr T const &front() const noexcept
     {
-        assert(not empty());
+        assert(!empty());
         return *(elem_begin_begin);
     }
 
     constexpr T const &back() const noexcept
     {
-        assert(not empty());
+        assert(!empty());
         return *(elem_end_end - 1uz);
     }
 
