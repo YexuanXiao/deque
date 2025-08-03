@@ -365,7 +365,7 @@ class bucket_iterator
     }
 
     constexpr operator bucket_iterator<T const>() const
-        requires(not::std::is_const_v<T>)
+        requires(not ::std::is_const_v<T>)
     {
         return {block_elem_begin, block_elem_end, block_elem_curr, elem_begin_begin, elem_begin_end,
                 elem_end_begin,   elem_end_end,   elem_curr_begin, elem_curr_end};
@@ -378,12 +378,17 @@ static_assert(::std::random_access_iterator<bucket_iterator<const int>>);
 #endif
 
 template <typename T>
+class deque_iterator;
+
+template <typename T>
 class buckets_type : public ::std::ranges::view_interface<buckets_type<T>>
 {
     using RConstT = ::std::remove_const_t<T>;
 
     friend deque<RConstT>;
     friend buckets_type<::std::remove_const_t<T>>;
+    friend deque_iterator<RConstT>;
+    friend deque_iterator<RConstT const>;
 
     using Block = RConstT *;
 
@@ -395,8 +400,8 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T>>
     RConstT *elem_end_end{};
 
     constexpr buckets_type(Block *const block_elem_begin_, Block *const block_elem_end_,
-                          RConstT *const elem_begin_begin_, RConstT *const elem_begin_end_,
-                          RConstT *const elem_end_begin_, RConstT *const elem_end_end_) noexcept
+                           RConstT *const elem_begin_begin_, RConstT *const elem_begin_end_,
+                           RConstT *const elem_end_begin_, RConstT *const elem_end_end_) noexcept
         : block_elem_begin(block_elem_begin_), block_elem_end(block_elem_end_), elem_begin_begin(elem_begin_begin_),
           elem_begin_end(elem_begin_end_), elem_end_begin(elem_end_begin_), elem_end_end(elem_end_end_)
     {
@@ -458,7 +463,7 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T>>
     }
 
     constexpr ::std::span<T const> front() noexcept
-        requires(not::std::is_const_v<T>)
+        requires(not ::std::is_const_v<T>)
     {
         return {elem_begin_begin, elem_begin_end};
     }
@@ -469,7 +474,7 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T>>
     }
 
     constexpr ::std::span<T const> back() noexcept
-        requires(not::std::is_const_v<T>)
+        requires(not ::std::is_const_v<T>)
     {
         return {elem_end_begin, elem_end_end};
     }
@@ -480,7 +485,7 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T>>
     }
 
     constexpr ::std::span<const T> at(::std::size_t const pos) const noexcept
-        requires(not::std::is_const_v<T>)
+        requires(not ::std::is_const_v<T>)
     {
         auto const s = at_impl(pos);
         return {s.data(), s.size()};
@@ -557,7 +562,7 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T>>
     }
 
     constexpr operator buckets_type<T const>() const
-        requires(not::std::is_const_v<T>)
+        requires(not ::std::is_const_v<T>)
     {
         return {block_elem_begin, block_elem_end, elem_begin_begin, elem_begin_end, elem_end_begin, elem_end_end};
     }
@@ -578,21 +583,53 @@ class deque_iterator
     Block *block_elem_end{};
     RConstT *elem_begin{};
     RConstT *elem_curr{};
+#if !defined(NDEBUG)
+    buckets_type<T const> buckets{};
 
+    constexpr bool verify() const noexcept
+    {
+        assert(block_elem_curr >= buckets.block_elem_begin);
+        assert(block_elem_end == buckets.block_elem_end);
+        if (block_elem_curr != nullptr)
+        {
+            assert(block_elem_curr < block_elem_end);
+            assert(elem_begin == *block_elem_curr);
+        }
+        assert(elem_curr >= elem_begin);
+        assert(elem_curr <= elem_begin + block_elements_v<T>);
+        if (block_elem_curr == buckets.block_elem_end - ::std::size_t(1))
+            assert(elem_curr <= buckets.elem_end_end);
+        else if (block_elem_curr == buckets.block_elem_begin)
+            assert(elem_curr >= buckets.elem_begin_begin);
+        return true;
+    }
+
+    constexpr deque_iterator(Block *const block_begin, Block *const block_end, RConstT *const begin,
+                             RConstT *const curr, buckets_type<T const> b) noexcept
+        : block_elem_curr(block_begin), block_elem_end(block_end), elem_begin(begin), elem_curr(curr), buckets(b)
+    {
+    }
+#else
     constexpr deque_iterator(Block *const block_begin, Block *const block_end, RConstT *const begin,
                              RConstT *const curr) noexcept
         : block_elem_curr(block_begin), block_elem_end(block_end), elem_begin(begin), elem_curr(curr)
     {
     }
+#endif
 
     constexpr deque_iterator<RConstT> remove_const() const noexcept
         requires(::std::is_const_v<T>)
     {
+#if !defined(NDEBUG)
+        return {block_elem_curr, block_elem_end, elem_begin, elem_curr, buckets};
+#else
         return {block_elem_curr, block_elem_end, elem_begin, elem_curr};
+#endif
     }
 
     constexpr T &at_impl(::std::ptrdiff_t const pos) const noexcept
     {
+        assert(verify());
         auto const [block_step, elem_step] = deque_detail::calc_pos<T>(elem_curr - elem_begin, pos);
         auto const target_block = block_elem_curr + block_step;
         assert(target_block < block_elem_end);
@@ -602,6 +639,7 @@ class deque_iterator
     // 几乎等于 at_impl
     constexpr deque_iterator &plus_and_assign(::std::ptrdiff_t const pos) noexcept
     {
+        assert(verify());
         if (pos != 0z)
         {
             auto const [block_step, elem_step] = deque_detail::calc_pos<T>(elem_curr - elem_begin, pos);
@@ -672,6 +710,7 @@ class deque_iterator
 
     constexpr deque_iterator &operator++() noexcept
     {
+        assert(verify());
         assert(elem_curr != elem_begin + deque_detail::block_elements_v<T>);
         // 空deque的迭代器不能自增，不需要考虑
         ++elem_curr;
@@ -684,6 +723,7 @@ class deque_iterator
                 elem_curr = elem_begin;
             }
         }
+        assert(verify());
         return *this;
     }
 
@@ -700,6 +740,7 @@ class deque_iterator
 
     constexpr deque_iterator &operator--() noexcept
     {
+        assert(verify());
         if (elem_curr == elem_begin)
         {
             --block_elem_curr;
@@ -707,6 +748,7 @@ class deque_iterator
             elem_curr = elem_begin + deque_detail::block_elements_v<T>;
         }
         --elem_curr;
+        assert(verify());
         return *this;
     }
 
@@ -776,9 +818,13 @@ class deque_iterator
     }
 
     constexpr operator deque_iterator<T const>() const
-        requires(not::std::is_const_v<T>)
+        requires(not ::std::is_const_v<T>)
     {
+#if !defined(NDEBUG)
+        return {block_elem_curr, block_elem_end, elem_begin, elem_curr, buckets};
+#else
         return {block_elem_curr, block_elem_end, elem_begin, elem_curr};
+#endif
     }
 };
 
@@ -1010,7 +1056,7 @@ class deque
 {
 #if !defined(NDEBUG)
     static_assert(::std::is_object_v<T>);
-    static_assert(not::std::is_const_v<T>);
+    static_assert(not ::std::is_const_v<T>);
 #endif
 
     using Block = T *;
@@ -1262,18 +1308,26 @@ ctrl_end   →
     {
         if (block_elem_size() == 0uz)
         {
-            return const_iterator{nullptr, nullptr, nullptr, nullptr};
+            return {};
         }
-        return const_iterator{block_elem_begin, block_elem_end, *block_elem_begin, elem_begin_begin};
+#if !defined(NDEBUG)
+        return {block_elem_begin, block_elem_end, *block_elem_begin, elem_begin_begin, buckets()};
+#else
+        return {block_elem_begin, block_elem_end, *block_elem_begin, elem_begin_begin};
+#endif
     }
 
     constexpr const_iterator end() const noexcept
     {
         if (block_elem_size() == 0uz)
         {
-            return const_iterator{nullptr, nullptr, nullptr, nullptr};
+            return {};
         }
-        return const_iterator{block_elem_end - 1uz, block_elem_end, *(block_elem_end - 1uz), elem_end_end};
+#if !defined(NDEBUG)
+        return {block_elem_end - 1uz, block_elem_end, *(block_elem_end - 1uz), elem_end_end, buckets()};
+#else
+        return {block_elem_end - 1uz, block_elem_end, *(block_elem_end - 1uz), elem_end_end};
+#endif
     }
 
     constexpr iterator begin() noexcept
@@ -1934,8 +1988,8 @@ ctrl_end   →
             if (first.block_elem_curr == last.block_elem_curr)
             {
                 buckets_type bucket{first.block_elem_curr, last.block_elem_curr + 1uz,
-                                   first.elem_curr,       last.elem_curr,
-                                   last.elem_begin,       last.elem_begin};
+                                    first.elem_curr,       last.elem_curr,
+                                    last.elem_begin,       last.elem_begin};
                 auto const block_size = bucket.size();
                 extent_block(block_size);
                 copy(bucket, block_size);
@@ -1943,8 +1997,8 @@ ctrl_end   →
             else
             {
                 buckets_type bucket{first.block_elem_curr, last.block_elem_curr + 1uz,
-                                   first.elem_curr,       first.elem_begin + deque_detail::block_elements_v<T>,
-                                   last.elem_begin,       last.elem_curr};
+                                    first.elem_curr,       first.elem_begin + deque_detail::block_elements_v<T>,
+                                    last.elem_begin,       last.elem_curr};
                 auto const block_size = bucket.size();
                 extent_block(block_size);
                 copy(bucket, block_size);
