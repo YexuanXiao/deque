@@ -618,19 +618,6 @@ class deque_iterator
         return true;
     }
 
-    constexpr bool verify(deque_iterator const &other) const noexcept
-    {
-        auto const &rhs = other.buckets_;
-        assert(rhs.block_elem_begin_ == buckets_.block_elem_begin_);
-        assert(rhs.block_elem_end_ == buckets_.block_elem_end_);
-        assert(rhs.elem_begin_begin_ == buckets_.elem_begin_begin_);
-        assert(rhs.elem_begin_end_ == buckets_.elem_begin_end_);
-        assert(rhs.elem_end_begin_ == buckets_.elem_end_begin_);
-        assert(rhs.elem_end_end_ == buckets_.elem_end_end_);
-
-        return true;
-    }
-
     constexpr deque_iterator(Block *block_curr, Block *block_end, RConstT *const begin, RConstT *const pos,
                              buckets_type<T const, Block> buckets) noexcept
         : block_elem_curr_(block_curr), block_elem_end_(block_end), elem_begin_(deque_detail::to_address(begin)),
@@ -686,6 +673,7 @@ class deque_iterator
                 elem_curr_ = elem_begin_ + deque_detail::block_elements_v<T>;
             }
         }
+        assert(verify());
         return *this;
     }
 
@@ -711,7 +699,6 @@ class deque_iterator
 
     constexpr ::std::strong_ordering operator<=>(deque_iterator const &other) const noexcept
     {
-        assert(verify(other));
         assert(block_elem_end_ == other.block_elem_end_);
         if (block_elem_curr_ < other.block_elem_curr_)
             return ::std::strong_ordering::less;
@@ -751,6 +738,7 @@ class deque_iterator
                 elem_curr_ = elem_begin_;
             }
         }
+        assert(verify());
         return *this;
     }
 
@@ -775,6 +763,7 @@ class deque_iterator
             elem_curr_ = elem_begin_ + deque_detail::block_elements_v<T>;
         }
         --elem_curr_;
+        assert(verify());
         return *this;
     }
 
@@ -801,7 +790,6 @@ class deque_iterator
 
     friend constexpr ::std::ptrdiff_t operator-(deque_iterator const &lhs, deque_iterator const &rhs) noexcept
     {
-        assert(lhs.verify(rhs));
         assert(lhs.block_elem_end_ == rhs.block_elem_end_);
         auto const block_size = lhs.block_elem_curr_ - rhs.block_elem_curr_;
         return block_size * static_cast<::std::ptrdiff_t>(block_elements_v<T>) + lhs.elem_curr_ - lhs.elem_begin_ -
