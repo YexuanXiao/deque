@@ -41,6 +41,7 @@
 // out_of_range
 #include <stdexcept>
 #else
+// terminate
 #include <exception>
 #endif
 
