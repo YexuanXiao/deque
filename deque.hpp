@@ -40,6 +40,8 @@
 #if defined(__cpp_exceptions)
 // out_of_range
 #include <stdexcept>
+#else
+#include <exception>
 #endif
 
 // 代码规范：
