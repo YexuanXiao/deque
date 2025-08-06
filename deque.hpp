@@ -21,8 +21,6 @@
 #include <type_traits>
 // ranges::view_interface/subrange/sized_range/from_range_t/begin/end/swap/size/empty/views::all
 #include <ranges>
-// out_of_range
-#include <stdexcept>
 // span
 #include <span>
 // move/forward
@@ -34,14 +32,14 @@
 // polymorphic_allocator
 #include <memory_resource>
 
-#if defined(__cpp_exceptions)
-// terminate
-#include <exception>
-#endif
-
 #if !defined(__cpp_pack_indexing)
 // tuple/get
 #include <tuple>
+#endif
+
+#if defined(__cpp_exceptions)
+// out_of_range
+#include <stdexcept>
 #endif
 
 // 代码规范：
