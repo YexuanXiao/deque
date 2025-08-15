@@ -31,9 +31,12 @@
 // __cpp_lib_containers_ranges
 #include <version>
 
-#if !defined(__cpp_pack_indexing)
-// tuple/get
-#include <tuple>
+#if defined(__cpp_exceptions)
+// out_of_range
+#include <stdexcept>
+#else
+// terminate
+#include <exception>
 #endif
 
 // 代码规范：
@@ -53,40 +56,16 @@ namespace deque_detail
 {
 
 // 用于从参数包中获得前两个对象（只有两个）的引用的辅助函数
-#if !defined(__cpp_pack_indexing)
-template <typename Tuple>
-inline constexpr auto get(Tuple args) noexcept
+template <typename U, typename V>
+inline constexpr auto get_iter_pair(U &first, V &last) noexcept
 {
-    auto &first = ::std::get<0uz>(args);
-    auto &second = ::std::get<1uz>(args);
     struct iter_ref_pair
     {
         decltype(first) &begin;
-        decltype(second) &end;
+        decltype(last) &end;
     };
-    return iter_ref_pair{first, second};
+    return iter_ref_pair{first, last};
 }
-#else
-#if defined(__clang__) && defined(__cpp_pack_indexing) // make clang happy
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wc++26-extensions"
-#endif
-template <typename... Args>
-inline constexpr auto get(Args &&...args) noexcept
-{
-    auto &first = args...[0uz];
-    auto &second = args...[1uz];
-    struct iter_ref_pair
-    {
-        decltype(first) &begin;
-        decltype(second) &end;
-    };
-    return iter_ref_pair{first, second};
-}
-#if defined(__clang__) && defined(__cpp_pack_indexing)
-#pragma clang diagnostic pop
-#endif
-#endif
 
 #if defined(BIZWEN_DEQUE_BLOCK_ELEMENTS)
 template <typename T>
@@ -1809,11 +1788,7 @@ ctrl_end   →
             }
             else if constexpr (sizeof...(Ts) == 2uz)
             {
-#if defined(__cpp_pack_indexing)
-                auto [src_begin, src_end] = deque_detail::get(ts...);
-#else
-                auto [src_begin, src_end] = deque_detail::get(::std::forward_as_tuple(ts...));
-#endif
+                auto [src_begin, src_end] = deque_detail::get_iter_pair(ts...);
                 ::std::ranges::uninitialized_copy(src_begin, ::std::unreachable_sentinel, begin,
                                                   begin + deque_detail::block_elements_v<T>);
                 src_begin += deque_detail::block_elements_v<T>;
@@ -1842,11 +1817,7 @@ ctrl_end   →
                 }
                 else if constexpr (sizeof...(Ts) == 2uz)
                 {
-#if defined(__cpp_pack_indexing)
-                    auto [src_begin, src_end] = deque_detail::get(ts...);
-#else
-                    auto [src_begin, src_end] = deque_detail::get(::std::forward_as_tuple(ts...));
-#endif
+                    auto [src_begin, src_end] = deque_detail::get_iter_pair(ts...);
                     ::std::ranges::uninitialized_copy(src_begin, ::std::unreachable_sentinel, begin,
                                                       begin + deque_detail::block_elements_v<T>);
                     src_begin += deque_detail::block_elements_v<T>;
@@ -1875,11 +1846,7 @@ ctrl_end   →
             }
             else if constexpr (sizeof...(Ts) == 2uz)
             {
-#if defined(__cpp_pack_indexing)
-                auto [src_begin, src_end] = deque_detail::get(ts...);
-#else
-                auto [src_begin, src_end] = deque_detail::get(::std::forward_as_tuple(ts...));
-#endif
+                auto [src_begin, src_end] = deque_detail::get_iter_pair(ts...);
                 ::std::ranges::uninitialized_copy(src_begin, src_end, begin, ::std::unreachable_sentinel);
             }
             else
