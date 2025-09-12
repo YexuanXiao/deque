@@ -62,8 +62,8 @@ inline constexpr auto get_iter_pair(U &first, V &last) noexcept
 {
     struct iter_ref_pair
     {
-        decltype(first) &begin;
-        decltype(last) &end;
+        decltype(first) &src_begin;
+        decltype(last) &src_end;
     };
     return iter_ref_pair{first, last};
 }
@@ -622,10 +622,10 @@ class deque_iterator
     constexpr T &at_impl_(::std::ptrdiff_t const pos) const noexcept
     {
         assert(verify());
-        auto const [block_step, elem_step] = deque_detail::calc_pos<T>(elem_curr_ - elem_begin_, pos);
-        auto const target_block = block_elem_curr_ + block_step;
+        auto const res = deque_detail::calc_pos<T>(elem_curr_ - elem_begin_, pos);
+        auto const target_block = block_elem_curr_ + res.block_step;
         assert(target_block < block_elem_end_);
-        return *((*target_block) + elem_step);
+        return *((*target_block) + res.elem_step);
     }
 
     constexpr deque_iterator &plus_and_assign_(::std::ptrdiff_t const pos) noexcept
@@ -633,18 +633,18 @@ class deque_iterator
         assert(verify());
         if (pos != ::std::ptrdiff_t(0))
         {
-            auto const [block_step, elem_step] = deque_detail::calc_pos<T>(elem_curr_ - elem_begin_, pos);
-            auto const target_block = block_elem_curr_ + block_step;
+            auto const res = deque_detail::calc_pos<T>(elem_curr_ - elem_begin_, pos);
+            auto const target_block = block_elem_curr_ + res.block_step;
             if (target_block < block_elem_end_)
             {
                 block_elem_curr_ = target_block;
                 elem_begin_ = ::std::to_address(*target_block);
-                elem_curr_ = elem_begin_ + elem_step;
+                elem_curr_ = elem_begin_ + res.elem_step;
             }
             else
             {
                 assert(target_block == block_elem_end_);
-                assert(elem_step == ::std::size_t(0));
+                assert(res.elem_step == ::std::size_t(0));
                 block_elem_curr_ = target_block - ::std::size_t(1);
                 elem_begin_ = ::std::to_address(*(target_block - ::std::size_t(1)));
                 elem_curr_ = elem_begin_ + deque_detail::block_elements_v<T>;
@@ -1808,10 +1808,10 @@ class deque
             }
             else if constexpr (sizeof...(Ts) == ::std::size_t(2))
             {
-                auto [src_begin, src_end] = deque_detail::get_iter_pair(ts...);
-                ::std::ranges::uninitialized_copy(src_begin, ::std::unreachable_sentinel, begin,
+                auto pair = deque_detail::get_iter_pair(ts...);
+                ::std::ranges::uninitialized_copy(pair.src_begin, ::std::unreachable_sentinel, begin,
                                                   begin + deque_detail::block_elements_v<T>);
-                src_begin += deque_detail::block_elements_v<T>;
+                pair.src_begin += deque_detail::block_elements_v<T>;
                 elem_begin_(begin, end, begin);
             }
             else
@@ -1863,10 +1863,10 @@ class deque
                 }
                 else if constexpr (sizeof...(Ts) == ::std::size_t(2))
                 {
-                    auto [src_begin, src_end] = deque_detail::get_iter_pair(ts...);
-                    ::std::ranges::uninitialized_copy(src_begin, ::std::unreachable_sentinel, begin,
+                    auto pair = deque_detail::get_iter_pair(ts...);
+                    ::std::ranges::uninitialized_copy(pair.src_begin, ::std::unreachable_sentinel, begin,
                                                       begin + deque_detail::block_elements_v<T>);
-                    src_begin += deque_detail::block_elements_v<T>;
+                    pair.src_begin += deque_detail::block_elements_v<T>;
                     elem_end_(begin, end, elem_end_last_);
                 }
                 else
@@ -1917,8 +1917,8 @@ class deque
             }
             else if constexpr (sizeof...(Ts) == ::std::size_t(2))
             {
-                auto [src_begin, src_end] = deque_detail::get_iter_pair(ts...);
-                ::std::ranges::uninitialized_copy(src_begin, src_end, begin, ::std::unreachable_sentinel);
+                auto pair = deque_detail::get_iter_pair(ts...);
+                ::std::ranges::uninitialized_copy(pair.src_begin, pair.src_end, begin, ::std::unreachable_sentinel);
                 elem_end_(begin, end, begin + deque_detail::block_elements_v<T>);
             }
             else
@@ -1982,39 +1982,39 @@ class deque
 
     explicit constexpr deque(::std::size_t const count)
     {
-        auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(count);
+        auto const res = deque_detail::calc_cap<T>(count);
         construct_guard_ guard(this);
-        extent_block_(block_size);
-        construct_(full_blocks, rem_elems);
+        extent_block_(res.block_size);
+        construct_(res.full_blocks, res.rem_elems);
         guard.release();
     }
 
     explicit deque(size_type count, Alloc const &alloc) : allocator_(alloc)
     {
         assert(allocator_ == alloc);
-        auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(count);
+        auto const res = deque_detail::calc_cap<T>(count);
         construct_guard_ guard(this);
-        extent_block_(block_size);
-        construct_(full_blocks, rem_elems);
+        extent_block_(res.block_size);
+        construct_(res.full_blocks, res.rem_elems);
         guard.release();
     }
 
     constexpr deque(::std::size_t const count, T const &t)
     {
-        auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(count);
+        auto const res = deque_detail::calc_cap<T>(count);
         construct_guard_ guard(this);
-        extent_block_(block_size);
-        construct_(full_blocks, rem_elems, t);
+        extent_block_(res.block_size);
+        construct_(res.full_blocks, res.rem_elems, t);
         guard.release();
     }
 
     constexpr deque(size_type count, T const &value, Alloc const &alloc) : allocator_(alloc)
     {
         assert(allocator_ == alloc);
-        auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(count);
+        auto const res = deque_detail::calc_cap<T>(count);
         construct_guard_ guard(this);
-        extent_block_(block_size);
-        construct_(full_blocks, rem_elems, value);
+        extent_block_(res.block_size);
+        construct_(res.full_blocks, res.rem_elems, value);
         guard.release();
     }
 
@@ -2033,10 +2033,9 @@ class deque
     {
         if (first != last)
         {
-            auto const [block_size, full_blocks, rem_elems] =
-                deque_detail::calc_cap<T>(static_cast<::std::size_t>(last - first));
-            extent_block_(block_size);
-            construct_(full_blocks, rem_elems, ::std::move(first), ::std::move(last));
+            auto const res = deque_detail::calc_cap<T>(static_cast<::std::size_t>(last - first));
+            extent_block_(res.block_size);
+            construct_(res.full_blocks, res.rem_elems, ::std::move(first), ::std::move(last));
         }
     }
 
@@ -2081,9 +2080,9 @@ class deque
         {
             if (auto const size = ::std::ranges::size(rg))
             {
-                auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(size);
-                extent_block_(block_size);
-                construct_(full_blocks, rem_elems, ::std::ranges::begin(rg), ::std::ranges::end(rg));
+                auto const res = deque_detail::calc_cap<T>(size);
+                extent_block_(res.block_size);
+                construct_(res.full_blocks, res.rem_elems, ::std::ranges::begin(rg), ::std::ranges::end(rg));
             }
         }
         else if constexpr (::std::random_access_iterator<decltype(::std::ranges::begin(rg))>)
@@ -2240,9 +2239,9 @@ class deque
         clear();
         if (ilist.size())
         {
-            auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(ilist.size());
-            extent_block_(block_size);
-            construct_(full_blocks, rem_elems, ::std::ranges::begin(ilist), ::std::ranges::end(ilist));
+            auto const res = deque_detail::calc_cap<T>(ilist.size());
+            extent_block_(res.block_size);
+            construct_(res.full_blocks, res.rem_elems, ::std::ranges::begin(ilist), ::std::ranges::end(ilist));
         }
         return *this;
     }
@@ -2302,9 +2301,9 @@ class deque
         clear();
         if (count)
         {
-            auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(count);
-            extent_block_(block_size);
-            construct_(full_blocks, rem_elems, value);
+            auto const res = deque_detail::calc_cap<T>(count);
+            extent_block_(res.block_size);
+            construct_(res.full_blocks, res.rem_elems, value);
         }
         /*
         assign_range(::std::ranges::views::repeat(value, count));
@@ -2330,11 +2329,11 @@ class deque
     constexpr T &at_impl_(::std::size_t const pos) const noexcept(!throw_exception)
     {
         auto const front_size = static_cast<::std::size_t>(elem_begin_begin_ - elem_begin_first_);
-        auto const [block_step, elem_step] = deque_detail::calc_pos<T>(front_size, pos);
-        auto const target_block = block_elem_begin_ + block_step;
+        auto const res = deque_detail::calc_pos<T>(front_size, pos);
+        auto const target_block = block_elem_begin_ + res.block_step;
         auto const check_block = target_block < block_elem_end_;
         auto const check_elem = (target_block + ::std::size_t(1) == block_elem_end_)
-                                    ? (::std::to_address(*target_block) + elem_step < elem_end_end_)
+                                    ? (::std::to_address(*target_block) + res.elem_step < elem_end_end_)
                                     : true;
         if constexpr (throw_exception)
         {
@@ -2351,7 +2350,7 @@ class deque
         {
             assert(check_block && check_elem);
         }
-        return *((*target_block) + elem_step);
+        return *((*target_block) + res.elem_step);
     }
 
     // 首块有空余时使用
@@ -2775,20 +2774,20 @@ class deque
         assert(old_size >= new_size);
         if constexpr (::std::is_trivially_destructible_v<T> && is_default_operation_)
         {
-            auto const [block_step, elem_step] =
+            auto const res =
                 deque_detail::calc_pos<T>(static_cast<::std::size_t>(elem_begin_begin_ - elem_begin_first_), new_size);
-            if (block_step == ::std::size_t(0))
+            if (res.block_step == ::std::size_t(0))
             {
                 auto const begin = elem_begin_first_;
-                elem_end_(elem_begin_begin_, begin + elem_step, begin + deque_detail::block_elements_v<T>);
+                elem_end_(elem_begin_begin_, begin + res.elem_step, begin + deque_detail::block_elements_v<T>);
                 block_elem_end_ = block_elem_begin_ + ::std::size_t(1);
-                elem_begin_(elem_begin_begin_, begin + elem_step, begin);
+                elem_begin_(elem_begin_begin_, begin + res.elem_step, begin);
             }
             else
             {
-                auto const target_block = block_elem_begin_ + block_step;
+                auto const target_block = block_elem_begin_ + res.block_step;
                 auto const begin = *target_block;
-                elem_end_(begin, begin + elem_step, begin + deque_detail::block_elements_v<T>);
+                elem_end_(begin, begin + res.elem_step, begin + deque_detail::block_elements_v<T>);
                 block_elem_end_ = target_block + ::std::size_t(1);
             }
         }
