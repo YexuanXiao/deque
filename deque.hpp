@@ -56,6 +56,13 @@ class deque;
 namespace deque_detail
 {
 
+
+    template <typename A>
+concept mini_alloc = requires(A &a) {
+    typename A::value_type;
+    a.allocate(::std::size_t(0));
+};
+
 // 用于从参数包中获得前两个对象（只有两个）的引用的辅助函数
 template <typename U, typename V>
 inline constexpr auto get_iter_pair(U &first, V &last) noexcept
@@ -1148,8 +1155,8 @@ class deque
     using reference = value_type &;
     using const_pointer = atraits_t_::const_pointer;
     using const_reference = value_type const &;
-    using size_type = ::std::size_t;
-    using difference_type = ::std::ptrdiff_t;
+    using size_type = atraits_t_::size_type;
+    using difference_type = atraits_t_::difference_type;
     using iterator = deque_detail::deque_iterator<T, Block>;
     using reverse_iterator = ::std::reverse_iterator<deque_detail::deque_iterator<T, Block>>;
     using const_iterator = deque_detail::deque_iterator<T const, Block>;
@@ -1212,7 +1219,7 @@ class deque
     }
 
     // 空deque安全
-    constexpr ::std::size_t size() const noexcept
+    constexpr size_type size() const noexcept
     {
         auto const block_size = block_elem_size_();
         auto result = ::std::size_t(0);
@@ -1228,12 +1235,13 @@ class deque
         {
             result += elem_end_end_ - elem_end_begin_;
         }
-        return result;
+        return static_cast<size_type>(result);
     }
 
-    constexpr ::std::size_t max_size() const noexcept
+    constexpr size_type max_size() const noexcept
     {
-        return ::std::ranges::min(atraits_t_::max_size(allocator_), ::std::size_t(-1) / ::std::size_t(2) / sizeof(T));
+        return static_cast<size_type>(
+            (::std::ranges::min)(atraits_t_::max_size(allocator_), ::std::size_t(-1) / ::std::size_t(2) / sizeof(T)));
     }
 
 #if !defined(NDEBUG)
@@ -1980,38 +1988,22 @@ class deque
         }
     }
 
-    explicit constexpr deque(::std::size_t const count)
+    explicit deque(size_type const count, Alloc const &alloc = Alloc()) : allocator_(alloc)
     {
-        auto const res = deque_detail::calc_cap<T>(count);
+        assert(allocator_ == alloc);
+        auto const res = deque_detail::calc_cap<T>(static_cast<::std::size_t>(count));
         construct_guard_ guard(this);
         extent_block_(res.block_size);
         construct_(res.full_blocks, res.rem_elems);
         guard.release();
     }
 
-    explicit deque(size_type count, Alloc const &alloc) : allocator_(alloc)
+    // TRANSITION: https://github.com/microsoft/STL/pull/4254
+    template<deque_detail::mini_alloc Alloc2 = Alloc>
+    constexpr deque(size_type const count, T const &value, Alloc const &alloc = Alloc()) : allocator_(alloc)
     {
         assert(allocator_ == alloc);
-        auto const res = deque_detail::calc_cap<T>(count);
-        construct_guard_ guard(this);
-        extent_block_(res.block_size);
-        construct_(res.full_blocks, res.rem_elems);
-        guard.release();
-    }
-
-    constexpr deque(::std::size_t const count, T const &t)
-    {
-        auto const res = deque_detail::calc_cap<T>(count);
-        construct_guard_ guard(this);
-        extent_block_(res.block_size);
-        construct_(res.full_blocks, res.rem_elems, t);
-        guard.release();
-    }
-
-    constexpr deque(size_type count, T const &value, Alloc const &alloc) : allocator_(alloc)
-    {
-        assert(allocator_ == alloc);
-        auto const res = deque_detail::calc_cap<T>(count);
+        auto const res = deque_detail::calc_cap<T>(static_cast<::std::size_t>(count));
         construct_guard_ guard(this);
         extent_block_(res.block_size);
         construct_(res.full_blocks, res.rem_elems, value);
@@ -2097,15 +2089,7 @@ class deque
 
   public:
     template <::std::input_iterator U, typename V>
-    constexpr deque(U first, V last)
-    {
-        construct_guard_ guard(this);
-        from_range_noguard_(::std::move(first), ::std::move(last));
-        guard.release();
-    }
-
-    template <::std::input_iterator U, typename V>
-    constexpr deque(U first, V last, Alloc const &alloc) : allocator_(alloc)
+    constexpr deque(U first, V last, Alloc const &alloc = Alloc()) : allocator_(alloc)
     {
         assert(allocator_ == alloc);
         construct_guard_ guard(this);
@@ -2116,16 +2100,7 @@ class deque
 #if defined(__cpp_lib_containers_ranges)
     template <::std::ranges::input_range R>
         requires ::std::convertible_to<::std::ranges::range_value_t<R>, T>
-    constexpr deque(::std::from_range_t, R &&rg)
-    {
-        construct_guard_ guard(this);
-        from_range_noguard_(rg);
-        guard.release();
-    }
-
-    template <::std::ranges::input_range R>
-        requires ::std::convertible_to<::std::ranges::range_value_t<R>, T>
-    constexpr deque(::std::from_range_t, R &&rg, Alloc const &alloc) : allocator_(alloc)
+    constexpr deque(::std::from_range_t, R &&rg, Alloc const &alloc = Alloc()) : allocator_(alloc)
     {
         assert(allocator_ == alloc);
         construct_guard_ guard(this);
@@ -2194,17 +2169,7 @@ class deque
         }
     }
 
-    constexpr deque(::std::initializer_list<T> const ilist)
-    {
-        if (ilist.size())
-        {
-            construct_guard_ guard(this);
-            from_range_noguard_(ilist.begin(), ilist.end());
-            guard.release();
-        }
-    }
-
-    constexpr deque(::std::initializer_list<T> const ilist, Alloc const &alloc) : allocator_(alloc)
+    constexpr deque(::std::initializer_list<T> const ilist, Alloc const &alloc = Alloc()) : allocator_(alloc)
     {
         assert(allocator_ == alloc);
         if (ilist.size())
@@ -2296,12 +2261,12 @@ class deque
         from_range_noguard_(::std::forward<R>(rg));
     }
 
-    constexpr void assign(::std::size_t const count, T const &value)
+    constexpr void assign(size_type const count, T const &value)
     {
         clear();
         if (count)
         {
-            auto const res = deque_detail::calc_cap<T>(count);
+            auto const res = deque_detail::calc_cap<T>(static_cast<::std::size_t>(count));
             extent_block_(res.block_size);
             construct_(res.full_blocks, res.rem_elems, value);
         }
@@ -2407,22 +2372,22 @@ class deque
         }
     }
 
-    constexpr T &at(::std::size_t const pos) noexcept
+    constexpr T &at(size_type const pos) noexcept
     {
         return at_impl_<true>(pos);
     }
 
-    constexpr T const &at(::std::size_t const pos) const noexcept
+    constexpr T const &at(size_type const pos) const noexcept
     {
         return at_impl_<true>(pos);
     }
 
-    constexpr T &operator[](::std::size_t const pos) noexcept
+    constexpr T &operator[](size_type const pos) noexcept
     {
         return at_impl_(pos);
     }
 
-    constexpr T const &operator[](::std::size_t const pos) const noexcept
+    constexpr T const &operator[](size_type const pos) const noexcept
     {
         return at_impl_(pos);
     }
@@ -2824,12 +2789,12 @@ class deque
 
   public:
     // 注意必须调用clear，使得空容器的elem_begin/elem_end都为空指针
-    constexpr void resize(::std::size_t const new_size)
+    constexpr void resize(size_type const new_size)
     {
         new_size == ::std::size_t(0) ? clear() : resize_unified_(new_size);
     }
 
-    constexpr void resize(::std::size_t const new_size, T const &t)
+    constexpr void resize(size_type const new_size, T const &t)
     {
         new_size == ::std::size_t(0) ? clear() : resize_unified_(new_size, t);
     }
@@ -3145,7 +3110,7 @@ class deque
         return insert(pos, ilist.begin(), ilist.end());
     }
 
-    constexpr iterator insert(const_iterator const pos, ::std::size_t const count, T const &value)
+    constexpr iterator insert(const_iterator const pos, size_type const count, T const &value)
     {
 #if defined(__cpp_lib_ranges_repeat)
         return insert_range(pos, ::std::ranges::views::repeat(value, count));
@@ -3251,49 +3216,31 @@ class deque
 #endif
 };
 
-namespace deque_detail
-{
-template <typename A>
-concept mini_alloc = requires(A &a) {
-    typename A::value_type;
-    a.allocate(::std::size_t(0));
-};
-} // namespace deque_detail
-
-template <::std::input_iterator U, typename V>
-deque(U, V) -> deque<typename ::std::iterator_traits<U>::value_type,
-                     typename ::std::allocator<typename ::std::iterator_traits<U>::value_type>>;
-
 template <::std::input_iterator U, typename V,
           deque_detail::mini_alloc Alloc = ::std::allocator<typename ::std::iterator_traits<U>::value_type>>
-deque(U, V, Alloc) -> deque<typename ::std::iterator_traits<U>::value_type, Alloc>;
+deque(U, V, Alloc = Alloc()) -> deque<typename ::std::iterator_traits<U>::value_type, Alloc>;
 
 #if defined(__cpp_lib_containers_ranges)
-template <::std::ranges::input_range R>
-deque(::std::from_range_t, R &&)
-    -> deque<::std::ranges::range_value_t<R>, ::std::allocator<::std::ranges::range_value_t<R>>>;
-
-template <::std::ranges::input_range R,
-          deque_detail::mini_alloc Alloc = ::std::allocator<::std::ranges::range_value_t<R>>>
-deque(::std::from_range_t, R &&, Alloc) -> deque<::std::ranges::range_value_t<R>, Alloc>;
+template <::std::ranges::input_range R, deque_detail::mini_alloc Alloc = ::std::allocator<::std::ranges::range_value_t<R>>>
+deque(::std::from_range_t, R &&, Alloc = Alloc()) -> deque<::std::ranges::range_value_t<R>, Alloc>;
 #endif
 
 template <typename T, typename Alloc, typename U = T>
-inline constexpr ::std::size_t erase(deque<T, Alloc> &c, U const &value)
+inline constexpr auto erase(deque<T, Alloc> &c, U const &value)
 {
     auto const it = ::std::remove(c.begin(), c.end(), value);
     auto const r = c.end() - it;
     c.resize(c.size() - r);
-    return r;
+    return static_cast<deque<T, Alloc>::size_type>(r);
 }
 
 template <typename T, typename Alloc, typename Pred>
-inline constexpr ::std::size_t erase_if(deque<T, Alloc> &c, Pred pred)
+inline constexpr auto erase_if(deque<T, Alloc> &c, Pred pred)
 {
     auto const it = ::std::remove_if(c.begin(), c.end(), pred);
     auto const r = c.end() - it;
     c.resize(c.size() - r);
-    return r;
+    return static_cast<deque<T, Alloc>::size_type>(r);
 }
 
 namespace pmr
