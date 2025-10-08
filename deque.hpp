@@ -56,8 +56,7 @@ class deque;
 namespace deque_detail
 {
 
-
-    template <typename A>
+template <typename A>
 concept mini_alloc = requires(A &a) {
     typename A::value_type;
     a.allocate(::std::size_t(0));
@@ -1999,7 +1998,8 @@ class deque
     }
 
     // TRANSITION: https://github.com/microsoft/STL/pull/4254
-    template<deque_detail::mini_alloc Alloc2 = Alloc>
+    // TRANSITION: CWG2369, MSVC
+    template <typename Alloc2 = Alloc, typename = ::std::enable_if_t<deque_detail::mini_alloc<Alloc>>>
     constexpr deque(size_type const count, T const &value, Alloc const &alloc = Alloc()) : allocator_(alloc)
     {
         assert(allocator_ == alloc);
@@ -2305,7 +2305,7 @@ class deque
             if (!(check_block && check_elem))
             {
 #if defined(__cpp_exceptions)
-                throw ::std::out_of_range{"bizwen::deque::at"};
+                throw ::std::out_of_range("bizwen::deque::at");
 #else
                 ::std::terminate();
 #endif
@@ -3216,12 +3216,16 @@ class deque
 #endif
 };
 
+// TRANSITION: CWG2369, MSVC
 template <::std::input_iterator U, typename V,
-          deque_detail::mini_alloc Alloc = ::std::allocator<typename ::std::iterator_traits<U>::value_type>>
+          typename Alloc = ::std::allocator<typename ::std::iterator_traits<U>::value_type>,
+          typename = ::std::enable_if_t<deque_detail::mini_alloc<Alloc>>>
 deque(U, V, Alloc = Alloc()) -> deque<typename ::std::iterator_traits<U>::value_type, Alloc>;
 
 #if defined(__cpp_lib_containers_ranges)
-template <::std::ranges::input_range R, deque_detail::mini_alloc Alloc = ::std::allocator<::std::ranges::range_value_t<R>>>
+// TRANSITION: CWG2369, MSVC
+template <::std::ranges::input_range R, typename Alloc = ::std::allocator<::std::ranges::range_value_t<R>>,
+          typename = ::std::enable_if_t<deque_detail::mini_alloc<Alloc>>>
 deque(::std::from_range_t, R &&, Alloc = Alloc()) -> deque<::std::ranges::range_value_t<R>, Alloc>;
 #endif
 
@@ -3229,18 +3233,18 @@ template <typename T, typename Alloc, typename U = T>
 inline constexpr auto erase(deque<T, Alloc> &c, U const &value)
 {
     auto const it = ::std::remove(c.begin(), c.end(), value);
-    auto const r = c.end() - it;
+    auto const r = static_cast<deque<T, Alloc>::size_type>(c.end() - it);
     c.resize(c.size() - r);
-    return static_cast<deque<T, Alloc>::size_type>(r);
+    return r;
 }
 
 template <typename T, typename Alloc, typename Pred>
 inline constexpr auto erase_if(deque<T, Alloc> &c, Pred pred)
 {
     auto const it = ::std::remove_if(c.begin(), c.end(), pred);
-    auto const r = c.end() - it;
+    auto const r = static_cast<deque<T, Alloc>::size_type>(c.end() - it);
     c.resize(c.size() - r);
-    return static_cast<deque<T, Alloc>::size_type>(r);
+    return r;
 }
 
 namespace pmr
