@@ -1999,7 +1999,7 @@ class deque
 
     // TRANSITION: https://github.com/microsoft/STL/pull/4254
     // TRANSITION: CWG2369, MSVC
-    template <typename Alloc2 = Alloc, typename = ::std::enable_if_t<deque_detail::mini_alloc<Alloc>>>
+    template <typename = ::std::enable_if_t<deque_detail::mini_alloc<Alloc>>>
     constexpr deque(size_type const count, T const &value, Alloc const &alloc = Alloc()) : allocator_(alloc)
     {
         assert(allocator_ == alloc);
