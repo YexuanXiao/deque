@@ -595,7 +595,7 @@ class deque_iterator
         assert(elem_curr_ <= elem_begin_ + block_elements_v<T>);
         if (block_elem_curr_ == buckets_.block_elem_end_ - ::std::size_t(1))
             assert(elem_curr_ <= buckets_.elem_end_end_);
-        else if (block_elem_curr_ == buckets_.block_elem_begin_)
+        if (block_elem_curr_ == buckets_.block_elem_begin_)
             assert(elem_curr_ >= buckets_.elem_begin_begin_);
 
         return true;
@@ -1073,7 +1073,7 @@ class deque
                  ::std::ranges::subrange{block_elem_begin_ + ::std::size_t(1), block_elem_end_ - ::std::size_t(1)})
             {
                 for (auto const &i :
-                     ::std::ranges::subrange{block_begin, block_begin + deque_detail::block_elements_v<T>})
+                     ::std::ranges::subrange{::std::to_address(block_begin), ::std::to_address(block_begin) + deque_detail::block_elements_v<T>})
                 {
                     atraits_t_::destroy(allocator_, ::std::addressof(i));
                 }
@@ -1752,11 +1752,6 @@ class deque
         }
     }
 
-    static consteval void is_iterator_(iterator const &) noexcept
-    {
-        /* */
-    }
-
   public:
     constexpr deque() noexcept(::std::is_nothrow_default_constructible_v<Alloc>)
         requires ::std::default_initializable<Alloc>
@@ -1777,7 +1772,7 @@ class deque
         // 由于析构优先考虑elem_begin，因此必须独立构造elem_begin
         if (full_blocks)
         {
-            auto const begin = *block_elem_end_;
+            auto const begin = ::std::to_address(*block_elem_end_);
             auto const end = begin + deque_detail::block_elements_v<T>;
             if constexpr (sizeof...(Ts) == ::std::size_t(0))
             {
@@ -1818,7 +1813,8 @@ class deque
                 auto pair = deque_detail::get_iter_pair(ts...);
                 ::std::ranges::uninitialized_copy(pair.src_begin, ::std::unreachable_sentinel, begin,
                                                   begin + deque_detail::block_elements_v<T>);
-                pair.src_begin += deque_detail::block_elements_v<T>;
+                pair.src_begin +=
+                    static_cast<::std::iter_difference_t<decltype(pair.src_begin)>>(deque_detail::block_elements_v<T>);
                 elem_begin_(begin, end, begin);
             }
             else
@@ -1832,7 +1828,7 @@ class deque
         {
             for (auto i = ::std::size_t(0); i != full_blocks - ::std::size_t(1); ++i)
             {
-                auto const begin = *block_elem_end_;
+                auto const begin = ::std::to_address(*block_elem_end_);
                 auto const end = begin + deque_detail::block_elements_v<T>;
                 if constexpr (sizeof...(Ts) == ::std::size_t(0))
                 {
@@ -1873,7 +1869,8 @@ class deque
                     auto pair = deque_detail::get_iter_pair(ts...);
                     ::std::ranges::uninitialized_copy(pair.src_begin, ::std::unreachable_sentinel, begin,
                                                       begin + deque_detail::block_elements_v<T>);
-                    pair.src_begin += deque_detail::block_elements_v<T>;
+                    pair.src_begin += static_cast<::std::iter_difference_t<decltype(pair.src_begin)>>(
+                        deque_detail::block_elements_v<T>);
                     elem_end_(begin, end, elem_end_last_);
                 }
                 else
@@ -1886,7 +1883,7 @@ class deque
         }
         if (rem_elems)
         {
-            auto const begin = *block_elem_end_;
+            auto const begin = ::std::to_address(*block_elem_end_);
             auto const end = begin + rem_elems;
             if constexpr (sizeof...(Ts) == ::std::size_t(0))
             {
@@ -2064,27 +2061,7 @@ class deque
     template <typename R>
     constexpr void from_range_noguard_(R &&rg)
     {
-        if constexpr (requires { is_iterator_(::std::ranges::begin(rg)); })
-        {
-            from_range_noguard_(::std::ranges::begin(rg), ::std::ranges::end(rg));
-        }
-        else if constexpr (::std::ranges::sized_range<R>)
-        {
-            if (auto const size = ::std::ranges::size(rg))
-            {
-                auto const res = deque_detail::calc_cap<T>(size);
-                extent_block_(res.block_size);
-                construct_(res.full_blocks, res.rem_elems, ::std::ranges::begin(rg), ::std::ranges::end(rg));
-            }
-        }
-        else if constexpr (::std::random_access_iterator<decltype(::std::ranges::begin(rg))>)
-        {
-            from_range_noguard_(::std::ranges::begin(rg), ::std::ranges::end(rg));
-        }
-        else
-        {
-            from_range_noguard_(::std::ranges::begin(rg), ::std::ranges::end(rg));
-        }
+        from_range_noguard_(::std::ranges::begin(rg), ::std::ranges::end(rg));
     }
 
   public:
@@ -2447,7 +2424,7 @@ class deque
             }
             else if (block_size)
             {
-                auto const begin = *(block_elem_end_ - ::std::size_t(1));
+                auto const begin = ::std::to_address(*(block_elem_end_ - ::std::size_t(1)));
                 auto const last = begin + deque_detail::block_elements_v<T>;
                 elem_end_(begin, last, last);
             }
@@ -2480,7 +2457,7 @@ class deque
             }
             else if (block_size)
             {
-                auto const begin = *block_elem_begin_;
+                auto const begin = ::std::to_address(*block_elem_begin_);
                 auto const last = begin + deque_detail::block_elements_v<T>;
                 elem_begin_(begin, last, begin);
             }
@@ -2624,13 +2601,13 @@ class deque
     template <typename R>
     constexpr void append_range_noguard_(R &&rg)
     {
-        if (::std::ranges::empty(rg))
-        {
-            return;
-        }
         if constexpr (::std::ranges::sized_range<R>)
         {
-            reserve_back_(::std::ranges::size(rg));
+            if (::std::ranges::empty(rg))
+            {
+                return;
+            }
+            reserve_back_(static_cast<::std::size_t>(::std::ranges::size(rg)));
             for (auto &&i : rg)
             {
                 emplace_back_noalloc_(::std::forward<decltype(i)>(i));
@@ -2650,7 +2627,7 @@ class deque
         {
             emplace_front(*first);
         }
-        ::std::ranges::reverse(begin(), begin() + (size() - old_size));
+        ::std::ranges::reverse(begin(), begin() + static_cast<::std::ptrdiff_t>(size() - old_size));
     }
 
     template <::std::bidirectional_iterator U>
@@ -2677,13 +2654,14 @@ class deque
     template <typename R>
     constexpr void prepend_range_noguard_(R &&rg)
     {
-        if (::std::ranges::empty(rg))
+        if constexpr (::std::ranges::sized_range<R> && ::std::ranges::bidirectional_range<R> &&
+                      ::std::is_same_v<decltype(::std::ranges::begin(rg)), decltype(::std::ranges::end(rg))>)
         {
-            return;
-        }
-        if constexpr (::std::ranges::sized_range<R> && ::std::ranges::bidirectional_range<R>)
-        {
-            reserve_front_(::std::ranges::size(rg));
+            if (::std::ranges::empty(rg))
+            {
+                return;
+            }
+            reserve_front_(static_cast<::std::size_t>(::std::ranges::size(rg)));
             auto first = ::std::ranges::begin(rg);
             auto last = ::std::ranges::end(rg);
             for (; first != last;)
@@ -2698,13 +2676,17 @@ class deque
         }
         else if constexpr (::std::ranges::sized_range<R>)
         {
-            auto const count = ::std::ranges::size(rg);
+            if (::std::ranges::empty(rg))
+            {
+                return;
+            }
+            auto const count = static_cast<::std::size_t>(::std::ranges::size(rg));
             reserve_front_(count);
             for (auto &&i : rg)
             {
                 emplace_front_noalloc_(::std::forward<decltype(i)>(i));
             }
-            ::std::ranges::reverse(begin(), begin() + count);
+            ::std::ranges::reverse(begin(), begin() + static_cast<::std::ptrdiff_t>(count));
         }
         else
         {
@@ -2914,7 +2896,7 @@ class deque
             reserve_back_(::std::size_t(2));
             emplace_back_noalloc_(::std::forward<Args>(args)...); // 满足标准要求经过A::construct
             // back_emplace向后移动1个元素并插入，因此先reserve以获得一个不失效的pos
-            auto new_pos = begin() + front_diff;
+            auto new_pos = begin() + static_cast<::std::ptrdiff_t>(front_diff);
             back_emplace_(new_pos.block_elem_curr_, new_pos.elem_curr_);
             *new_pos = ::std::move(back());
             pop_back();
@@ -2924,7 +2906,7 @@ class deque
         {
             reserve_front_(::std::size_t(2));
             emplace_front_noalloc_(::std::forward<Args>(args)...);
-            auto new_pos = end() - back_diff;
+            auto new_pos = end() - static_cast<::std::ptrdiff_t>(back_diff);
             front_emplace_(new_pos.block_elem_curr_, new_pos.elem_curr_);
             *(--new_pos) = ::std::move(front());
             pop_front();
@@ -2987,10 +2969,6 @@ class deque
         requires ::std::convertible_to<::std::ranges::range_value_t<R>, T>
     constexpr iterator insert_range(const_iterator const pos, R &&rg)
     {
-        if (::std::ranges::empty(rg))
-        {
-            return pos.remove_const_();
-        }
         auto const begin_pre = begin();
         auto const end_pre = end();
         if (pos == end_pre)
@@ -3162,17 +3140,17 @@ class deque
             pop_back();
             return end();
         }
-        auto const back_diff = end_pre - pos + ::std::size_t(0);
-        auto const front_diff = pos - begin_pre + ::std::size_t(0);
+        auto const back_diff = end_pre - pos;
+        auto const front_diff = pos - begin_pre;
         if (back_diff <= front_diff)
         {
-            ::std::ranges::move((pos + ::std::size_t(1)).remove_const_(), end(), pos.remove_const_());
+            ::std::ranges::move((pos + ::std::ptrdiff_t(1)).remove_const_(), end(), pos.remove_const_());
             pop_back();
             return begin() + front_diff;
         }
         else
         {
-            ::std::ranges::move_backward(begin(), pos.remove_const_(), (pos + ::std::size_t(1)).remove_const_());
+            ::std::ranges::move_backward(begin(), pos.remove_const_(), (pos + ::std::ptrdiff_t(1)).remove_const_());
             pop_front();
             return begin() + front_diff;
         }
@@ -3184,26 +3162,26 @@ class deque
         auto const end_pre = end();
         if (first == begin_pre)
         {
-            pop_front_n_(last - first);
+            pop_front_n_(static_cast<::std::size_t>(last - first));
             return begin();
         }
         if (last == end_pre)
         {
-            pop_back_n_(last - first);
+            pop_back_n_(static_cast<::std::size_t>(last - first));
             return end();
         }
-        auto const back_diff = end_pre - last + ::std::size_t(0);
-        auto const front_diff = first - begin_pre + ::std::size_t(0);
+        auto const back_diff = end_pre - last;
+        auto const front_diff = first - begin_pre;
         if (back_diff <= front_diff)
         {
             ::std::ranges::move(last, end(), first.remove_const_());
-            pop_back_n_(last - first);
+            pop_back_n_(static_cast<::std::size_t>(last - first));
             return begin() + front_diff;
         }
         else
         {
             ::std::ranges::move_backward(begin(), first.remove_const_(), last.remove_const_());
-            pop_front_n_(last - first);
+            pop_front_n_(static_cast<::std::size_t>(last - first));
             return begin() + front_diff;
         }
     }
