@@ -5,6 +5,9 @@
 #if !defined(BIZWEN_DEQUE_HPP)
 #define BIZWEN_DEQUE_HPP
 
+#if !defined(BIZWEN_MODULE)
+#define BIZWEN_EXPORT
+
 // assert
 #include <cassert>
 // ptrdiff_t/size_t
@@ -40,6 +43,12 @@
 #include <exception>
 #endif
 
+#else
+
+#define BIZWEN_EXPORT export
+
+#endif
+
 // 代码规范：
 // 使用等号初始化
 // 内部函数可以使用auto返回值
@@ -50,7 +59,7 @@
 
 namespace bizwen
 {
-template <typename T, typename Alloc>
+BIZWEN_EXPORT template <typename T, typename Alloc>
 class deque;
 
 namespace deque_detail
@@ -3207,7 +3216,7 @@ template <::std::ranges::input_range R, typename Alloc = ::std::allocator<::std:
 deque(::std::from_range_t, R &&, Alloc = Alloc()) -> deque<::std::ranges::range_value_t<R>, Alloc>;
 #endif
 
-template <typename T, typename Alloc, typename U = T>
+BIZWEN_EXPORT template <typename T, typename Alloc, typename U = T>
 inline constexpr auto erase(deque<T, Alloc> &c, U const &value)
 {
     auto const it = ::std::remove(c.begin(), c.end(), value);
@@ -3216,7 +3225,7 @@ inline constexpr auto erase(deque<T, Alloc> &c, U const &value)
     return r;
 }
 
-template <typename T, typename Alloc, typename Pred>
+BIZWEN_EXPORT template <typename T, typename Alloc, typename Pred>
 inline constexpr auto erase_if(deque<T, Alloc> &c, Pred pred)
 {
     auto const it = ::std::remove_if(c.begin(), c.end(), pred);
@@ -3227,9 +3236,11 @@ inline constexpr auto erase_if(deque<T, Alloc> &c, Pred pred)
 
 namespace pmr
 {
-template <typename T>
+BIZWEN_EXPORT template <typename T>
 using deque = deque<T, ::std::pmr::polymorphic_allocator<T>>;
 }
 } // namespace bizwen
+
+#undef BIZWEN_EXPORT
 
 #endif
