@@ -578,7 +578,7 @@ class deque_iterator
         assert(elem_curr <= elem_begin + block_elements_v<T>);
         if (block_elem_curr == buckets.block_elem_end - ::std::size_t(1))
             assert(elem_curr <= buckets.elem_end_end);
-        else if (block_elem_curr == buckets.block_elem_begin)
+        if (block_elem_curr == buckets.block_elem_begin)
             assert(elem_curr >= buckets.elem_begin_begin);
         return true;
     }
@@ -1758,11 +1758,6 @@ ctrl_end   →
         }
     }
 
-    static consteval void is_iterator(iterator const &) noexcept
-    {
-        /* */
-    }
-
   public:
     constexpr deque() noexcept = default;
 
@@ -1942,7 +1937,7 @@ ctrl_end   →
     {
         if (first != last)
         {
-            auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(last - first);
+            auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(static_cast<::std::size_t>(last - first));
             extent_block(block_size);
             construct(full_blocks, rem_elems, ::std::move(first), ::std::move(last));
         }
@@ -1981,27 +1976,7 @@ ctrl_end   →
     template <typename R>
     constexpr void from_range_noguard(R &&rg)
     {
-        if constexpr (requires { is_iterator(::std::ranges::begin(rg)); })
-        {
-            from_range_noguard(::std::ranges::begin(rg), ::std::ranges::end(rg));
-        }
-        else if constexpr (::std::ranges::sized_range<R>)
-        {
-            if (auto const size = ::std::ranges::size(rg))
-            {
-                auto const [block_size, full_blocks, rem_elems] = deque_detail::calc_cap<T>(size);
-                extent_block(block_size);
-                construct(full_blocks, rem_elems, ::std::ranges::begin(rg), ::std::ranges::end(rg));
-            }
-        }
-        else if constexpr (::std::random_access_iterator<decltype(::std::ranges::begin(rg))>)
-        {
-            from_range_noguard(::std::ranges::begin(rg), ::std::ranges::end(rg));
-        }
-        else
-        {
-            from_range_noguard(::std::ranges::begin(rg), ::std::ranges::end(rg));
-        }
+        from_range_noguard(::std::ranges::begin(rg), ::std::ranges::end(rg));
     }
 
   public:
@@ -2423,7 +2398,7 @@ ctrl_end   →
         {
             emplace_front(*first);
         }
-        ::std::ranges::reverse(begin(), begin() + (size() - old_size));
+        ::std::ranges::reverse(begin(), begin() + static_cast<::std::ptrdiff_t>(size() - old_size));
     }
 
     template <::std::bidirectional_iterator U>
@@ -2450,12 +2425,12 @@ ctrl_end   →
     template <typename R>
     constexpr void prepend_range_noguard(R &&rg)
     {
-        if (::std::ranges::empty(rg))
+        if constexpr (::std::ranges::sized_range<R> && ::std::ranges::bidirectional_range<R> && ::std::is_same_v<decltype(::std::ranges::begin(rg)), decltype(::std::ranges::end(rg))>)
+        {
+                    if (::std::ranges::empty(rg))
         {
             return;
         }
-        if constexpr (::std::ranges::sized_range<R> && ::std::ranges::bidirectional_range<R>)
-        {
             reserve_front(::std::ranges::size(rg));
             auto first = ::std::ranges::begin(rg);
             auto last = ::std::ranges::end(rg);
@@ -2471,13 +2446,17 @@ ctrl_end   →
         }
         else if constexpr (::std::ranges::sized_range<R>)
         {
+                    if (::std::ranges::empty(rg))
+        {
+            return;
+        }
             auto const count = ::std::ranges::size(rg);
             reserve_front(count);
             for (auto &&i : rg)
             {
                 emplace_front_noalloc(::std::forward<decltype(i)>(i));
             }
-            ::std::ranges::reverse(begin(), begin() + count);
+            ::std::ranges::reverse(begin(), begin() + static_cast<::std::ptrdiff_t>(count));
         }
         else
         {
@@ -2679,8 +2658,8 @@ ctrl_end   →
         }
         // 注意这里和带分配器版本有一定区别，不要覆盖
         // 此时容器一定不为空
-        auto const back_diff = end_pre - pos + 0uz;
-        auto const front_diff = pos - begin_pre + 0uz;
+        auto const back_diff = end_pre - pos;
+        auto const front_diff = pos - begin_pre;
         if (back_diff <= front_diff || (block_elem_size() == 1uz && elem_end_end != elem_end_last))
         {
             reserve_one_back();
@@ -2755,10 +2734,6 @@ ctrl_end   →
         requires ::std::convertible_to<::std::ranges::range_value_t<R>, T>
     constexpr iterator insert_range(const_iterator const pos, R &&rg)
     {
-        if (::std::ranges::empty(rg))
-        {
-            return pos.remove_const();
-        }
         auto const begin_pre = begin();
         auto const end_pre = end();
         if (pos == end_pre)
@@ -2772,8 +2747,8 @@ ctrl_end   →
             prepend_range_noguard(::std::forward<R>(rg));
             return begin();
         }
-        auto const back_diff = end_pre - pos + 0uz;
-        auto const front_diff = pos - begin_pre + 0uz;
+        auto const back_diff = end_pre - pos;
+        auto const front_diff = pos - begin_pre;
 #if defined(BIZWEN_DEQUE_USE_ROTATE_INSERT)
         if (back_diff <= front_diff)
         {
@@ -2831,8 +2806,8 @@ ctrl_end   →
             prepend_range_noguard(::std::forward<U>(first), ::std::forward<V>(last));
             return begin();
         }
-        auto const back_diff = end_pre - pos + 0uz;
-        auto const front_diff = pos - begin_pre + 0uz;
+        auto const back_diff = end_pre - pos;
+        auto const front_diff = pos - begin_pre;
 #if defined(BIZWEN_DEQUE_USE_ROTATE_INSERT)
         if (back_diff <= front_diff)
         {
@@ -2921,17 +2896,17 @@ ctrl_end   →
             pop_back();
             return end();
         }
-        auto const back_diff = end_pre - pos + 0uz;
-        auto const front_diff = pos - begin_pre + 0uz;
+        auto const back_diff = end_pre - pos;
+        auto const front_diff = pos - begin_pre;
         if (back_diff <= front_diff)
         {
-            ::std::ranges::move((pos + 1uz).remove_const(), end(), pos.remove_const());
+            ::std::ranges::move((pos + 1z).remove_const(), end(), pos.remove_const());
             pop_back();
             return begin() + front_diff;
         }
         else
         {
-            ::std::ranges::move_backward(begin(), pos.remove_const(), (pos + 1uz).remove_const());
+            ::std::ranges::move_backward(begin(), pos.remove_const(), (pos + 1z).remove_const());
             pop_front();
             return begin() + front_diff;
         }
@@ -2951,18 +2926,18 @@ ctrl_end   →
             pop_back_n(last - first);
             return end();
         }
-        auto const back_diff = end_pre - last + 0uz;
-        auto const front_diff = first - begin_pre + 0uz;
+        auto const back_diff = end_pre - last;
+        auto const front_diff = first - begin_pre;
         if (back_diff <= front_diff)
         {
             ::std::ranges::move(last, end(), first.remove_const());
-            pop_back_n(last - first);
+            pop_back_n(static_cast<::std::size_t>(last - first));
             return begin() + front_diff;
         }
         else
         {
             ::std::ranges::move_backward(begin(), first.remove_const(), last.remove_const());
-            pop_front_n(last - first);
+            pop_front_n(static_cast<::std::size_t>(last - first));
             return begin() + front_diff;
         }
     }
