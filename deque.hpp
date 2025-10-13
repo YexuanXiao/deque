@@ -95,7 +95,7 @@ class throw_guard
 };
 
 template <typename U, typename V, typename W, typename X, typename Alloc>
-W uninitialized_copy(Alloc &a, U first, V last, W first2, X last2)
+void uninitialized_copy(Alloc &a, U first, V last, W first2, X last2)
 {
     throw_guard guard{first2, a};
 
@@ -105,7 +105,6 @@ W uninitialized_copy(Alloc &a, U first, V last, W first2, X last2)
     }
 
     guard.release();
-    return first2;
 }
 
 template <typename U, typename V, typename T, typename Alloc>
@@ -122,7 +121,7 @@ void uninitialized_fill(Alloc &a, U first, V last, const T &value)
 }
 
 template <typename U, typename V, typename W, typename X, typename Alloc>
-W uninitialized_move(Alloc &a, U first, V last, W first2, X last2)
+void uninitialized_move(Alloc &a, U first, V last, W first2, X last2)
 {
     throw_guard guard{first2, a};
 
@@ -132,7 +131,6 @@ W uninitialized_move(Alloc &a, U first, V last, W first2, X last2)
     }
 
     guard.release();
-    return first2;
 }
 
 template <typename U, typename V, typename Alloc>
@@ -237,17 +235,17 @@ inline constexpr auto calc_pos(::std::size_t const front_size, ::std::size_t con
     return pos_t{new_pos / block_elems, new_pos % block_elems};
 }
 
-template <typename T, typename Block>
+template <typename T, typename Block, typename DiffType>
 class buckets_type;
 
-template <typename T, typename Block>
+template <typename T, typename Block, typename DiffType>
 class bucket_iterator
 {
     using RConstT = ::std::remove_const_t<T>;
 
-    friend buckets_type<RConstT, Block>;
-    friend buckets_type<T, Block>;
-    friend bucket_iterator<T const, Block>;
+    friend buckets_type<RConstT, Block, DiffType>;
+    friend buckets_type<T, Block, DiffType>;
+    friend bucket_iterator<T const, Block, DiffType>;
 
     Block *block_elem_begin_{};
     Block *block_elem_end_{};
@@ -269,7 +267,7 @@ class bucket_iterator
     {
     }
 
-    constexpr bucket_iterator<RConstT, Block> remove_const_() const
+    constexpr bucket_iterator<RConstT, Block, DiffType> remove_const_() const
         requires(::std::is_const_v<T>)
     {
         return {block_elem_begin_, block_elem_end_, block_elem_curr_, elem_begin_begin_, elem_begin_end_,
@@ -299,7 +297,7 @@ class bucket_iterator
     }
 
   public:
-    using difference_type = ::std::ptrdiff_t;
+    using difference_type = DiffType;
     using value_type = ::std::span<T>;
     using pointer = value_type *;
     using reference = value_type &;
@@ -379,12 +377,12 @@ class bucket_iterator
         return block_elem_curr_ <=> other.block_elem_curr_;
     }
 
-    constexpr ::std::ptrdiff_t operator-(bucket_iterator const &other) const noexcept
+    constexpr difference_type operator-(bucket_iterator const &other) const noexcept
     {
         return block_elem_curr_ - other.block_elem_curr_;
     }
 
-    constexpr ::std::span<T> operator[](::std::ptrdiff_t const pos)
+    constexpr ::std::span<T> operator[](difference_type const pos)
     {
 #if defined(__cpp_auto_cast)
         return *(auto{*this} += pos);
@@ -395,7 +393,7 @@ class bucket_iterator
 #endif
     }
 
-    constexpr ::std::span<T> operator[](::std::ptrdiff_t const pos) const noexcept
+    constexpr ::std::span<T> operator[](difference_type const pos) const noexcept
     {
 #if defined(__cpp_auto_cast)
         return *(auto{*this} += pos);
@@ -416,17 +414,17 @@ class bucket_iterator
         return {elem_curr_begin_, elem_curr_end_};
     }
 
-    constexpr bucket_iterator &operator+=(::std::ptrdiff_t const pos) noexcept
+    constexpr bucket_iterator &operator+=(difference_type const pos) noexcept
     {
         return plus_and_assign_(pos);
     }
 
-    constexpr bucket_iterator &operator-=(::std::ptrdiff_t const pos) noexcept
+    constexpr bucket_iterator &operator-=(difference_type const pos) noexcept
     {
         return plus_and_assign_(-pos);
     }
 
-    friend constexpr bucket_iterator operator+(bucket_iterator const &it, ::std::ptrdiff_t const pos) noexcept
+    friend constexpr bucket_iterator operator+(bucket_iterator const &it, difference_type const pos) noexcept
     {
 #if defined(__cpp_auto_cast)
         return auto{it}.plus_and_assign_(pos);
@@ -437,22 +435,22 @@ class bucket_iterator
 #endif
     }
 
-    friend constexpr bucket_iterator operator+(::std::ptrdiff_t const pos, bucket_iterator const &it) noexcept
+    friend constexpr bucket_iterator operator+(difference_type const pos, bucket_iterator const &it) noexcept
     {
         return it + pos;
     }
 
-    friend constexpr bucket_iterator operator-(::std::ptrdiff_t const pos, bucket_iterator const &it) noexcept
+    friend constexpr bucket_iterator operator-(difference_type const pos, bucket_iterator const &it) noexcept
     {
         return it + (-pos);
     }
 
-    friend constexpr bucket_iterator operator-(bucket_iterator const &it, ::std::ptrdiff_t pos) noexcept
+    friend constexpr bucket_iterator operator-(bucket_iterator const &it, difference_type pos) noexcept
     {
         return it + (-pos);
     }
 
-    constexpr operator bucket_iterator<T const, Block>() const
+    constexpr operator bucket_iterator<T const, Block, DiffType>() const
         requires(!::std::is_const_v<T>)
     {
         return {block_elem_begin_, block_elem_end_, block_elem_curr_, elem_begin_begin_, elem_begin_end_,
@@ -461,23 +459,23 @@ class bucket_iterator
 };
 
 #if !defined(NDEBUG)
-static_assert(::std::random_access_iterator<bucket_iterator<int, int *>>);
-static_assert(::std::random_access_iterator<bucket_iterator<const int, int *>>);
+static_assert(::std::random_access_iterator<bucket_iterator<int, int *, ::std::ptrdiff_t>>);
+static_assert(::std::random_access_iterator<bucket_iterator<const int, int *, ::std::ptrdiff_t>>);
 #endif
 
-template <typename T, typename Block>
+template <typename T, typename Block, typename DiffType>
 class deque_iterator;
 
-template <typename T, typename Block>
-class buckets_type : public ::std::ranges::view_interface<buckets_type<T, Block>>
+template <typename T, typename Block, typename  DiffType>
+class buckets_type : public ::std::ranges::view_interface<buckets_type<T, Block, DiffType>>
 {
     using RConstT = ::std::remove_const_t<T>;
 
     template <typename U, typename Alloc>
     friend class bizwen::deque;
-    friend buckets_type<::std::remove_const_t<T>, Block>;
-    friend deque_iterator<RConstT const, Block>;
-    friend deque_iterator<RConstT, Block>;
+    friend buckets_type<::std::remove_const_t<T>, Block, DiffType>;
+    friend deque_iterator<RConstT const, Block, DiffType>;
+    friend deque_iterator<RConstT, Block, DiffType>;
 
     Block *block_elem_begin_{};
     Block *block_elem_end_{};
@@ -519,10 +517,10 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T, Block>
     using reference = value_type &;
     using const_pointer = value_type const *;
     using const_reference = value_type const &;
-    using size_type = ::std::size_t;
-    using difference_type = ::std::ptrdiff_t;
-    using iterator = bucket_iterator<T, Block>;
-    using const_iterator = bucket_iterator<T const, Block>;
+    using size_type = ::std::make_unsigned_t<DiffType>;
+    using difference_type = DiffType;
+    using iterator = bucket_iterator<T, Block, DiffType>;
+    using const_iterator = bucket_iterator<T const, Block, DiffType>;
     using reverse_iterator = ::std::reverse_iterator<iterator>;
     using const_reverse_iterator = ::std::reverse_iterator<const_iterator>;
 
@@ -534,7 +532,7 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T, Block>
 
     constexpr buckets_type &operator=(buckets_type const &) = default;
 
-    constexpr ::std::size_t size() const noexcept
+    constexpr size_type size() const noexcept
     {
         return block_elem_end_ - block_elem_begin_;
     }
@@ -567,12 +565,12 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T, Block>
         return {elem_end_begin_, elem_end_end_};
     }
 
-    constexpr ::std::span<T> at(::std::size_t const pos) noexcept
+    constexpr ::std::span<T> at(size_type const pos) noexcept
     {
         return at_impl(pos);
     }
 
-    constexpr ::std::span<const T> at(::std::size_t const pos) const noexcept
+    constexpr ::std::span<const T> at(size_type const pos) const noexcept
         requires(!::std::is_const_v<T>)
     {
         auto const s = at_impl(pos);
@@ -650,29 +648,29 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T, Block>
         return const_reverse_iterator{begin()};
     }
 
-    constexpr operator buckets_type<T const, Block>() const
+    constexpr operator buckets_type<T const, Block, DiffType>() const
         requires(!::std::is_const_v<T>)
     {
         return {block_elem_begin_, block_elem_end_, elem_begin_begin_, elem_begin_end_, elem_end_begin_, elem_end_end_};
     }
 };
 
-template <typename T, typename Block>
+template <typename T, typename Block, typename DiffType>
 class deque_iterator
 {
     using RConstT = ::std::remove_const_t<T>;
 
     template <typename U, typename Alloc>
     friend class bizwen::deque;
-    friend deque_iterator<RConstT, Block>;
-    friend deque_iterator<T const, Block>;
+    friend deque_iterator<RConstT, Block, DiffType>;
+    friend deque_iterator<T const, Block, DiffType>;
 
     Block *block_elem_curr_{};
     Block *block_elem_end_{};
     RConstT *elem_begin_{};
     RConstT *elem_curr_{};
 #if !defined(NDEBUG)
-    buckets_type<T const, Block> buckets_{};
+    buckets_type<T const, Block, DiffType> buckets_{};
 
     constexpr bool verify() const noexcept
     {
@@ -694,7 +692,7 @@ class deque_iterator
     }
 
     constexpr deque_iterator(Block *block_curr, Block *block_end, RConstT *const begin, RConstT *const pos,
-                             buckets_type<T const, Block> buckets) noexcept
+                             buckets_type<T const, Block, DiffType> buckets) noexcept
         : block_elem_curr_(block_curr), block_elem_end_(block_end), elem_begin_(deque_detail::to_address(begin)),
           elem_curr_(deque_detail::to_address(pos)), buckets_(buckets)
     {
@@ -707,7 +705,7 @@ class deque_iterator
     }
 #endif
 
-    constexpr deque_iterator<RConstT, Block> remove_const_() const noexcept
+    constexpr deque_iterator<RConstT, Block, DiffType> remove_const_() const noexcept
         requires(::std::is_const_v<T>)
     {
 #if !defined(NDEBUG)
@@ -753,7 +751,7 @@ class deque_iterator
     }
 
   public:
-    using difference_type = ::std::ptrdiff_t;
+    using difference_type = DiffType;
     using value_type = T;
     using pointer = T *;
     using reference = T &;
@@ -853,30 +851,30 @@ class deque_iterator
 #endif
     }
 
-    constexpr T &operator[](::std::ptrdiff_t const pos) noexcept
+    constexpr T &operator[](difference_type const pos) noexcept
     {
         return at_impl_(pos);
     }
 
-    constexpr T &operator[](::std::ptrdiff_t const pos) const noexcept
+    constexpr T &operator[](difference_type const pos) const noexcept
     {
         return at_impl_(pos);
     }
 
-    friend constexpr ::std::ptrdiff_t operator-(deque_iterator const &lhs, deque_iterator const &rhs) noexcept
+    friend constexpr difference_type operator-(deque_iterator const &lhs, deque_iterator const &rhs) noexcept
     {
         assert(lhs.block_elem_end_ == rhs.block_elem_end_);
         auto const block_size = lhs.block_elem_curr_ - rhs.block_elem_curr_;
-        return block_size * static_cast<::std::ptrdiff_t>(block_elements_v<T>) + lhs.elem_curr_ - lhs.elem_begin_ -
-               (rhs.elem_curr_ - rhs.elem_begin_);
+        return static_cast<difference_type>(block_size * static_cast<difference_type>(block_elements_v<T>) + lhs.elem_curr_ - lhs.elem_begin_ -
+               (rhs.elem_curr_ - rhs.elem_begin_));
     }
 
-    constexpr deque_iterator &operator+=(::std::ptrdiff_t const pos) noexcept
+    constexpr deque_iterator &operator+=(difference_type const pos) noexcept
     {
         return plus_and_assign_(pos);
     }
 
-    friend constexpr deque_iterator operator+(deque_iterator const &it, ::std::ptrdiff_t const pos) noexcept
+    friend constexpr deque_iterator operator+(deque_iterator const &it, difference_type const pos) noexcept
     {
 #if defined(__cpp_auto_cast)
         return auto{it}.plus_and_assign_(pos);
@@ -887,27 +885,27 @@ class deque_iterator
 #endif
     }
 
-    friend constexpr deque_iterator operator+(::std::ptrdiff_t const pos, deque_iterator const &it) noexcept
+    friend constexpr deque_iterator operator+(difference_type const pos, deque_iterator const &it) noexcept
     {
         return it + pos;
     }
 
-    constexpr deque_iterator &operator-=(::std::ptrdiff_t const pos) noexcept
+    constexpr deque_iterator &operator-=(difference_type const pos) noexcept
     {
         return plus_and_assign_(-pos);
     }
 
-    friend constexpr deque_iterator operator-(deque_iterator const &it, ::std::ptrdiff_t const pos) noexcept
+    friend constexpr deque_iterator operator-(deque_iterator const &it, difference_type const pos) noexcept
     {
         return it + (-pos);
     }
 
-    friend constexpr deque_iterator operator-(::std::ptrdiff_t const pos, deque_iterator const &it) noexcept
+    friend constexpr deque_iterator operator-(difference_type const pos, deque_iterator const &it) noexcept
     {
         return it + (-pos);
     }
 
-    constexpr operator deque_iterator<T const, Block>() const
+    constexpr operator deque_iterator<T const, Block, DiffType>() const
         requires(!::std::is_const_v<T>)
     {
 #if !defined(NDEBUG)
@@ -1249,12 +1247,12 @@ class deque
     using const_reference = value_type const &;
     using size_type = atraits_t_::size_type;
     using difference_type = atraits_t_::difference_type;
-    using iterator = deque_detail::deque_iterator<T, Block>;
-    using reverse_iterator = ::std::reverse_iterator<deque_detail::deque_iterator<T, Block>>;
-    using const_iterator = deque_detail::deque_iterator<T const, Block>;
-    using const_reverse_iterator = ::std::reverse_iterator<deque_detail::deque_iterator<T const, Block>>;
-    using buckets_type = deque_detail::buckets_type<T, Block>;
-    using const_buckets_type = deque_detail::buckets_type<T const, Block>;
+    using iterator = deque_detail::deque_iterator<T, Block,difference_type>;
+    using reverse_iterator = ::std::reverse_iterator<deque_detail::deque_iterator<T, Block,difference_type>>;
+    using const_iterator = deque_detail::deque_iterator<T const, Block,difference_type>;
+    using const_reverse_iterator = ::std::reverse_iterator<deque_detail::deque_iterator<T const, Block,difference_type>>;
+    using buckets_type = deque_detail::buckets_type<T, Block,difference_type>;
+    using const_buckets_type = deque_detail::buckets_type<T const, Block,difference_type>;
     using allocator_type = Alloc;
 
     constexpr Alloc get_allocator() const noexcept
@@ -2651,7 +2649,7 @@ class deque
         {
             emplace_front(*first);
         }
-        ::std::ranges::reverse(begin(), begin() + static_cast<::std::ptrdiff_t>(size() - old_size));
+        ::std::ranges::reverse(begin(), begin() + static_cast<difference_type>(size() - old_size));
     }
 
     template <::std::bidirectional_iterator U>
@@ -2924,7 +2922,7 @@ class deque
             reserve_back_(::std::size_t(2));
             emplace_back_noalloc_(::std::forward<Args>(args)...); // 满足标准要求经过A::construct
             // back_emplace向后移动1个元素并插入，因此先reserve以获得一个不失效的pos
-            auto new_pos = begin() + static_cast<::std::ptrdiff_t>(front_diff);
+            auto new_pos = begin() + static_cast<difference_type>(front_diff);
             back_emplace_(new_pos.block_elem_curr_, new_pos.elem_curr_);
             *new_pos = ::std::move(back());
             pop_back();
@@ -2934,7 +2932,7 @@ class deque
         {
             reserve_front_(::std::size_t(2));
             emplace_front_noalloc_(::std::forward<Args>(args)...);
-            auto new_pos = end() - static_cast<::std::ptrdiff_t>(back_diff);
+            auto new_pos = end() - static_cast<difference_type>(back_diff);
             front_emplace_(new_pos.block_elem_curr_, new_pos.elem_curr_);
             *(--new_pos) = ::std::move(front());
             pop_front();
@@ -2969,7 +2967,7 @@ class deque
     {
         reserve_back_(count);
         auto first = begin();
-        auto last = first + static_cast<::std::ptrdiff_t>(count);
+        auto last = first + static_cast<difference_type>(count);
         for (; first != last; ++first)
         {
             emplace_back_noalloc_(::std::move(*first));
@@ -3003,7 +3001,7 @@ class deque
         {
             auto const old_size = size();
             append_range_noguard_(::std::forward<R>(rg));
-            return begin() + static_cast<::std::ptrdiff_t>(old_size);
+            return begin() + static_cast<difference_type>(old_size);
         }
         if (pos == begin_pre)
         {
@@ -3017,18 +3015,18 @@ class deque
         {
             auto const old_size = size();
             append_range_noguard_(::std::forward<R>(rg));
-            ::std::ranges::rotate(begin() + static_cast<::std::ptrdiff_t>(front_diff),
-                                  begin() + static_cast<::std::ptrdiff_t>(old_size), end());
-            return begin() + static_cast<::std::ptrdiff_t>(front_diff);
+            ::std::ranges::rotate(begin() + static_cast<difference_type>(front_diff),
+                                  begin() + static_cast<difference_type>(old_size), end());
+            return begin() + static_cast<difference_type>(front_diff);
         }
         else
         {
             auto const old_size = size();
             prepend_range_noguard_(::std::forward<R>(rg));
             auto const count = size() - old_size;
-            ::std::ranges::rotate(begin(), begin() + static_cast<::std::ptrdiff_t>(count),
-                                  begin() + static_cast<::std::ptrdiff_t>(count + front_diff));
-            return begin() + static_cast<::std::ptrdiff_t>(front_diff);
+            ::std::ranges::rotate(begin(), begin() + static_cast<difference_type>(count),
+                                  begin() + static_cast<difference_type>(count + front_diff));
+            return begin() + static_cast<difference_type>(front_diff);
         }
 #else
         if (back_diff <= front_diff)
@@ -3037,7 +3035,7 @@ class deque
             move_back_to_front_(back_diff);
             append_range_noguard_(::std::forward<R>(rg));
             move_front_to_back_(back_diff);
-            return begin() + static_cast<::std::ptrdiff_t>(front_diff);
+            return begin() + static_cast<difference_type>(front_diff);
         }
         else
         {
@@ -3045,7 +3043,7 @@ class deque
             move_front_to_back_(front_diff);
             prepend_range_noguard_(::std::forward<R>(rg));
             move_back_to_front_(front_diff);
-            return begin() + static_cast<::std::ptrdiff_t>(front_diff);
+            return begin() + static_cast<difference_type>(front_diff);
         }
 #endif
     }
@@ -3064,7 +3062,7 @@ class deque
         {
             auto const old_size = size();
             append_range_noguard_(::std::forward<U>(first), ::std::forward<V>(last));
-            return begin() + static_cast<::std::ptrdiff_t>(old_size);
+            return begin() + static_cast<difference_type>(old_size);
         }
         if (pos == begin_pre)
         {
@@ -3078,18 +3076,18 @@ class deque
         {
             auto const old_size = size();
             append_range_noguard_(::std::forward<U>(first), ::std::forward<V>(last));
-            ::std::ranges::rotate(begin() + static_cast<::std::ptrdiff_t>(front_diff),
-                                  begin() + static_cast<::std::ptrdiff_t>(old_size), end());
-            return begin() + static_cast<::std::ptrdiff_t>(front_diff);
+            ::std::ranges::rotate(begin() + static_cast<difference_type>(front_diff),
+                                  begin() + static_cast<difference_type>(old_size), end());
+            return begin() + static_cast<difference_type>(front_diff);
         }
         else
         {
             auto const old_size = size();
             prepend_range_noguard_(::std::forward<U>(first), ::std::forward<V>(last));
             auto const count = size() - old_size;
-            ::std::ranges::rotate(begin(), begin() + static_cast<::std::ptrdiff_t>(count),
-                                  begin() + static_cast<::std::ptrdiff_t>(count + front_diff));
-            return begin() + static_cast<::std::ptrdiff_t>(front_diff);
+            ::std::ranges::rotate(begin(), begin() + static_cast<difference_type>(count),
+                                  begin() + static_cast<difference_type>(count + front_diff));
+            return begin() + static_cast<difference_type>(front_diff);
         }
 #else
         if (back_diff <= front_diff)
@@ -3098,7 +3096,7 @@ class deque
             move_back_to_front_(back_diff);
             append_range_noguard_(::std::forward<U>(first), ::std::forward<V>(last));
             move_front_to_back_(back_diff);
-            return begin() + static_cast<::std::ptrdiff_t>(front_diff);
+            return begin() + static_cast<difference_type>(front_diff);
         }
         else
         {
@@ -3106,7 +3104,7 @@ class deque
             move_front_to_back_(front_diff);
             prepend_range_noguard_(::std::forward<U>(first), ::std::forward<V>(last));
             move_back_to_front_(front_diff);
-            return begin() + static_cast<::std::ptrdiff_t>(front_diff);
+            return begin() + static_cast<difference_type>(front_diff);
         }
 #endif
     }
