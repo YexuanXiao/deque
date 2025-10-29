@@ -146,6 +146,21 @@ void uninitialized_value_construct(Alloc &a, U first, V last)
     guard.release();
 }
 
+template <typename T>
+struct adl_firewall_impl_
+{
+    struct adl_firewall_ // adl_firewall的关联类型包括adl_firewall_impl_<T>但不包括T
+    {
+        using type = T;
+    };
+};
+
+template <typename T>
+using add_adl_firewall_t = adl_firewall_impl_<T>::adl_firewall_;
+
+template <typename Firewall>
+using remove_adl_firewall_t = Firewall::type;
+
 template <typename A>
 concept mini_alloc = requires(A &a) {
     typename A::value_type;
@@ -238,14 +253,17 @@ inline constexpr auto calc_pos(::std::size_t const front_size, ::std::size_t con
 template <typename T, typename Block, typename DiffType>
 class buckets_type;
 
-template <typename T, typename Block, typename DiffType>
+template <typename FirewallT, typename FirewallBlock, typename DiffType>
 class bucket_iterator
 {
+    using T = deque_detail::remove_adl_firewall_t<FirewallT>;
+    using Block = deque_detail::remove_adl_firewall_t<FirewallBlock>;
+    static_assert(::std::is_object_v<T> && ::std::is_object_v<Block> && ::std::is_signed_v<DiffType>);
     using RConstT = ::std::remove_const_t<T>;
 
-    friend buckets_type<RConstT, Block, DiffType>;
-    friend buckets_type<T, Block, DiffType>;
-    friend bucket_iterator<T const, Block, DiffType>;
+    friend buckets_type<deque_detail::add_adl_firewall_t<RConstT>, FirewallBlock, DiffType>;
+    friend buckets_type<deque_detail::add_adl_firewall_t<T>, FirewallBlock, DiffType>;
+    friend bucket_iterator<deque_detail::add_adl_firewall_t<T const>, FirewallBlock, DiffType>;
 
     Block *block_elem_begin_{};
     Block *block_elem_end_{};
@@ -450,7 +468,8 @@ class bucket_iterator
         return it + (-pos);
     }
 
-    constexpr operator bucket_iterator<T const, Block, DiffType>() const
+    constexpr operator bucket_iterator<deque_detail::add_adl_firewall_t<T const>,
+                                       deque_detail::add_adl_firewall_t<Block>, DiffType>() const
         requires(!::std::is_const_v<T>)
     {
         return {block_elem_begin_, block_elem_end_, block_elem_curr_, elem_begin_begin_, elem_begin_end_,
@@ -459,23 +478,30 @@ class bucket_iterator
 };
 
 #if !defined(NDEBUG)
-static_assert(::std::random_access_iterator<bucket_iterator<int, int *, ::std::ptrdiff_t>>);
-static_assert(::std::random_access_iterator<bucket_iterator<const int, int *, ::std::ptrdiff_t>>);
+static_assert(::std::random_access_iterator<bucket_iterator<
+                  deque_detail::add_adl_firewall_t<int>, deque_detail::add_adl_firewall_t<int *>, ::std::ptrdiff_t>>);
+static_assert(
+    ::std::random_access_iterator<bucket_iterator<deque_detail::add_adl_firewall_t<const int>,
+                                                  deque_detail::add_adl_firewall_t<int *>, ::std::ptrdiff_t>>);
 #endif
 
 template <typename T, typename Block, typename DiffType>
 class deque_iterator;
 
-template <typename T, typename Block, typename  DiffType>
-class buckets_type : public ::std::ranges::view_interface<buckets_type<T, Block, DiffType>>
+template <typename FirewallT, typename FirewallBlock, typename DiffType>
+class buckets_type : public ::std::ranges::view_interface<buckets_type<FirewallT, FirewallBlock, DiffType>>
 {
+    using T = deque_detail::remove_adl_firewall_t<FirewallT>;
+    using Block = deque_detail::remove_adl_firewall_t<FirewallBlock>;
+    static_assert(::std::is_object_v<T> && ::std::is_object_v<Block> && ::std::is_signed_v<DiffType>);
+
     using RConstT = ::std::remove_const_t<T>;
 
     template <typename U, typename Alloc>
     friend class bizwen::deque;
-    friend buckets_type<::std::remove_const_t<T>, Block, DiffType>;
-    friend deque_iterator<RConstT const, Block, DiffType>;
-    friend deque_iterator<RConstT, Block, DiffType>;
+    friend buckets_type<deque_detail::add_adl_firewall_t<RConstT>, FirewallBlock, DiffType>;
+    friend deque_iterator<deque_detail::add_adl_firewall_t<T const>, FirewallBlock, DiffType>;
+    friend deque_iterator<deque_detail::add_adl_firewall_t<RConstT>, FirewallBlock, DiffType>;
 
     Block *block_elem_begin_{};
     Block *block_elem_end_{};
@@ -519,8 +545,10 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T, Block,
     using const_reference = value_type const &;
     using size_type = ::std::make_unsigned_t<DiffType>;
     using difference_type = DiffType;
-    using iterator = bucket_iterator<T, Block, DiffType>;
-    using const_iterator = bucket_iterator<T const, Block, DiffType>;
+    using iterator =
+        bucket_iterator<deque_detail::add_adl_firewall_t<T>, deque_detail::add_adl_firewall_t<Block>, DiffType>;
+    using const_iterator =
+        bucket_iterator<deque_detail::add_adl_firewall_t<T const>, deque_detail::add_adl_firewall_t<Block>, DiffType>;
     using reverse_iterator = ::std::reverse_iterator<iterator>;
     using const_reverse_iterator = ::std::reverse_iterator<const_iterator>;
 
@@ -648,29 +676,35 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T, Block,
         return const_reverse_iterator{begin()};
     }
 
-    constexpr operator buckets_type<T const, Block, DiffType>() const
+    constexpr operator buckets_type<deque_detail::add_adl_firewall_t<T const>, deque_detail::add_adl_firewall_t<Block>,
+                                    DiffType>() const
         requires(!::std::is_const_v<T>)
     {
         return {block_elem_begin_, block_elem_end_, elem_begin_begin_, elem_begin_end_, elem_end_begin_, elem_end_end_};
     }
 };
 
-template <typename T, typename Block, typename DiffType>
+template <typename FirewallT, typename FirewallBlock, typename DiffType>
 class deque_iterator
 {
+    using T = deque_detail::remove_adl_firewall_t<FirewallT>;
+    using Block = deque_detail::remove_adl_firewall_t<FirewallBlock>;
+    static_assert(::std::is_object_v<T> && ::std::is_object_v<Block> && ::std::is_signed_v<DiffType>);
+
     using RConstT = ::std::remove_const_t<T>;
 
     template <typename U, typename Alloc>
     friend class bizwen::deque;
-    friend deque_iterator<RConstT, Block, DiffType>;
-    friend deque_iterator<T const, Block, DiffType>;
+    friend deque_iterator<deque_detail::add_adl_firewall_t<T const>, FirewallBlock, DiffType>;
+    friend deque_iterator<deque_detail::add_adl_firewall_t<RConstT>, FirewallBlock, DiffType>;
 
     Block *block_elem_curr_{};
     Block *block_elem_end_{};
     RConstT *elem_begin_{};
     RConstT *elem_curr_{};
 #if !defined(NDEBUG)
-    buckets_type<T const, Block, DiffType> buckets_{};
+    buckets_type<deque_detail::add_adl_firewall_t<T const>, deque_detail::add_adl_firewall_t<Block>, DiffType>
+        buckets_{};
 
     constexpr bool verify() const noexcept
     {
@@ -692,7 +726,7 @@ class deque_iterator
     }
 
     constexpr deque_iterator(Block *block_curr, Block *block_end, RConstT *const begin, RConstT *const pos,
-                             buckets_type<T const, Block, DiffType> buckets) noexcept
+                             buckets_type<deque_detail::add_adl_firewall_t<T const>, deque_detail::add_adl_firewall_t<Block>, DiffType> buckets) noexcept
         : block_elem_curr_(block_curr), block_elem_end_(block_end), elem_begin_(deque_detail::to_address(begin)),
           elem_curr_(deque_detail::to_address(pos)), buckets_(buckets)
     {
@@ -705,7 +739,9 @@ class deque_iterator
     }
 #endif
 
-    constexpr deque_iterator<RConstT, Block, DiffType> remove_const_() const noexcept
+    constexpr deque_iterator<deque_detail::add_adl_firewall_t<RConstT>, deque_detail::add_adl_firewall_t<Block>,
+                             DiffType>
+    remove_const_() const noexcept
         requires(::std::is_const_v<T>)
     {
 #if !defined(NDEBUG)
@@ -865,8 +901,8 @@ class deque_iterator
     {
         assert(lhs.block_elem_end_ == rhs.block_elem_end_);
         auto const block_size = lhs.block_elem_curr_ - rhs.block_elem_curr_;
-        return static_cast<difference_type>(block_size * static_cast<difference_type>(block_elements_v<T>) + lhs.elem_curr_ - lhs.elem_begin_ -
-               (rhs.elem_curr_ - rhs.elem_begin_));
+        return static_cast<difference_type>(block_size * static_cast<difference_type>(block_elements_v<T>) +
+                                            lhs.elem_curr_ - lhs.elem_begin_ - (rhs.elem_curr_ - rhs.elem_begin_));
     }
 
     constexpr deque_iterator &operator+=(difference_type const pos) noexcept
@@ -905,7 +941,8 @@ class deque_iterator
         return it + (-pos);
     }
 
-    constexpr operator deque_iterator<T const, Block, DiffType>() const
+    constexpr operator deque_iterator<deque_detail::add_adl_firewall_t<T const>,
+                                      deque_detail::add_adl_firewall_t<Block>, DiffType>() const
         requires(!::std::is_const_v<T>)
     {
 #if !defined(NDEBUG)
@@ -1247,12 +1284,16 @@ class deque
     using const_reference = value_type const &;
     using size_type = atraits_t_::size_type;
     using difference_type = atraits_t_::difference_type;
-    using iterator = deque_detail::deque_iterator<T, Block,difference_type>;
-    using reverse_iterator = ::std::reverse_iterator<deque_detail::deque_iterator<T, Block,difference_type>>;
-    using const_iterator = deque_detail::deque_iterator<T const, Block,difference_type>;
-    using const_reverse_iterator = ::std::reverse_iterator<deque_detail::deque_iterator<T const, Block,difference_type>>;
-    using buckets_type = deque_detail::buckets_type<T, Block,difference_type>;
-    using const_buckets_type = deque_detail::buckets_type<T const, Block,difference_type>;
+    using iterator = deque_detail::deque_iterator<deque_detail::add_adl_firewall_t<T>,
+                                                  deque_detail::add_adl_firewall_t<Block>, difference_type>;
+    using reverse_iterator = ::std::reverse_iterator<iterator>;
+    using const_iterator = deque_detail::deque_iterator<deque_detail::add_adl_firewall_t<T const>,
+                                                        deque_detail::add_adl_firewall_t<Block>, difference_type>;
+    using const_reverse_iterator = ::std::reverse_iterator<const_iterator>;
+    using buckets_type = deque_detail::buckets_type<deque_detail::add_adl_firewall_t<T>,
+                                                    deque_detail::add_adl_firewall_t<Block>, difference_type>;
+    using const_buckets_type = deque_detail::buckets_type<deque_detail::add_adl_firewall_t<T const>,
+                                                          deque_detail::add_adl_firewall_t<Block>, difference_type>;
     using allocator_type = Alloc;
 
     constexpr Alloc get_allocator() const noexcept

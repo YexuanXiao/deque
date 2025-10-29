@@ -1,3 +1,4 @@
+module;
 #include <cassert>
 
 export module bizwen.deque;
