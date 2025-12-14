@@ -788,7 +788,7 @@ class deque_iterator
 
   public:
     using difference_type = DiffType;
-    using value_type = T;
+    using value_type = RConstT;
     using pointer = T *;
     using reference = T &;
     using iterator_category = ::std::random_access_iterator_tag;
