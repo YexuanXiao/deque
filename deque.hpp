@@ -57,6 +57,8 @@
 // const写右侧
 // 不分配内存/构造/移动对象一律noexcept
 
+// STL-vNext BEGIN
+
 namespace bizwen
 {
 BIZWEN_EXPORT template <typename T, typename Alloc>
@@ -710,12 +712,21 @@ class deque_iterator
     {
         assert(block_elem_curr_ >= buckets_.block_elem_begin_);
         assert(block_elem_end_ == buckets_.block_elem_end_);
-        assert((block_elem_curr_ != nullptr) && (block_elem_curr_ < block_elem_end_));
-        assert((block_elem_curr_ != nullptr) && (elem_begin_ == ::std::to_address(*block_elem_curr_)));
+        if (block_elem_curr_ != nullptr)
+        {
+            assert(block_elem_curr_ < block_elem_end_);
+            assert(elem_begin_ == ::std::to_address(*block_elem_curr_));
+        }
         assert(elem_curr_ >= elem_begin_);
         assert(elem_curr_ <= elem_begin_ + block_elements_v<T>);
-        assert((block_elem_curr_ == buckets_.block_elem_end_ - ::std::size_t(1)) && (elem_curr_ <= buckets_.elem_end_end_));
-        assert((block_elem_curr_ == buckets_.block_elem_begin_) && (elem_curr_ >= buckets_.elem_begin_begin_));
+        if (block_elem_curr_ == buckets_.block_elem_end_ - ::std::size_t(1))
+        {
+            assert(elem_curr_ <= buckets_.elem_end_end_);
+        }
+        if (block_elem_curr_ == buckets_.block_elem_begin_)
+        {
+            assert(elem_curr_ >= buckets_.elem_begin_begin_);
+        }
 
         return true;
     }
@@ -1184,6 +1195,7 @@ class deque
     constexpr void destroy_elems_() noexcept
     {
         if constexpr (!(::std::is_trivially_destructible_v<T> && is_default_operation_))
+        {
             // 4种情况，0，1，2，3+个块有元素
             auto const block_size = block_elem_size_();
             if (block_size)
@@ -2073,7 +2085,8 @@ class deque
     }
 
   private:
-    template <::std::input_iterator U, typename V>
+    template <typename U, typename V>
+        requires ::std::input_iterator<::std::remove_reference_t<U>>
     constexpr void from_range_noguard_(U &&first, V &&last)
     {
         for (; first != last; ++first)
@@ -2082,7 +2095,8 @@ class deque
         }
     }
 
-    template <::std::random_access_iterator U>
+    template <typename U>
+        requires ::std::random_access_iterator<::std::remove_reference_t<U>>
     constexpr void from_range_noguard_(U &&first, U &&last)
     {
         if (first != last)
@@ -2130,8 +2144,8 @@ class deque
     }
 
   public:
-    template <::std::input_iterator U, typename V>
-    constexpr deque(U first, V last, Alloc const &alloc = Alloc()) : allocator_(alloc)
+    template <::std::input_iterator U>
+    constexpr deque(U first, U last, Alloc const &alloc = Alloc()) : allocator_(alloc)
     {
         assert(allocator_ == alloc);
         construct_guard_ guard(this);
@@ -2140,7 +2154,7 @@ class deque
     }
 
 #if defined(__cpp_lib_containers_ranges)
-    template <::std::ranges::input_range R>
+    template <::std::ranges::input_range R> // _Container_compatible_range<_Ty>
         requires ::std::convertible_to<::std::ranges::range_value_t<R>, T>
     constexpr deque(::std::from_range_t, R &&rg, Alloc const &alloc = Alloc()) : allocator_(alloc)
     {
@@ -2317,7 +2331,8 @@ class deque
         */
     }
 
-    template <::std::input_iterator U, typename V>
+    template <typename U, typename V>
+        requires ::std::input_iterator<::std::remove_reference_t<U>>
     constexpr void assign(U first, V last)
     {
         clear();
@@ -2370,7 +2385,7 @@ class deque
         if (block_size == ::std::size_t(1))
         {
 #if __has_cpp_attribute(assume)
-            [[assume(begin + ::std::size_t(1) == elem_begin_begin_)]];
+            [[assume(begin + ::std::size_t(1) == elem_end_begin_)]];
 #endif
             elem_end_begin_ = begin;
         }
@@ -2644,7 +2659,8 @@ class deque
         }
     }
 
-    template <::std::input_iterator U, typename V>
+    template <typename U, typename V>
+        requires ::std::input_iterator<::std::remove_reference_t<U>>
     constexpr void append_range_noguard_(U &&first, V &&last)
     {
         for (; first != last; ++first)
@@ -2653,7 +2669,8 @@ class deque
         }
     }
 
-    template <::std::random_access_iterator U>
+    template <typename U>
+        requires ::std::random_access_iterator<::std::remove_reference_t<U>>
     constexpr void append_range_noguard_(U &&first, U &&last)
     {
         reserve_back_(static_cast<::std::size_t>(last - first));
@@ -2684,7 +2701,8 @@ class deque
         }
     }
 
-    template <::std::input_iterator U, typename V>
+    template <typename U, typename V>
+        requires ::std::input_iterator<::std::remove_reference_t<U>>
     constexpr void prepend_range_noguard_(U &&first, V &&last)
     {
         auto const old_size = size();
@@ -2695,7 +2713,8 @@ class deque
         ::std::ranges::reverse(begin(), begin() + static_cast<difference_type>(size() - old_size));
     }
 
-    template <::std::bidirectional_iterator U>
+    template <typename U>
+        requires ::std::bidirectional_iterator<::std::remove_reference_t<U>>
     constexpr void prepend_range_noguard_(U &&first, U &&last)
     {
         for (; first != last;)
@@ -2708,7 +2727,8 @@ class deque
 // TRANSITION: EDG不能区分该重载和bidirectional_iterator重载的区别
 // https://developercommunity.visualstudio.com/t/IntellisenceEDG-cannot-correctly-determ/10981026
 #if !defined(__EDG__)
-    template <::std::random_access_iterator U>
+    template <typename U>
+    requires ::std::random_access_iterator<::std::remove_reference_t<U>>
     constexpr void prepend_range_noguard_(U &&first, U &&last)
     {
         reserve_front_(static_cast<::std::size_t>(last - first));
@@ -2777,8 +2797,7 @@ class deque
         requires ::std::convertible_to<::std::ranges::range_value_t<R>, T>
     constexpr void prepend_range(R &&rg)
     {
-        auto const old_size = size();
-        partial_guard_<false> guard(this, old_size);
+        partial_guard_<false> guard(this, size());
         prepend_range_noguard_(::std::forward<R>(rg));
         guard.release();
     }
@@ -2994,28 +3013,23 @@ class deque
     }
 
   private:
-    // 把后半部分倒到前面，元素按原顺序
-    constexpr void move_back_to_front_(::std::size_t const count)
-    {
-        reserve_front_(count);
-        for (auto i = ::std::size_t(0); i != count; ++i)
-        {
-            emplace_front_noalloc_(::std::move(back()));
-            pop_back();
+    deque split_blocks_() {
+        deque temp(allocator_);
+        auto block_size = block_alloc_size_() - block_elem_size_();
+        ctrl_alloc_ const ctrl{temp, block_size}; // may throw
+        ctrl.replace_ctrl_back();
+        for (auto i: ::std::ranges::subrange{block_alloc_begin_,block_elem_begin_}){
+            *temp.block_alloc_begin_ = i;
+            ++temp.block_alloc_begin_;
         }
-    }
-
-    // 把前半部分倒到后面，元素按原顺序
-    constexpr void move_front_to_back_(::std::size_t const count)
-    {
-        reserve_back_(count);
-        auto first = begin();
-        auto last = first + static_cast<difference_type>(count);
-        for (; first != last; ++first)
-        {
-            emplace_back_noalloc_(::std::move(*first));
+        for (auto i: ::std::ranges::subrange{block_elem_end_,block_alloc_end_}){
+            *temp.block_alloc_begin_ = i;
+            ++temp.block_alloc_begin_;
         }
-        pop_front_n_(count);
+        temp.block_alloc_end_ = temp.block_alloc_begin_ + block_size;
+        block_alloc_begin_ = block_elem_begin_;
+        block_alloc_end_ = block_elem_end_;
+        return temp;
     }
 
     static inline constexpr auto synth_three_way_ = []<class U, class V>(U const &u, V const &v) {
@@ -3043,52 +3057,21 @@ class deque
         if (pos == end_pre)
         {
             auto const old_size = size();
-            append_range_noguard_(::std::forward<R>(rg));
+            append_range(::std::forward<R>(rg));
             return begin() + static_cast<difference_type>(old_size);
         }
         if (pos == begin_pre)
         {
-            prepend_range_noguard_(::std::forward<R>(rg));
+            prepend_range(::std::forward<R>(rg));
             return begin();
         }
-        auto const back_diff = end_pre - pos + ::std::size_t(0);
-        auto const front_diff = pos - begin_pre + ::std::size_t(0);
-#if defined(BIZWEN_DEQUE_USE_ROTATE_INSERT)
-        if (back_diff <= front_diff)
-        {
-            auto const old_size = size();
-            append_range_noguard_(::std::forward<R>(rg));
-            ::std::rotate(begin() + static_cast<difference_type>(front_diff),
-                                  begin() + static_cast<difference_type>(old_size), end());
-            return begin() + static_cast<difference_type>(front_diff);
-        }
-        else
-        {
-            auto const old_size = size();
-            prepend_range_noguard_(::std::forward<R>(rg));
-            auto const count = size() - old_size;
-            ::std::rotate(begin(), begin() + static_cast<difference_type>(count),
-                                  begin() + static_cast<difference_type>(count + front_diff));
-            return begin() + static_cast<difference_type>(front_diff);
-        }
-#else
-        if (back_diff <= front_diff)
-        {
-            // 先把后半部分倒到前面，再插入到后面，最后把前面的倒到后面
-            move_back_to_front_(back_diff);
-            append_range_noguard_(::std::forward<R>(rg));
-            move_front_to_back_(back_diff);
-            return begin() + static_cast<difference_type>(front_diff);
-        }
-        else
-        {
-            // 先把前半部分倒到后面，再插入到前面，最后把后面的倒到前面
-            move_front_to_back_(front_diff);
-            prepend_range_noguard_(::std::forward<R>(rg));
-            move_back_to_front_(front_diff);
-            return begin() + static_cast<difference_type>(front_diff);
-        }
-#endif
+        auto const front_diff = pos - begin_pre;
+        auto temp = split_blocks_();
+        temp.append_range_noguard_(::std::forward<R>(rg));
+        temp.prepend_range_noguard_(begin(), begin() + front_diff);
+        temp.append_range_noguard_(begin() + front_diff, end());
+        temp.swap(*this);
+        return begin() + front_diff;
     }
 
     // 几乎等于insert_range,但是使用迭代器版本以支持input iterator
@@ -3104,52 +3087,26 @@ class deque
         if (pos == end_pre)
         {
             auto const old_size = size();
+            partial_guard_<true> guard(this, old_size);
             append_range_noguard_(::std::forward<U>(first), ::std::forward<V>(last));
+            guard.release();
             return begin() + static_cast<difference_type>(old_size);
         }
         if (pos == begin_pre)
         {
+            auto const old_size = size();
+            partial_guard_<false> guard(this, old_size);
             prepend_range_noguard_(::std::forward<U>(first), ::std::forward<V>(last));
+            guard.release();
             return begin();
         }
-        auto const back_diff = end_pre - pos + ::std::size_t(0);
-        auto const front_diff = pos - begin_pre + ::std::size_t(0);
-#if defined(BIZWEN_DEQUE_USE_ROTATE_INSERT)
-        if (back_diff <= front_diff)
-        {
-            auto const old_size = size();
-            append_range_noguard_(::std::forward<U>(first), ::std::forward<V>(last));
-            ::std::rotate(begin() + static_cast<difference_type>(front_diff),
-                                  begin() + static_cast<difference_type>(old_size), end());
-            return begin() + static_cast<difference_type>(front_diff);
-        }
-        else
-        {
-            auto const old_size = size();
-            prepend_range_noguard_(::std::forward<U>(first), ::std::forward<V>(last));
-            auto const count = size() - old_size;
-            ::std::rotate(begin(), begin() + static_cast<difference_type>(count),
-                                  begin() + static_cast<difference_type>(count + front_diff));
-            return begin() + static_cast<difference_type>(front_diff);
-        }
-#else
-        if (back_diff <= front_diff)
-        {
-            // 先把后半部分倒到前面，再插入到后面，最后把前面的倒到后面
-            move_back_to_front_(back_diff);
-            append_range_noguard_(::std::forward<U>(first), ::std::forward<V>(last));
-            move_front_to_back_(back_diff);
-            return begin() + static_cast<difference_type>(front_diff);
-        }
-        else
-        {
-            // 先把前半部分倒到后面，再插入到前面，最后把后面的倒到前面
-            move_front_to_back_(front_diff);
-            prepend_range_noguard_(::std::forward<U>(first), ::std::forward<V>(last));
-            move_back_to_front_(front_diff);
-            return begin() + static_cast<difference_type>(front_diff);
-        }
-#endif
+        auto const front_diff = pos - begin_pre;
+        auto temp = split_blocks_();
+        temp.append_range_noguard_(first, last);
+        temp.prepend_range_noguard_(begin(), begin() + front_diff);
+        temp.append_range_noguard_(begin() + front_diff, end());
+        temp.swap(*this);
+        return begin() + front_diff;
     }
 
     constexpr iterator insert(const_iterator const pos, ::std::initializer_list<T> const ilist)
@@ -3304,6 +3261,8 @@ BIZWEN_EXPORT template <typename T>
 using deque = deque<T, ::std::pmr::polymorphic_allocator<T>>;
 }
 } // namespace bizwen
+
+// STL-vNext END
 
 #undef BIZWEN_EXPORT
 
