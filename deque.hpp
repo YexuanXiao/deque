@@ -3231,6 +3231,10 @@ class deque
 
     constexpr iterator erase(const_iterator const first, const_iterator const last)
     {
+        if (first == last)
+        {
+            return first.remove_const_();
+        }
         auto const begin_pre = begin();
         auto const end_pre = end();
         if (first == begin_pre)
