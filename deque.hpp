@@ -160,7 +160,7 @@ class bucket_iterator
     {
     }
 
-    constexpr bucket_iterator<RConstT> remove_const() const
+    constexpr bucket_iterator<RConstT> remove_const() const noexcept
         requires(::std::is_const_v<T>)
     {
         return {block_elem_begin, block_elem_end, block_elem_curr, elem_begin_begin, elem_begin_end,
@@ -343,7 +343,7 @@ class bucket_iterator
         return it + (-pos);
     }
 
-    constexpr operator bucket_iterator<T const>() const
+    constexpr operator bucket_iterator<T const>() const noexcept
         requires(!::std::is_const_v<T>)
     {
         return {block_elem_begin, block_elem_end, block_elem_curr, elem_begin_begin, elem_begin_end,
@@ -540,7 +540,7 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<T>>
         return const_reverse_iterator{begin()};
     }
 
-    constexpr operator buckets_type<T const>() const
+    constexpr operator buckets_type<T const>() const noexcept
         requires(!::std::is_const_v<T>)
     {
         return {block_elem_begin, block_elem_end, elem_begin_begin, elem_begin_end, elem_end_begin, elem_end_end};
@@ -796,7 +796,7 @@ class deque_iterator
         return it + (-pos);
     }
 
-    constexpr operator deque_iterator<T const>() const
+    constexpr operator deque_iterator<T const>() const noexcept
         requires(!::std::is_const_v<T>)
     {
 #if !defined(NDEBUG)
@@ -2882,7 +2882,7 @@ ctrl_end   →
         return ::std::lexicographical_compare_three_way(begin(), end(), other.begin(), other.end(), synth_three_way);
     }
 
-    constexpr iterator erase(const_iterator const pos)
+    constexpr iterator erase(const_iterator const pos)  noexcept(::std::is_nothrow_move_assignable_v<value_type>)
     {
         auto const begin_pre = begin();
         auto const end_pre = end();
@@ -2912,7 +2912,7 @@ ctrl_end   →
         }
     }
 
-    constexpr iterator erase(const_iterator const first, const_iterator const last)
+    constexpr iterator erase(const_iterator const first, const_iterator const last) noexcept(::std::is_nothrow_move_assignable_v<value_type>)
     {
         if (first == last)
         {
