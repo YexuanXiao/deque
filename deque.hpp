@@ -2865,7 +2865,7 @@ ctrl_end   →
             auto first = begin();
             auto last = end();
             auto first1 = other.begin();
-            for (; first != last; ++first, ++first1)
+            for (; first != last; (void)++first, (void)++first1)
             {
                 if (*first != *first1)
                     return false;
