@@ -1120,41 +1120,37 @@ ctrl_end   →
         delete[] block_ctrl_begin;
     }
 
-    constexpr void destroy_elems() noexcept
-        requires ::std::is_trivially_destructible_v<T>
-    {
-        /* */
-    }
-
     // 空deque安全，但执行后必须手动维护状态合法
     constexpr void destroy_elems() noexcept
     {
-        // 4种情况，0，1，2，3+个块有元素
-        auto const block_size = block_elem_size();
-        if (block_size)
-        {
-            for (auto const &i : ::std::ranges::subrange{elem_begin_begin, elem_begin_end})
+        if constexpr (!::std::is_trivially_destructible_v<T>)
+            // 4种情况，0，1，2，3+个块有元素
+            auto const block_size = block_elem_size();
+            if (block_size)
             {
-                ::std::destroy_at(::std::addressof(i));
-            }
-        }
-        // 清理中间的块
-        if (block_size > 2uz)
-        {
-            for (auto const block_begin : ::std::ranges::subrange{block_elem_begin + 1uz, block_elem_end - 1uz})
-            {
-                for (auto const &i :
-                     ::std::ranges::subrange{block_begin, block_begin + deque_detail::block_elements_v<T>})
+                for (auto const &i : ::std::ranges::subrange{elem_begin_begin, elem_begin_end})
                 {
                     ::std::destroy_at(::std::addressof(i));
                 }
             }
-        }
-        if (block_size > 1uz)
-        {
-            for (auto const &i : ::std::ranges::subrange{elem_end_begin, elem_end_end})
+            // 清理中间的块
+            if (block_size > 2uz)
             {
-                ::std::destroy_at(::std::addressof(i));
+                for (auto const block_begin : ::std::ranges::subrange{block_elem_begin + 1uz, block_elem_end - 1uz})
+                {
+                    for (auto const &i :
+                         ::std::ranges::subrange{block_begin, block_begin + deque_detail::block_elements_v<T>})
+                    {
+                        ::std::destroy_at(::std::addressof(i));
+                    }
+                }
+            }
+            if (block_size > 1uz)
+            {
+                for (auto const &i : ::std::ranges::subrange{elem_end_begin, elem_end_end})
+                {
+                    ::std::destroy_at(::std::addressof(i));
+                }
             }
         }
     }
