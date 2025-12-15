@@ -827,6 +827,16 @@ class deque_iterator
         return *elem_curr_;
     }
 
+    constexpr T *operator->() noexcept
+    {
+        return ::std::addressof(*(*this));
+    }
+
+    constexpr T *operator->() const noexcept
+    {
+        return ::std::addressof(*(*this));
+    }
+
     constexpr deque_iterator &operator++() noexcept
     {
         assert(verify());
