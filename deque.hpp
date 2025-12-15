@@ -1266,7 +1266,7 @@ class deque
 
     constexpr void swap_without_ator_(deque &other) noexcept
     {
-        using ::std::ranges::swap;
+        using ::std::swap;
         swap(block_ctrl_begin_fancy_, other.block_ctrl_begin_fancy_);
         swap(block_ctrl_end_, other.block_ctrl_end_);
         swap(block_alloc_begin_, other.block_alloc_begin_);
@@ -1344,7 +1344,8 @@ class deque
         }
         if constexpr (is_pocs_)
         {
-            ::std::ranges::swap(allocator_, other.allocator_);
+            using std::swap;
+            swap(allocator_, other.allocator_);
         }
         swap_without_ator_(other);
     }
@@ -1377,7 +1378,7 @@ class deque
     constexpr size_type max_size() const noexcept
     {
         return static_cast<size_type>(
-            (::std::ranges::min)(atraits_t_::max_size(allocator_), ::std::size_t(-1) / ::std::size_t(2) / sizeof(T)));
+            (::std::min)(atraits_t_::max_size(allocator_), ::std::size_t(-1) / ::std::size_t(2) / sizeof(T)));
     }
 
 #if !defined(NDEBUG)
@@ -1530,7 +1531,7 @@ class deque
     // 对齐alloc和ctrl的begin
     constexpr void align_alloc_as_ctrl_back_() noexcept
     {
-        ::std::ranges::copy(block_alloc_begin_, block_alloc_end_, block_ctrl_begin_());
+        ::std::copy(block_alloc_begin_, block_alloc_end_, block_ctrl_begin_());
         auto const block_size = block_alloc_size_();
         block_alloc_begin_ = block_ctrl_begin_();
         block_alloc_end_ = block_ctrl_begin_() + block_size;
@@ -1540,7 +1541,7 @@ class deque
     // 对齐alloc和ctrl的end
     constexpr void align_alloc_as_ctrl_front_() noexcept
     {
-        ::std::ranges::copy_backward(block_alloc_begin_, block_alloc_end_, block_ctrl_end_);
+        ::std::copy_backward(block_alloc_begin_, block_alloc_end_, block_ctrl_end_);
         auto const block_size = block_alloc_size_();
         block_alloc_end_ = block_ctrl_end_;
         block_alloc_begin_ = block_ctrl_end_ - block_size;
@@ -1550,7 +1551,7 @@ class deque
     // 对齐elem和alloc的begin
     constexpr void align_elem_as_alloc_back_() noexcept
     {
-        ::std::ranges::rotate(block_alloc_begin_, block_elem_begin_, block_elem_end_);
+        ::std::rotate(block_alloc_begin_, block_elem_begin_, block_elem_end_);
         auto const block_size = block_elem_size_();
         block_elem_begin_ = block_alloc_begin_;
         block_elem_end_ = block_alloc_begin_ + block_size;
@@ -1560,7 +1561,7 @@ class deque
     // 对齐elem和alloc的end
     constexpr void align_elem_as_alloc_front_() noexcept
     {
-        ::std::ranges::rotate(block_elem_begin_, block_elem_end_, block_alloc_end_);
+        ::std::rotate(block_elem_begin_, block_elem_end_, block_alloc_end_);
         auto const block_size = block_elem_size_();
         block_elem_end_ = block_alloc_end_;
         block_elem_begin_ = block_alloc_end_ - block_size;
@@ -1573,7 +1574,7 @@ class deque
         align_elem_as_alloc_back_();
         auto const alloc_block_size = block_alloc_size_();
         auto const elem_block_size = block_elem_size_();
-        ::std::ranges::copy(block_alloc_begin_, block_alloc_end_, ctrl_begin);
+        ::std::copy(block_alloc_begin_, block_alloc_end_, ctrl_begin);
         block_alloc_begin_ = ctrl_begin;
         block_alloc_end_ = ctrl_begin + alloc_block_size;
         block_elem_begin_ = ctrl_begin;
@@ -1587,7 +1588,7 @@ class deque
         align_elem_as_alloc_front_();
         auto const alloc_block_size = block_alloc_size_();
         auto const elem_block_size = block_elem_size_();
-        ::std::ranges::copy_backward(block_alloc_begin_, block_alloc_end_, ctrl_end);
+        ::std::copy_backward(block_alloc_begin_, block_alloc_end_, ctrl_end);
         block_alloc_end_ = ctrl_end;
         block_alloc_begin_ = ctrl_end - alloc_block_size;
         block_elem_end_ = ctrl_end;
@@ -2251,7 +2252,7 @@ class deque
         {
             auto const res = deque_detail::calc_cap<T>(ilist.size());
             extent_block_(res.block_size);
-            construct_(res.full_blocks, res.rem_elems, ::std::ranges::begin(ilist), ::std::ranges::end(ilist));
+            construct_(res.full_blocks, res.rem_elems, ::std::begin(ilist), ::std::end(ilist));
         }
         return *this;
     }
@@ -2871,7 +2872,7 @@ class deque
         if (block_size > ::std::size_t(0))
         {
             auto const begin = last_elem;
-            ::std::ranges::move_backward(begin, end - ::std::size_t(1), end);
+            ::std::move_backward(begin, end - ::std::size_t(1), end);
         }
         // 移动中间的块
         if (block_size > ::std::size_t(1))
@@ -2884,7 +2885,7 @@ class deque
                 auto const target_end = target_begin + deque_detail::block_elements_v<T>;
                 *last_elem = ::std::move(*(target_end - ::std::size_t(1)));
                 last_elem = target_begin;
-                ::std::ranges::move_backward(target_begin, target_end - ::std::size_t(1), target_end);
+                ::std::move_backward(target_begin, target_end - ::std::size_t(1), target_end);
             }
         }
         // 移动插入位置所在的块
@@ -2898,7 +2899,7 @@ class deque
                 *last_elem = ::std::move(*(end - ::std::size_t(1)));
             }
             // 把插入位置所在块整体右移1
-            ::std::ranges::move_backward(elem_curr, end - ::std::size_t(1), end);
+            ::std::move_backward(elem_curr, end - ::std::size_t(1), end);
         }
     }
 
@@ -2917,7 +2918,7 @@ class deque
             last_elem_end = elem_curr;
         }
         // 否则之前储存的last_elem_end是终点
-        ::std::ranges::move(last_elem_begin + ::std::size_t(1), last_elem_end, last_elem_begin);
+        ::std::move(last_elem_begin + ::std::size_t(1), last_elem_end, last_elem_begin);
         if (block_size > ::std::size_t(1))
         {
             auto target_block_begin = block_begin + ::std::size_t(1);
@@ -2927,7 +2928,7 @@ class deque
                 auto const end = begin + deque_detail::block_elements_v<T>;
                 *(last_elem_end - ::std::size_t(1)) = ::std::move(*begin);
                 last_elem_end = end;
-                ::std::ranges::move(begin + ::std::size_t(1), end, begin);
+                ::std::move(begin + ::std::size_t(1), end, begin);
             }
         }
         if (block_size > ::std::size_t(0))
@@ -2936,7 +2937,7 @@ class deque
             if (elem_curr != begin)
             {
                 *(last_elem_end - ::std::size_t(1)) = ::std::move(*begin);
-                ::std::ranges::move(begin + ::std::size_t(1), elem_curr, begin);
+                ::std::move(begin + ::std::size_t(1), elem_curr, begin);
             }
         }
     }
@@ -3061,7 +3062,7 @@ class deque
         {
             auto const old_size = size();
             append_range_noguard_(::std::forward<R>(rg));
-            ::std::ranges::rotate(begin() + static_cast<difference_type>(front_diff),
+            ::std::rotate(begin() + static_cast<difference_type>(front_diff),
                                   begin() + static_cast<difference_type>(old_size), end());
             return begin() + static_cast<difference_type>(front_diff);
         }
@@ -3070,7 +3071,7 @@ class deque
             auto const old_size = size();
             prepend_range_noguard_(::std::forward<R>(rg));
             auto const count = size() - old_size;
-            ::std::ranges::rotate(begin(), begin() + static_cast<difference_type>(count),
+            ::std::rotate(begin(), begin() + static_cast<difference_type>(count),
                                   begin() + static_cast<difference_type>(count + front_diff));
             return begin() + static_cast<difference_type>(front_diff);
         }
@@ -3122,7 +3123,7 @@ class deque
         {
             auto const old_size = size();
             append_range_noguard_(::std::forward<U>(first), ::std::forward<V>(last));
-            ::std::ranges::rotate(begin() + static_cast<difference_type>(front_diff),
+            ::std::rotate(begin() + static_cast<difference_type>(front_diff),
                                   begin() + static_cast<difference_type>(old_size), end());
             return begin() + static_cast<difference_type>(front_diff);
         }
@@ -3131,7 +3132,7 @@ class deque
             auto const old_size = size();
             prepend_range_noguard_(::std::forward<U>(first), ::std::forward<V>(last));
             auto const count = size() - old_size;
-            ::std::ranges::rotate(begin(), begin() + static_cast<difference_type>(count),
+            ::std::rotate(begin(), begin() + static_cast<difference_type>(count),
                                   begin() + static_cast<difference_type>(count + front_diff));
             return begin() + static_cast<difference_type>(front_diff);
         }
@@ -3216,13 +3217,13 @@ class deque
         auto const front_diff = pos - begin_pre;
         if (back_diff <= front_diff)
         {
-            ::std::ranges::move((pos + ::std::ptrdiff_t(1)).remove_const_(), end(), pos.remove_const_());
+            ::std::move((pos + ::std::ptrdiff_t(1)).remove_const_(), end(), pos.remove_const_());
             pop_back();
             return begin() + front_diff;
         }
         else
         {
-            ::std::ranges::move_backward(begin(), pos.remove_const_(), (pos + ::std::ptrdiff_t(1)).remove_const_());
+            ::std::move_backward(begin(), pos.remove_const_(), (pos + ::std::ptrdiff_t(1)).remove_const_());
             pop_front();
             return begin() + front_diff;
         }
@@ -3246,13 +3247,13 @@ class deque
         auto const front_diff = first - begin_pre;
         if (back_diff <= front_diff)
         {
-            ::std::ranges::move(last, end(), first.remove_const_());
+            ::std::move(last.remove_const_(), end(), first.remove_const_());
             pop_back_n_(static_cast<::std::size_t>(last - first));
             return begin() + front_diff;
         }
         else
         {
-            ::std::ranges::move_backward(begin(), first.remove_const_(), last.remove_const_());
+            ::std::move_backward(begin(), first.remove_const_(), last.remove_const_());
             pop_front_n_(static_cast<::std::size_t>(last - first));
             return begin() + front_diff;
         }
