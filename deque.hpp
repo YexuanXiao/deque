@@ -2119,7 +2119,7 @@ ctrl_end   →
         if (block_size == 1uz)
         {
 #if __has_cpp_attribute(assume)
-            [[assume(begin + 1uz == elem_begin_begin)]];
+            [[assume(begin + 1uz == elem_end_begin)]];
 #endif
             elem_end_begin = begin;
         }
