@@ -285,7 +285,7 @@ class bucket_iterator
     {
     }
 
-    constexpr bucket_iterator<RConstT, Block, DiffType> remove_const_() const
+    constexpr bucket_iterator<RConstT, Block, DiffType> remove_const_() const noexcept
         requires(::std::is_const_v<T>)
     {
         return {block_elem_begin_, block_elem_end_, block_elem_curr_, elem_begin_begin_, elem_begin_end_,
@@ -469,7 +469,7 @@ class bucket_iterator
     }
 
     constexpr operator bucket_iterator<deque_detail::add_adl_firewall_t<T const>,
-                                       deque_detail::add_adl_firewall_t<Block>, DiffType>() const
+                                       deque_detail::add_adl_firewall_t<Block>, DiffType>() const noexcept
         requires(!::std::is_const_v<T>)
     {
         return {block_elem_begin_, block_elem_end_, block_elem_curr_, elem_begin_begin_, elem_begin_end_,
@@ -677,7 +677,7 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<FirewallT
     }
 
     constexpr operator buckets_type<deque_detail::add_adl_firewall_t<T const>, deque_detail::add_adl_firewall_t<Block>,
-                                    DiffType>() const
+                                    DiffType>() const noexcept
         requires(!::std::is_const_v<T>)
     {
         return {block_elem_begin_, block_elem_end_, elem_begin_begin_, elem_begin_end_, elem_end_begin_, elem_end_end_};
@@ -947,7 +947,7 @@ class deque_iterator
     }
 
     constexpr operator deque_iterator<deque_detail::add_adl_firewall_t<T const>,
-                                      deque_detail::add_adl_firewall_t<Block>, DiffType>() const
+                                      deque_detail::add_adl_firewall_t<Block>, DiffType>() const noexcept
         requires(!::std::is_const_v<T>)
     {
 #if !defined(NDEBUG)
@@ -3199,7 +3199,7 @@ class deque
         return ::std::lexicographical_compare_three_way(begin(), end(), other.begin(), other.end(), synth_three_way_);
     }
 
-    constexpr iterator erase(const_iterator const pos)
+    constexpr iterator erase(const_iterator const pos) noexcept(::std::is_nothrow_move_assignable_v<value_type>)
     {
         auto const begin_pre = begin();
         auto const end_pre = end();
@@ -3229,7 +3229,7 @@ class deque
         }
     }
 
-    constexpr iterator erase(const_iterator const first, const_iterator const last)
+    constexpr iterator erase(const_iterator const first, const_iterator const last) noexcept(::std::is_nothrow_move_assignable_v<value_type>)
     {
         if (first == last)
         {
