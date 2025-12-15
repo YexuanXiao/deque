@@ -1455,12 +1455,12 @@ class deque
         return const_reverse_iterator{begin()};
     }
 
-    constexpr auto rcbegin() const noexcept
+    constexpr auto crbegin() const noexcept
     {
         return const_reverse_iterator{end()};
     }
 
-    constexpr auto rcend() const noexcept
+    constexpr auto crend() const noexcept
     {
         return const_reverse_iterator{begin()};
     }
