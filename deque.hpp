@@ -1180,43 +1180,39 @@ class deque
         }
     }
 
-    constexpr void destroy_elems_() noexcept
-        requires ::std::is_trivially_destructible_v<T> && is_default_operation_
-    {
-        /* */
-    }
-
     // 空deque安全，但执行后必须手动维护状态合法
     constexpr void destroy_elems_() noexcept
     {
-        // 4种情况，0，1，2，3+个块有元素
-        auto const block_size = block_elem_size_();
-        if (block_size)
-        {
-            for (auto const &i : ::std::ranges::subrange{elem_begin_begin_, elem_begin_end_})
+        if constexpr (!(::std::is_trivially_destructible_v<T> && is_default_operation_))
+            // 4种情况，0，1，2，3+个块有元素
+            auto const block_size = block_elem_size_();
+            if (block_size)
             {
-                atraits_t_::destroy(allocator_, ::std::addressof(i));
-            }
-        }
-        // 清理中间的块
-        if (block_size > ::std::size_t(2))
-        {
-            for (auto const block_begin :
-                 ::std::ranges::subrange{block_elem_begin_ + ::std::size_t(1), block_elem_end_ - ::std::size_t(1)})
-            {
-                for (auto const &i :
-                     ::std::ranges::subrange{::std::to_address(block_begin),
-                                             ::std::to_address(block_begin) + deque_detail::block_elements_v<T>})
+                for (auto const &i : ::std::ranges::subrange{elem_begin_begin_, elem_begin_end_})
                 {
                     atraits_t_::destroy(allocator_, ::std::addressof(i));
                 }
             }
-        }
-        if (block_size > ::std::size_t(1))
-        {
-            for (auto const &i : ::std::ranges::subrange{elem_end_begin_, elem_end_end_})
+            // 清理中间的块
+            if (block_size > ::std::size_t(2))
             {
-                atraits_t_::destroy(allocator_, ::std::addressof(i));
+                for (auto const block_begin :
+                     ::std::ranges::subrange{block_elem_begin_ + ::std::size_t(1), block_elem_end_ - ::std::size_t(1)})
+                {
+                    for (auto const &i :
+                         ::std::ranges::subrange{::std::to_address(block_begin),
+                                                 ::std::to_address(block_begin) + deque_detail::block_elements_v<T>})
+                    {
+                        atraits_t_::destroy(allocator_, ::std::addressof(i));
+                    }
+                }
+            }
+            if (block_size > ::std::size_t(1))
+            {
+                for (auto const &i : ::std::ranges::subrange{elem_end_begin_, elem_end_end_})
+                {
+                    atraits_t_::destroy(allocator_, ::std::addressof(i));
+                }
             }
         }
     }
