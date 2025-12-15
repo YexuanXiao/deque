@@ -562,7 +562,7 @@ class buckets_type : public ::std::ranges::view_interface<buckets_type<FirewallT
 
     constexpr size_type size() const noexcept
     {
-        return block_elem_end_ - block_elem_begin_;
+        return static_cast<size_type>(block_elem_end_ - block_elem_begin_);
     }
 
     // empty and operator bool provided by view_interface
@@ -710,17 +710,12 @@ class deque_iterator
     {
         assert(block_elem_curr_ >= buckets_.block_elem_begin_);
         assert(block_elem_end_ == buckets_.block_elem_end_);
-        if (block_elem_curr_ != nullptr)
-        {
-            assert(block_elem_curr_ < block_elem_end_);
-            assert(elem_begin_ == ::std::to_address(*block_elem_curr_));
-        }
+        assert((block_elem_curr_ != nullptr) && (block_elem_curr_ < block_elem_end_));
+        assert((block_elem_curr_ != nullptr) && (elem_begin_ == ::std::to_address(*block_elem_curr_)));
         assert(elem_curr_ >= elem_begin_);
         assert(elem_curr_ <= elem_begin_ + block_elements_v<T>);
-        if (block_elem_curr_ == buckets_.block_elem_end_ - ::std::size_t(1))
-            assert(elem_curr_ <= buckets_.elem_end_end_);
-        if (block_elem_curr_ == buckets_.block_elem_begin_)
-            assert(elem_curr_ >= buckets_.elem_begin_begin_);
+        assert((block_elem_curr_ == buckets_.block_elem_end_ - ::std::size_t(1)) && (elem_curr_ <= buckets_.elem_end_end_));
+        assert((block_elem_curr_ == buckets_.block_elem_begin_) && (elem_curr_ >= buckets_.elem_begin_begin_));
 
         return true;
     }
@@ -2253,7 +2248,7 @@ class deque
 
     constexpr deque &operator=(deque &&other) noexcept(is_ator_stateless_ || is_pocma_)
     {
-        if (this == &other)
+        if (this == ::std::addressof(other))
         {
             return *this;
         }
@@ -3176,7 +3171,7 @@ class deque
             auto first = begin();
             auto last = end();
             auto first1 = other.begin();
-            for (; first != last; ++first, ++first1)
+            for (; first != last; (void)++first, (void)++first1)
             {
                 if (*first != *first1)
                     return false;
