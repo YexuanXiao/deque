@@ -6,6 +6,10 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    add_compile_options(/utf-8)
+endif()
+
 enable_testing()
 
 add_executable(test_functional tests.cpp)
