@@ -1,4 +1,4 @@
-// Copyright 2025 YexuanXiao
+// Copyright 2025-2026 YexuanXiao
 // Distributed under the MIT License.
 // https://github.com/YexuanXiao/deque
 

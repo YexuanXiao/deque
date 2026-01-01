@@ -1,4 +1,4 @@
-// Copyright 2025 YexuanXiao
+// Copyright 2025-2026 YexuanXiao
 // Distributed under the MIT License.
 // https://github.com/YexuanXiao/deque
 
@@ -151,7 +151,8 @@ void uninitialized_value_construct(Alloc &a, U first, V last)
 template <typename T>
 struct adl_firewall_impl_
 {
-    struct adl_firewall_ // adl_firewall的关联类型包括adl_firewall_impl_<T>但不包括T
+    // adl_firewall的关联类型包括adl_firewall_impl_<T>但不包括T
+    struct adl_firewall_
     {
         using type = T;
     };
@@ -749,8 +750,7 @@ class deque_iterator
 #endif
 
     constexpr deque_iterator<deque_detail::add_adl_firewall_t<RConstT>, deque_detail::add_adl_firewall_t<Block>,
-                             DiffType>
-    remove_const_() const noexcept
+                             DiffType> remove_const_() const noexcept
         requires(::std::is_const_v<T>)
     {
 #if !defined(NDEBUG)
@@ -1628,11 +1628,12 @@ class deque
     {
         assert(block_alloc_begin_ != block_ctrl_begin_());
         assert(block_alloc_begin_ != nullptr);
-        for (auto i = ::std::size_t(0); i != block_size; ++i)
+        auto const target_end = block_alloc_begin_ - block_size;
+        for (auto target_begin = block_alloc_begin_; target_begin != target_end;)
         {
-            auto const block = block_alloc_begin_ - ::std::size_t(1);
-            *block = alloc_block_();
-            block_alloc_begin_ = block;
+            --target_begin;
+            *target_begin = alloc_block_();
+            block_alloc_begin_ = target_begin;
         }
     }
 
@@ -1642,11 +1643,13 @@ class deque
     {
         assert(block_alloc_end_ != block_ctrl_end_);
         assert(block_alloc_end_ != nullptr);
-        for (auto i = ::std::size_t(0); i != block_size; ++i)
+        auto const target_end = block_alloc_end_ + block_size;
+        for (auto target_begin = block_alloc_end_; target_begin != target_end; ++target_begin)
         {
-            *block_alloc_end_ = alloc_block_();
-            ++block_alloc_end_;
+            *target_begin = alloc_block_();
+            block_alloc_end_ = target_begin;
         }
+        block_alloc_end_ = target_end;
     }
 
     // 向back扩展
@@ -1953,9 +1956,10 @@ class deque
             }
             else if constexpr (sizeof...(Ts) == ::std::size_t(2))
             {
-                auto pair = deque_detail::get_iter_pair(ts...);
-                auto target_end = pair.src_begin + static_cast<::std::iter_difference_t<decltype(pair.src_begin)>>(
-                                                       deque_detail::block_elements_v<T>);
+                auto const pair = deque_detail::get_iter_pair(ts...);
+                auto const target_end =
+                    pair.src_begin +
+                    static_cast<::std::iter_difference_t<decltype(pair.src_begin)>>(deque_detail::block_elements_v<T>);
                 deque_detail::uninitialized_copy(allocator_, pair.src_begin, target_end, begin,
                                                  ::std::unreachable_sentinel);
                 pair.src_begin = target_end;
@@ -1986,9 +1990,10 @@ class deque
                 }
                 else if constexpr (sizeof...(Ts) == ::std::size_t(2))
                 {
-                    auto pair = deque_detail::get_iter_pair(ts...);
-                    auto target_end = pair.src_begin + static_cast<::std::iter_difference_t<decltype(pair.src_begin)>>(
-                                                           deque_detail::block_elements_v<T>);
+                    auto const pair = deque_detail::get_iter_pair(ts...);
+                    auto const target_end =
+                        pair.src_begin + static_cast<::std::iter_difference_t<decltype(pair.src_begin)>>(
+                                             deque_detail::block_elements_v<T>);
                     deque_detail::uninitialized_copy(allocator_, pair.src_begin, target_end, begin,
                                                      ::std::unreachable_sentinel);
                     pair.src_begin = target_end;
@@ -2018,7 +2023,7 @@ class deque
             }
             else if constexpr (sizeof...(Ts) == ::std::size_t(2))
             {
-                auto pair = deque_detail::get_iter_pair(ts...);
+                auto const pair = deque_detail::get_iter_pair(ts...);
                 deque_detail::uninitialized_copy(allocator_, pair.src_begin, pair.src_end, begin,
                                                  ::std::unreachable_sentinel);
                 elem_end_(begin, end, begin + deque_detail::block_elements_v<T>);
@@ -2799,9 +2804,8 @@ class deque
                 return;
             }
             reserve_front_(static_cast<::std::size_t>(::std::ranges::size(rg)));
-            auto first = ::std::ranges::begin(rg);
-            auto last = ::std::ranges::end(rg);
-            for (; first != last;)
+            auto const first = ::std::ranges::begin(rg);
+            for (auto last = ::std::ranges::end(rg); first != last;)
             {
                 --last;
                 emplace_front_noalloc_(*last);
@@ -3106,9 +3110,9 @@ class deque
         else
         {
             prepend_range_noguard_(::std::forward<R>(rg));
-            auto csize = static_cast<difference_type>(size());
-            auto middle = begin() + (csize - front_diff - back_diff);
-            auto target_end = begin() + (csize - back_diff);
+            auto const new_size = static_cast<difference_type>(size());
+            auto middle = begin() + (new_size - front_diff - back_diff);
+            auto target_end = begin() + (new_size - back_diff);
             ::std::rotate(begin(), middle, target_end);
         }
         return begin() + front_diff;
@@ -3144,21 +3148,23 @@ class deque
         auto const back_diff = end_pre - pos;
         if (back_diff <= front_diff)
         {
-            partial_guard_<true> guard(this, size());
+            auto const old_size = size();
+            partial_guard_<true> guard(this, old_size);
             append_range_noguard_(first, last);
             guard.release();
-            auto target_begin = begin() + front_diff;
-            auto middle = begin() + (front_diff + back_diff);
+            auto const target_begin = begin() + front_diff;
+            auto const middle = begin() + static_cast<difference_type>(old_size);
             ::std::rotate(target_begin, middle, end());
         }
         else
         {
-            partial_guard_<false> guard(this, size());
+            auto const old_size = size();
+            partial_guard_<false> guard(this, old_size);
             prepend_range_noguard_(first, last);
             guard.release();
-            auto csize = static_cast<difference_type>(size());
-            auto middle = begin() + (csize - front_diff - back_diff);
-            auto target_end = begin() + (csize - back_diff);
+            auto const new_size = static_cast<difference_type>(size());
+            auto const middle = begin() + (new_size - static_cast<difference_type>(old_size));
+            auto const target_end = begin() + (new_size - back_diff);
             ::std::rotate(begin(), middle, target_end);
         }
         return begin() + front_diff;
@@ -3187,10 +3193,9 @@ class deque
         }
         else if (s != ::std::size_t(0))
         {
-            auto first = begin();
-            auto last = end();
-            auto first1 = other.begin();
-            for (; first != last; (void)++first, (void)++first1)
+            auto const last = end();
+
+            for (auto first = begin(), first1 = other.begin(); first != last; (void)++first, (void)++first1)
             {
                 if (*first != *first1)
                     return false;
