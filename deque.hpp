@@ -972,7 +972,7 @@ class deque_iterator
     }
 };
 
-#if !defined(__cpp_lib_ranges_repeat)
+#if !defined(__cpp_lib_ranges_repeat) || 1
 template <typename T>
 class repeat_iterator
 {
@@ -3084,6 +3084,47 @@ class deque
         }
     };
 
+    // 该函数负责追加元素后调整位置，将插入的元素移动到正确位置
+    // 采用两种策略：
+    // 1. 当插入长度小于前部元素时，使用rotate(后+插入)
+    // 2. 否则，先将后部元素移动式追加到插入元素的后面，再将前部元素移动到插入元素的前面
+    // 最后弹出头部的元素（具有后部元素的大小）
+    void insert_back_adjust_(difference_type const front_diff, difference_type const back_diff)
+    {
+        auto const old_size = back_diff + front_diff;
+        auto const new_size = static_cast<difference_type>(size());
+        auto const size_diff = new_size - old_size;
+        if (size_diff < front_diff)
+        {
+            ::std::rotate(begin() + front_diff, begin() + old_size, end());
+        }
+        else
+        {
+            reserve_back_(static_cast<::std::size_t>(back_diff)); // NB: 通过reserve阻止迭代器失效
+            append_range_noguard_(::std::move_iterator(begin() + front_diff), ::std::move_iterator(begin() + old_size));
+            ::std::move_backward(begin(), begin() + front_diff, begin() + old_size);
+            pop_front_n_(back_diff);
+        }
+    }
+
+    void insert_front_adjust_(difference_type const front_diff, difference_type const back_diff)
+    {
+        auto const old_size = back_diff + front_diff;
+        auto const new_size = static_cast<difference_type>(size());
+        auto const size_diff = new_size - old_size;
+        if (size_diff < back_diff)
+        {
+            ::std::rotate(begin(), begin() + size_diff, end() - back_diff);
+        }
+        else
+        {
+            reserve_front_(static_cast<::std::size_t>(front_diff)); // NB: 通过reserve阻止迭代器失效
+            prepend_range_noguard_(::std::move_iterator(end() - old_size), ::std::move_iterator(end() - back_diff));
+            ::std::move(end() - back_diff, end(), end() - old_size);
+            pop_back_n_(front_diff);
+        }
+    }
+
   public:
     template <::std::ranges::input_range R>
         requires ::std::convertible_to<::std::ranges::range_value_t<R>, T>
@@ -3107,17 +3148,12 @@ class deque
         if (back_diff <= front_diff)
         {
             append_range_noguard_(::std::forward<R>(rg));
-            auto target_begin = begin() + front_diff;
-            auto middle = begin() + (front_diff + back_diff);
-            ::std::rotate(target_begin, middle, end());
+            insert_back_adjust_(front_diff, back_diff);
         }
         else
         {
             prepend_range_noguard_(::std::forward<R>(rg));
-            auto const new_size = static_cast<difference_type>(size());
-            auto middle = begin() + (new_size - front_diff - back_diff);
-            auto target_end = begin() + (new_size - back_diff);
-            ::std::rotate(begin(), middle, target_end);
+            insert_front_adjust_(front_diff, back_diff);
         }
         return begin() + front_diff;
     }
@@ -3156,9 +3192,7 @@ class deque
             partial_guard_<true> guard(this, old_size);
             append_range_noguard_(first, last);
             guard.release();
-            auto const target_begin = begin() + front_diff;
-            auto const middle = begin() + static_cast<difference_type>(old_size);
-            ::std::rotate(target_begin, middle, end());
+            insert_back_adjust_(front_diff, back_diff);
         }
         else
         {
@@ -3166,10 +3200,7 @@ class deque
             partial_guard_<false> guard(this, old_size);
             prepend_range_noguard_(first, last);
             guard.release();
-            auto const new_size = static_cast<difference_type>(size());
-            auto const middle = begin() + (new_size - static_cast<difference_type>(old_size));
-            auto const target_end = begin() + (new_size - back_diff);
-            ::std::rotate(begin(), middle, target_end);
+            insert_front_adjust_(front_diff, back_diff);
         }
         return begin() + front_diff;
     }
@@ -3181,11 +3212,11 @@ class deque
 
     constexpr iterator insert(const_iterator const pos, size_type const count, T const &value)
     {
-#if defined(__cpp_lib_ranges_repeat)
-        return insert_range(pos, ::std::ranges::views::repeat(value, count));
-#else
+#if !defined(__cpp_lib_ranges_repeat) || 1
         return insert(pos, deque_detail::repeat_iterator(::std::ptrdiff_t(0), value),
                       deque_detail::repeat_iterator(static_cast<::std::ptrdiff_t>(count), value));
+#else
+        return insert_range(pos, ::std::ranges::views::repeat(value, count));
 #endif
     }
 
