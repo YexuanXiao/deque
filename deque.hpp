@@ -1703,6 +1703,9 @@ class deque
     // 对空deque安全
     constexpr void reserve_one_back_()
     {
+#if 1
+        reserve_back_(::std::size_t(1));
+#else
         if (block_alloc_end_ != block_elem_end_)
         {
             return;
@@ -1723,6 +1726,7 @@ class deque
             ctrl.replace_ctrl_back();
         }
         extent_block_back_uncond_(::std::size_t(1));
+#endif
     }
 
     // 从front扩展block，空deque安全
@@ -1775,6 +1779,9 @@ class deque
     // 对空deque安全
     constexpr void reserve_one_front_()
     {
+#if 1
+        reserve_front_(::std::size_t(1));
+#else
         if (block_elem_begin_ != block_alloc_begin_)
         {
             return;
@@ -1795,6 +1802,7 @@ class deque
             ctrl.replace_ctrl_front();
         }
         extent_block_front_uncond_(::std::size_t(1));
+#endif
     }
 
     struct construct_guard_
@@ -2042,13 +2050,13 @@ class deque
 
     // 参考emplace_front
     template <typename... V>
-    constexpr T &emplace_back_pre_(::std::size_t const block_size, V &&...v)
+    constexpr T &emplace_back_pre_(V &&...v)
     {
         auto const end = elem_end_end_;
         atraits_t_::construct(allocator_, end, ::std::forward<V>(v)...); // may throw
         elem_end_end_ = end + ::std::size_t(1);
         // 修正elem_begin
-        if (block_size == ::std::size_t(1))
+        if (block_elem_size_() == ::std::size_t(1))
         {
             elem_begin_end_ = end + ::std::size_t(1);
         }
@@ -2057,14 +2065,14 @@ class deque
 
     // 参考emplace_front
     template <typename... V>
-    constexpr T &emplace_back_post_(::std::size_t const block_size, V &&...v)
+    constexpr T &emplace_back_post_(V &&...v)
     {
         auto const begin = ::std::to_address(*block_elem_end_);
         atraits_t_::construct(allocator_, begin, ::std::forward<V>(v)...); // may throw
         elem_end_(begin, begin + ::std::size_t(1), begin + deque_detail::block_elements_v<T>);
         ++block_elem_end_;
-        // 修正elem_begin，如果先前为0，说明现在是1，修正elem_begin等于elem_end
-        if (block_size == ::std::size_t(0))
+        // 修正elem_begin
+        if (block_elem_size_() == ::std::size_t(1))
         {
             elem_begin_(begin, begin + ::std::size_t(1), begin);
         }
@@ -2075,15 +2083,14 @@ class deque
     template <typename... V>
     constexpr T &emplace_back(V &&...v)
     {
-        auto const block_size = block_elem_size_();
         if (elem_end_end_ != elem_end_last_)
         {
-            return emplace_back_pre_(block_size, ::std::forward<V>(v)...);
+            return emplace_back_pre_(::std::forward<V>(v)...);
         }
         else
         {
             reserve_one_back_();
-            return emplace_back_post_(block_size, ::std::forward<V>(v)...);
+            return emplace_back_post_(::std::forward<V>(v)...);
         }
     }
 
@@ -2430,12 +2437,12 @@ class deque
 
     // 首块有空余时使用
     template <typename... V>
-    constexpr T &emplace_front_pre_(::std::size_t const block_size, V &&...v)
+    constexpr T &emplace_front_pre_(V &&...v)
     {
         auto const begin = ::std::to_address(elem_begin_begin_ - ::std::size_t(1));
         atraits_t_::construct(allocator_, begin, ::std::forward<V>(v)...); // may throw
         elem_begin_begin_ = begin;
-        if (block_size == ::std::size_t(1))
+        if (block_elem_size_() == ::std::size_t(1))
         {
 #if __has_cpp_attribute(assume)
             [[assume(begin + ::std::size_t(1) == elem_end_begin_)]];
@@ -2447,7 +2454,7 @@ class deque
 
     // 首块没有空余，切换到下一个块
     template <typename... V>
-    constexpr T &emplace_front_post_(::std::size_t const block_size, V &&...v)
+    constexpr T &emplace_front_post_(V &&...v)
     {
         auto const block = block_elem_begin_ - ::std::size_t(1);
         auto const first = ::std::to_address(*block);
@@ -2459,7 +2466,7 @@ class deque
 #endif
         --block_elem_begin_;
         // 修正elem_end
-        if (block_size == ::std::size_t(0))
+        if (block_elem_size_() == ::std::size_t(1))
         {
             elem_end_(end - ::std::size_t(1), end, end);
         }
@@ -2470,15 +2477,14 @@ class deque
     template <typename... V>
     constexpr T &emplace_front(V &&...v)
     {
-        auto const block_size = block_elem_size_();
         if (elem_begin_begin_ != elem_begin_first_)
         {
-            return emplace_front_pre_(block_size, ::std::forward<V>(v)...);
+            return emplace_front_pre_(::std::forward<V>(v)...);
         }
         else
         {
             reserve_one_front_();
-            return emplace_front_post_(block_size, ::std::forward<V>(v)...);
+            return emplace_front_post_(::std::forward<V>(v)...);
         }
     }
 
@@ -2686,14 +2692,13 @@ class deque
     template <typename... V>
     constexpr T &emplace_front_noalloc_(V &&...v)
     {
-        auto const block_size = block_elem_size_();
         if (elem_begin_begin_ != elem_begin_first_)
         {
-            return emplace_front_pre_(block_size, ::std::forward<V>(v)...);
+            return emplace_front_pre_(::std::forward<V>(v)...);
         }
         else
         {
-            return emplace_front_post_(block_size, ::std::forward<V>(v)...);
+            return emplace_front_post_(::std::forward<V>(v)...);
         }
     }
 
@@ -2701,14 +2706,13 @@ class deque
     template <typename... V>
     constexpr T &emplace_back_noalloc_(V &&...v)
     {
-        auto const block_size = block_elem_size_();
         if (elem_end_end_ != elem_end_last_)
         {
-            return emplace_back_pre_(block_size, ::std::forward<V>(v)...);
+            return emplace_back_pre_(::std::forward<V>(v)...);
         }
         else
         {
-            return emplace_back_post_(block_size, ::std::forward<V>(v)...);
+            return emplace_back_post_(::std::forward<V>(v)...);
         }
     }
 
