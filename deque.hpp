@@ -83,9 +83,9 @@ class throw_guard
     {
         if (flag)
         {
-            for (; first_ != current_; (void)++first_)
+            for (; first_ != current_; ++first_)
             {
-                ::std::allocator_traits<Alloc>::destroy(a_, std::addressof(*first_));
+                ::std::allocator_traits<Alloc>::destroy(a_, std::to_address(first_));
             }
         }
     }
@@ -101,9 +101,9 @@ void uninitialized_copy(Alloc &a, U first, V last, W first2, X last2)
 {
     throw_guard guard{first2, a};
 
-    for (; first != last && first2 != last2; (void)++first, (void)++first2)
+    for (; first != last && first2 != last2; ++first, (void)++first2)
     {
-        ::std::allocator_traits<Alloc>::construct(a, std::addressof(*first2), *first);
+        ::std::allocator_traits<Alloc>::construct(a, std::to_address(first2), *first);
     }
 
     guard.release();
@@ -114,9 +114,9 @@ void uninitialized_fill(Alloc &a, U first, V last, const T &value)
 {
     throw_guard guard{first, a};
 
-    for (; first != last; (void)++first)
+    for (; first != last; ++first)
     {
-        ::std::allocator_traits<Alloc>::construct(a, std::addressof(*first), value);
+        ::std::allocator_traits<Alloc>::construct(a, std::to_address(first), value);
     }
 
     guard.release();
@@ -127,9 +127,9 @@ void uninitialized_move(Alloc &a, U first, V last, W first2, X last2)
 {
     throw_guard guard{first2, a};
 
-    for (; first != last && first2 != last2; (void)++first, (void)++first2)
+    for (; first != last && first2 != last2; ++first, (void)++first2)
     {
-        ::std::allocator_traits<Alloc>::construct(a, ::std::addressof(*first2), ::std::move(*first));
+        ::std::allocator_traits<Alloc>::construct(a, ::std::to_address(first2), ::std::move(*first));
     }
 
     guard.release();
@@ -140,9 +140,9 @@ void uninitialized_value_construct(Alloc &a, U first, V last)
 {
     throw_guard guard{first, a};
 
-    for (; first != last; (void)++first)
+    for (; first != last; ++first)
     {
-        ::std::allocator_traits<Alloc>::construct(a, ::std::addressof(*first));
+        ::std::allocator_traits<Alloc>::construct(a, ::std::to_address(first));
     }
 
     guard.release();
@@ -829,26 +829,26 @@ class deque_iterator
         return ::std::strong_ordering::equal;
     }
 
-    constexpr T &operator*() noexcept
-    {
-        assert(elem_curr_ != elem_begin_ + deque_detail::block_elements_v<T>);
-        return *elem_curr_;
-    }
-
-    constexpr T &operator*() const noexcept
-    {
-        assert(elem_curr_ != elem_begin_ + deque_detail::block_elements_v<T>);
-        return *elem_curr_;
-    }
-
     constexpr T *operator->() noexcept
     {
-        return ::std::addressof(*(*this));
+        assert(elem_curr_ != elem_begin_ + deque_detail::block_elements_v<T>);
+        return elem_curr_;
     }
 
     constexpr T *operator->() const noexcept
     {
-        return ::std::addressof(*(*this));
+        assert(elem_curr_ != elem_begin_ + deque_detail::block_elements_v<T>);
+        return elem_curr_;
+    }
+
+    constexpr T &operator*() noexcept
+    {
+        return *this->operator->();
+    }
+
+    constexpr T &operator*() const noexcept
+    {
+        return *this->operator->();
     }
 
     constexpr deque_iterator &operator++() noexcept
@@ -3189,7 +3189,7 @@ class deque
         {
             auto const last = end();
 
-            for (auto first = begin(), first1 = other.begin(); first != last; (void)++first, (void)++first1)
+            for (auto first = begin(), first1 = other.begin(); first != last; ++first, (void)++first1)
             {
                 if (*first != *first1)
                     return false;
