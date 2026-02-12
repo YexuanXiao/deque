@@ -80,8 +80,8 @@ jobs:
         working-directory: ${{ github.workspace }}/deque-test
         run: |
           cmake -B build-${{ matrix.compiler.name }}-${{ matrix.build_type }} -G Ninja \
-                -DCMAKE_C_COMPILER=clang \
-                -DCMAKE_CXX_COMPILER=clang++ \
+                -DCMAKE_C_COMPILER=clang-21 \
+                -DCMAKE_CXX_COMPILER=clang++-21 \
                 -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
                 -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
 
