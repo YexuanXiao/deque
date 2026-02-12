@@ -21,8 +21,7 @@ jobs:
     steps:
       - name: Shallow clone repository A (with submodules)
         run: |
-          git clone --depth 1 \
-            ${{ env.DEQUE_TEST_REPO }} ../deque-test
+          git clone --depth 1 ${{ env.DEQUE_TEST_REPO }} ${{ github.workspace }}/deque-test
 
       - name: Shallow clone repository B into deque-test/${{ env.TEST_SUBDIR }}
         uses: actions/checkout@v4
@@ -30,12 +29,12 @@ jobs:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          path: ../deque-test/${{ env.TEST_SUBDIR }}
+          path: deque-test/${{ env.TEST_SUBDIR }}
           fetch-depth: 1
 
       - name: Configure, Build, Test (MSVC ${{ matrix.build_type }})
         shell: pwsh
-        working-directory: ../deque-test
+        working-directory: ${{ github.workspace }}/deque-test
         run: |
           & "C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\Tools\Launch-VsDevShell.ps1" -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
           
@@ -63,8 +62,7 @@ jobs:
     steps:
       - name: Shallow clone repository A (with submodules)
         run: |
-          git clone --depth 1 \
-            ${{ env.DEQUE_TEST_REPO }} ../deque-test
+          git clone --depth 1 ${{ env.DEQUE_TEST_REPO }} ${{ github.workspace }}/deque-test
 
       - name: Shallow clone repository B into deque-test/${{ env.TEST_SUBDIR }}
         uses: actions/checkout@v4
@@ -72,7 +70,7 @@ jobs:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          path: ../deque-test/${{ env.TEST_SUBDIR }}
+          path: deque-test/${{ env.TEST_SUBDIR }}
           fetch-depth: 1
 
       - name: Install libc++ (for Clang-libc++ only)
@@ -82,7 +80,7 @@ jobs:
           sudo apt-get install -y libc++-dev libc++abi-dev
 
       - name: Configure CMake
-        working-directory: ../deque-test
+        working-directory: ${{ github.workspace }}/deque-test
         run: |
           cmake -B build-${{ matrix.compiler.name }}-${{ matrix.build_type }} -G Ninja \
                 -DCMAKE_C_COMPILER=${{ matrix.compiler.c_compiler }} \
@@ -91,9 +89,9 @@ jobs:
                 -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
 
       - name: Build
-        working-directory: ../deque-test
+        working-directory: ${{ github.workspace }}/deque-test
         run: cmake --build build-${{ matrix.compiler.name }}-${{ matrix.build_type }}
 
       - name: Test
-        working-directory: ../deque-test
+        working-directory: ${{ github.workspace }}/deque-test
         run: ctest --test-dir build-${{ matrix.compiler.name }}-${{ matrix.build_type }} --output-on-failure
