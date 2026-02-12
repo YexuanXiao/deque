@@ -78,20 +78,20 @@ jobs:
       - name: Install Clang-libstdc++
         if: ${{ matrix.compiler.name == 'Clang-libstdc++' }}
         run: |
-          sudo apt-get install lsb-release
+          apt-get install lsb-release
           CODENAME=$(lsb_release -cs)
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/llvm.asc
-          sudo add-apt-repository "deb http://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME main"
-          sudo apt-get install clang libc++abi-dev libc++-dev
+          add-apt-repository "deb http://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME main"
+          apt-get install clang libc++abi-dev libc++-dev
       
       - name: Install Clang-libc++
         if: ${{ matrix.compiler.name == 'Clang-libc++' }}
         run: |
-          sudo apt-get install lsb-release
+          apt-get install lsb-release
           CODENAME=$(lsb_release -cs)
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/llvm.asc
-          sudo add-apt-repository "deb http://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME main"
-          sudo apt-get install clang libc++abi-dev libc++-dev
+          add-apt-repository "deb http://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME main"
+          apt-get install clang libc++abi-dev libc++-dev
 
       - name: Configure CMake
         working-directory: ${{ github.workspace }}/deque-test
