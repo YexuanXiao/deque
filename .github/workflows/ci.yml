@@ -50,16 +50,10 @@ jobs:
   linux-compilers:
     name: ${{ matrix.compiler.name }} ${{ matrix.build_type }}
     runs-on: ubuntu-latest
-    container:
-      image: gcc:latest
     strategy:
       fail-fast: false
       matrix:
         build_type: [Debug, Release]
-        compiler:
-          - { name: GCC-libstdc++,              c_compiler: gcc,   cxx_compiler: g++,     cxx_flags: '' }
-          - { name: Clang-libstdc++,  c_compiler: clang, cxx_compiler: clang++, cxx_flags: '-stdlib=libstdc++' }
-          - { name: Clang-libc++,     c_compiler: clang, cxx_compiler: clang++, cxx_flags: '-stdlib=libc++' }
 
     steps:
       - name: Shallow clone repository A (with submodules)
@@ -74,30 +68,22 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           path: deque-test/${{ env.TEST_SUBDIR }}
           fetch-depth: 1
-
-      - name: Install Clang-libstdc++
-        if: ${{ matrix.compiler.name == 'Clang-libstdc++' }}
-        run: |
-          CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/llvm.asc
-          add-apt-repository "deb http://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME main"
-          apt-get install clang libc++abi-dev libc++-dev
       
       - name: Install Clang-libc++
         if: ${{ matrix.compiler.name == 'Clang-libc++' }}
         run: |
-          CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/llvm.asc
-          add-apt-repository "deb http://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME main"
-          apt-get install clang libc++abi-dev libc++-dev
+          CODENAME=$(lsb_release -cs)
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/llvm.asc
+          sudo add-apt-repository "deb http://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME main"
+          sudo apt-get install clang libc++abi-dev libc++-dev
 
       - name: Configure CMake
         working-directory: ${{ github.workspace }}/deque-test
         run: |
           cmake -B build-${{ matrix.compiler.name }}-${{ matrix.build_type }} -G Ninja \
-                -DCMAKE_C_COMPILER=${{ matrix.compiler.c_compiler }} \
-                -DCMAKE_CXX_COMPILER=${{ matrix.compiler.cxx_compiler }} \
-                -DCMAKE_CXX_FLAGS="${{ matrix.compiler.cxx_flags }}" \
+                -DCMAKE_C_COMPILER=clang \
+                -DCMAKE_CXX_COMPILER=clang++ \
+                -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
                 -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
 
       - name: Build
