@@ -2820,7 +2820,10 @@ class deque
             }
             auto const count = static_cast<::std::size_t>(::std::ranges::size(rg));
             reserve_front_(count);
-            emplace_front_noalloc_range_(::std::ranges::begin(rg), ::std::ranges::end(rg));
+            for (auto &&i : rg)
+            {
+                emplace_front_noalloc_(::std::forward<decltype(i)>(i));
+            }
             ::std::ranges::reverse(begin(), begin() + static_cast<::std::ptrdiff_t>(count));
         }
         else
@@ -3134,14 +3137,14 @@ class deque
         auto const old_size = front_diff + back_diff;
         if (back_diff <= front_diff)
         {
-            partial_guard_<true> guard(this, old_size);
+            partial_guard_<true> guard(this, static_cast<size_type>(old_size));
             append_range_noguard_(first, last);
             guard.release();
             ::std::rotate(begin() + front_diff, begin() + old_size, end());
         }
         else
         {
-            partial_guard_<false> guard(this, old_size);
+            partial_guard_<false> guard(this, static_cast<size_type>(old_size));
             prepend_range_noguard_(first, last);
             guard.release();
             ::std::rotate(begin(), begin() + (static_cast<difference_type>(size()) - old_size), end() - back_diff);
