@@ -11,7 +11,7 @@ env:
 jobs:
   # ---------- Windows + MSVC (Debug / Release) ----------
   windows-msvc:
-    name: MSVC ${{ matrix.build_type }}
+    name: MSVC-STL ${{ matrix.build_type }}
     runs-on: windows-2025-vs2026
     strategy:
       fail-fast: false
@@ -50,12 +50,14 @@ jobs:
   linux-compilers:
     name: ${{ matrix.compiler.name }} ${{ matrix.build_type }}
     runs-on: ubuntu-latest
+    container:
+      image: gcc:latest
     strategy:
       fail-fast: false
       matrix:
         build_type: [Debug, Release]
         compiler:
-          - { name: GCC,              c_compiler: gcc,   cxx_compiler: g++,     cxx_flags: '' }
+          - { name: GCC-libstdc++,              c_compiler: gcc,   cxx_compiler: g++,     cxx_flags: '' }
           - { name: Clang-libstdc++,  c_compiler: clang, cxx_compiler: clang++, cxx_flags: '-stdlib=libstdc++' }
           - { name: Clang-libc++,     c_compiler: clang, cxx_compiler: clang++, cxx_flags: '-stdlib=libc++' }
 
@@ -73,11 +75,21 @@ jobs:
           path: deque-test/${{ env.TEST_SUBDIR }}
           fetch-depth: 1
 
-      - name: Install libc++ (for Clang-libc++ only)
+      - name: Install Clang-libstdc++
+        if: ${{ matrix.compiler.name == 'Clang-libstdc++' }}
+        run: |
+          CODENAME=$(lsb_release -cs)
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/llvm.asc
+          sudo add-apt-repository "deb http://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME main"
+          sudo apt-get install clang libc++abi-dev libc++-dev
+      
+      - name: Install Clang-libc++
         if: ${{ matrix.compiler.name == 'Clang-libc++' }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libc++-dev libc++abi-dev
+          CODENAME=$(lsb_release -cs)
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/llvm.asc
+          sudo add-apt-repository "deb http://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME main"
+          sudo apt-get install clang libc++abi-dev libc++-dev
 
       - name: Configure CMake
         working-directory: ${{ github.workspace }}/deque-test
