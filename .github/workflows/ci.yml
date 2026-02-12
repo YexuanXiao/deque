@@ -48,7 +48,7 @@ jobs:
 
   # ---------- Linux + Clang (Debug / Release) ----------
   linux-compilers:
-    name: CLang-libc++ ${{ matrix.build_type }}
+    name: Clang-libc++ ${{ matrix.build_type }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -74,7 +74,7 @@ jobs:
           CODENAME=$(lsb_release -cs)
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/llvm.asc
           sudo add-apt-repository "deb http://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME-21 main"
-          sudo apt-get install clang libc++abi-dev libc++-dev
+          sudo apt-get install clang-21 libc++-21-dev libc++abi-21-dev
 
       - name: Configure CMake
         working-directory: ${{ github.workspace }}/deque-test
