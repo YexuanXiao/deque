@@ -19,11 +19,11 @@ jobs:
         build_type: [Debug, Release]
 
     steps:
-      - name: Shallow clone repository A (with submodules)
+      - name: Shallow clone repository deque-test
         run: |
           git clone --depth 1 ${{ env.DEQUE_TEST_REPO }} ${{ github.workspace }}/deque-test
 
-      - name: Shallow clone repository B into deque-test/${{ env.TEST_SUBDIR }}
+      - name: Shallow clone repository deque into deque-test/${{ env.TEST_SUBDIR }}
         uses: actions/checkout@v4
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
@@ -46,9 +46,9 @@ jobs:
           
           ctest --test-dir build-${{ matrix.build_type }} --output-on-failure
 
-  # ---------- Linux + GCC / Clang (Debug / Release) ----------
+  # ---------- Linux + Clang (Debug / Release) ----------
   linux-compilers:
-    name: ${{ matrix.compiler.name }} ${{ matrix.build_type }}
+    name: CLang-libc++ ${{ matrix.build_type }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -56,11 +56,11 @@ jobs:
         build_type: [Debug, Release]
 
     steps:
-      - name: Shallow clone repository A (with submodules)
+      - name: Shallow clone repository deque-test
         run: |
           git clone --depth 1 ${{ env.DEQUE_TEST_REPO }} ${{ github.workspace }}/deque-test
 
-      - name: Shallow clone repository B into deque-test/${{ env.TEST_SUBDIR }}
+      - name: Shallow clone repository deque into deque-test/${{ env.TEST_SUBDIR }}
         uses: actions/checkout@v4
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
@@ -73,7 +73,7 @@ jobs:
         run: |
           CODENAME=$(lsb_release -cs)
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/llvm.asc
-          sudo add-apt-repository "deb http://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME main"
+          sudo add-apt-repository "deb http://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME-21 main"
           sudo apt-get install clang libc++abi-dev libc++-dev
 
       - name: Configure CMake
