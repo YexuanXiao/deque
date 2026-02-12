@@ -2645,7 +2645,7 @@ class deque
     }
 
     template <bool back>
-    struct partial_guard_
+    class partial_guard_
     {
         deque *d;
         size_type const size;
