@@ -78,6 +78,7 @@ jobs:
       - name: Install Clang-libstdc++
         if: ${{ matrix.compiler.name == 'Clang-libstdc++' }}
         run: |
+          apt-get update
           apt-get install lsb-core
           CODENAME=$(lsb_release -cs)
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/llvm.asc
@@ -87,6 +88,7 @@ jobs:
       - name: Install Clang-libc++
         if: ${{ matrix.compiler.name == 'Clang-libc++' }}
         run: |
+          apt-get update
           apt-get install lsb-core
           CODENAME=$(lsb_release -cs)
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/llvm.asc
