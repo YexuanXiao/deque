@@ -2648,10 +2648,10 @@ class deque
     struct partial_guard_
     {
         deque *d;
-        ::std::size_t const size;
+        size_type const size;
 
       public:
-        constexpr partial_guard_(deque *dp, ::std::size_t const old_size) noexcept : d(dp), size(old_size)
+        constexpr partial_guard_(deque *dp, size_type const old_size) noexcept : d(dp), size(old_size)
         {
         }
 
