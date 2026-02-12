@@ -1,0 +1,94 @@
+name: Check deque
+
+on:
+  pull_request:
+    branches: [ master ]
+
+env:
+  DEQUE_TEST_REPO: 'https://github.com/YexuanXiao/deque-test'
+  TEST_SUBDIR: 'deque'
+
+jobs:
+  # ---------- Windows + MSVC (Debug / Release) ----------
+  windows-msvc:
+    name: MSVC-STL ${{ matrix.build_type }}
+    runs-on: windows-2025-vs2026
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Debug, Release]
+
+    steps:
+      - name: Shallow clone repository deque-test
+        run: |
+          git clone --depth 1 ${{ env.DEQUE_TEST_REPO }} ${{ github.workspace }}/deque-test
+
+      - name: Shallow clone repository deque into deque-test/${{ env.TEST_SUBDIR }}
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: deque-test/${{ env.TEST_SUBDIR }}
+          fetch-depth: 1
+
+      - name: Configure, Build, Test (MSVC ${{ matrix.build_type }})
+        shell: pwsh
+        working-directory: ${{ github.workspace }}/deque-test
+        run: |
+          & "C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\Tools\Launch-VsDevShell.ps1" -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
+          
+          cmake -B build-${{ matrix.build_type }} -G Ninja `
+            -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl `
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          
+          cmake --build build-${{ matrix.build_type }}
+          
+          ctest --test-dir build-${{ matrix.build_type }} --output-on-failure
+
+  # ---------- Linux + Clang (Debug / Release) ----------
+  linux-compilers:
+    name: Clang-libc++ ${{ matrix.build_type }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Debug, Release]
+
+    steps:
+      - name: Shallow clone repository deque-test
+        run: |
+          git clone --depth 1 ${{ env.DEQUE_TEST_REPO }} ${{ github.workspace }}/deque-test
+
+      - name: Shallow clone repository deque into deque-test/${{ env.TEST_SUBDIR }}
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: deque-test/${{ env.TEST_SUBDIR }}
+          fetch-depth: 1
+      
+      - name: Install Clang-libc++
+        run: |
+          CODENAME=$(lsb_release -cs)
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/llvm.asc
+          sudo add-apt-repository "deb http://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME-21 main"
+          sudo apt-get install clang-21 libc++-21-dev libc++abi-21-dev
+
+      - name: Configure CMake
+        working-directory: ${{ github.workspace }}/deque-test
+        run: |
+          cmake -B build-${{ matrix.compiler.name }}-${{ matrix.build_type }} -G Ninja \
+                -DCMAKE_C_COMPILER=clang-21 \
+                -DCMAKE_CXX_COMPILER=clang++-21 \
+                -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
+                -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+
+      - name: Build
+        working-directory: ${{ github.workspace }}/deque-test
+        run: cmake --build build-${{ matrix.compiler.name }}-${{ matrix.build_type }}
+
+      - name: Test
+        working-directory: ${{ github.workspace }}/deque-test
+        run: ctest --test-dir build-${{ matrix.compiler.name }}-${{ matrix.build_type }} --output-on-failure

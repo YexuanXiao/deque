@@ -8,6 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     add_compile_options(/utf-8)
+    add_compile_options(/WX)
 endif()
 
 enable_testing()
