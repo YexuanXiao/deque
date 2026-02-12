@@ -79,7 +79,7 @@ jobs:
         if: ${{ matrix.compiler.name == 'Clang-libstdc++' }}
         run: |
           CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/llvm.asc
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/llvm.asc
           add-apt-repository "deb http://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME main"
           apt-get install clang libc++abi-dev libc++-dev
       
@@ -87,7 +87,7 @@ jobs:
         if: ${{ matrix.compiler.name == 'Clang-libc++' }}
         run: |
           CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/llvm.asc
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/llvm.asc
           add-apt-repository "deb http://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME main"
           apt-get install clang libc++abi-dev libc++-dev
 
