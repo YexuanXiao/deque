@@ -2783,9 +2783,6 @@ class deque
         }
     }
 
-// TRANSITION: EDG不能区分该重载和bidirectional_iterator重载的区别
-// https://developercommunity.visualstudio.com/t/IntellisenceEDG-cannot-correctly-determ/10981026
-#if !defined(__EDG__)
     template <typename U>
         requires ::std::random_access_iterator<::std::remove_reference_t<U>>
     constexpr void prepend_range_noguard_(U &&first, U &&last)
@@ -2793,7 +2790,6 @@ class deque
         reserve_front_(static_cast<::std::size_t>(last - first));
         emplace_front_noalloc_range_(first, last);
     }
-#endif
 
     template <typename R>
     constexpr void prepend_range_noguard_(R &&rg)
