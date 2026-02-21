@@ -21,3 +21,7 @@ libstdc++10+, libc++16+, MSVC STL 19.29+
 It is recommended to use the latest compilers and standard libraries as they provide more optimized code.
 
 Build tests cannot using the libc++, due to libc++ has not yet implemented `views::enumerate`.
+
+## Module support
+
+Compile the deque.cpp file as a C++ module interface unit, allowing the library to be used as a module. Note that it depends on the `std` module.
