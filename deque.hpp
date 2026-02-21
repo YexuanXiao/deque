@@ -5,6 +5,9 @@
 #if !defined(BIZWEN_DEQUE_HPP)
 #define BIZWEN_DEQUE_HPP
 
+#pragma push_macro("BIZWEN_EXPORT")
+#undef BIZWEN_EXPORT
+
 #if !defined(BIZWEN_MODULE)
 #define BIZWEN_EXPORT
 
@@ -3297,6 +3300,6 @@ using deque = deque<T, ::std::pmr::polymorphic_allocator<T>>;
 
 // STL-vNext END
 
-#undef BIZWEN_EXPORT
+#pragma pop_macro("BIZWEN_EXPORT")
 
 #endif
