@@ -2,7 +2,17 @@ name: Check deque
 
 on:
   pull_request:
-    branches: [ master ]
+    paths-ignore:
+      - '**.md'
+      - '**.txt'
+      - 'LICENSE'
+  push:
+    paths-ignore:
+      - '**.md'
+      - '**.txt'
+      - 'LICENSE'
+    branches:
+      - master
 
 env:
   DEQUE_TEST_REPO: 'https://github.com/YexuanXiao/deque-test'
