@@ -1112,7 +1112,7 @@ class deque
 #endif
     using atraits_t_ = ::std::allocator_traits<Alloc>;
 
-    static constexpr bool is_default_operation_ = requires(Alloc &a) { a.construct(static_cast<T *>(nullptr)); };
+    static constexpr bool is_default_destroy_ = !requires(Alloc &a) { a.destroy(static_cast<T *>(nullptr)); };
     static constexpr bool is_aleq_ = atraits_t_::is_always_equal::value;
     static constexpr bool is_pocca_ = atraits_t_::propagate_on_container_copy_assignment::value;
     static constexpr bool is_pocma_ = atraits_t_::propagate_on_container_move_assignment::value;
@@ -1211,7 +1211,7 @@ class deque
     // 空deque安全，但执行后必须手动维护状态合法
     constexpr void destroy_elems_() noexcept
     {
-        if constexpr (!(::std::is_trivially_destructible_v<T> && is_default_operation_))
+        if constexpr (!(::std::is_trivially_destructible_v<T> && is_default_destroy_))
         {
             // 4种情况，0，1，2，3+个块有元素
             auto const block_size = block_elem_size_();
@@ -2855,7 +2855,7 @@ class deque
     constexpr void resize_shrink_(::std::size_t const old_size, ::std::size_t const new_size) noexcept
     {
         assert(old_size >= new_size);
-        if constexpr (::std::is_trivially_destructible_v<T> && is_default_operation_)
+        if constexpr (::std::is_trivially_destructible_v<T> && is_default_destroy_)
         {
             auto const res =
                 deque_detail::calc_pos<T>(static_cast<::std::size_t>(elem_begin_begin_ - elem_begin_first_), new_size);
