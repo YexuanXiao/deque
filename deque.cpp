@@ -7,4 +7,7 @@ import std;
 
 #define BIZWEN_MODULE
 
+export "C++"
+{
 #include "./deque.hpp"
+}
